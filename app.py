@@ -604,18 +604,20 @@ def enquire(listing_id):
         to_email = app.config["LEADS_NOTIFICATION_EMAIL"]
         if to_email:
             subject = f"New enquiry for listing #{listing.id}: {getattr(listing, 'name', 'Care Home')}"
-            html_body = f"""
-                <h2>New enquiry for listing #{listing.id}</h2>
-                <p><strong>Listing:</strong> {getattr(listing, 'name', '')}</p>
-                <p><strong>Region:</strong> {getattr(listing, 'region', '')}</p>
-                <p><strong>Buyer name:</strong> {buyer_name}</p>
-                <p><strong>Email:</strong> {buyer_email}</p>
-                <p><strong>Phone:</strong> {buyer_phone}</p>
-                <p><strong>Company:</strong> {buyer_company}</p>
-                <p><strong>Message:</strong></p>
-                <p>{message.replace('\n', '<br>')}</p>
-                <p><strong>Created at:</strong> {lead.created_at}</p>
-            """
+            safe_message_html = message.replace("\n", "<br>")
+
+        html_body = f"""
+            <h2>New enquiry for listing #{listing.id}</h2>
+            <p><strong>Listing:</strong> {getattr(listing, 'name', '')}</p>
+            <p><strong>Region:</strong> {getattr(listing, 'region', '')}</p>
+            <p><strong>Buyer name:</strong> {buyer_name}</p>
+            <p><strong>Email:</strong> {buyer_email}</p>
+            <p><strong>Phone:</strong> {buyer_phone}</p>
+            <p><strong>Company:</strong> {buyer_company}</p>
+            <p><strong>Message:</strong></p>
+            <p>{safe_message_html}</p>
+            <p><strong>Created at:</strong> {lead.created_at}</p>
+        """
             send_email(
                 to_addresses=to_email,
                 subject=subject,
