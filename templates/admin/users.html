@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}Admin – Users{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+  <h1 class="text-xl font-semibold text-kaijoYellow mb-1">User Management</h1>
+  <p class="text-xs text-white/70">View users and impersonate for troubleshooting.</p>
+</div>
+
+{% if users %}
+  <div class="bg-white/5 border border-white/10 rounded-lg backdrop-blur-sm overflow-hidden">
+    <table class="min-w-full text-xs">
+      <thead class="bg-white/5 text-white/70">
+        <tr>
+          <th class="px-4 py-2 text-left font-medium">Email</th>
+          <th class="px-4 py-2 text-left font-medium">Role</th>
+          <th class="px-4 py-2 text-left font-medium">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for u in users %}
+          <tr class="border-t border-white/10">
+            <td class="px-4 py-2 text-white/90">{{ u.email }}</td>
+            <td class="px-4 py-2 text-white/70">{{ u.role|title }}</td>
+            <td class="px-4 py-2">
+              {% if current_user.id == u.id %}
+                <span class="text-[11px] text-white/50">This is you</span>
+              {% else %}
+                <form method="post" action="{{ url_for('admin_impersonate', user_id=u.id) }}" class="inline">
+                  <button class="text-[11px] px-3 py-1 rounded border border-white/20 text-white/80 hover:bg-white/10 hover:text-kaijoYellow transition">
+                    Impersonate
+                  </button>
+                </form>
+              {% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% else %}
+  <p class="text-sm text-white/70">No users found.</p>
+{% endif %}
+{% endblock %}

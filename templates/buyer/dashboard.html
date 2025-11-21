@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% block title %}Buyer Dashboard{% endblock %}
+
+{% block content %}
+<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-3">
+  <div>
+    <h1 class="text-xl font-semibold text-kaijoYellow mb-1">Buyer Dashboard</h1>
+    <p class="text-xs text-white/70">Your enquiries and personalised recommendations</p>
+  </div>
+
+  <div class="flex gap-2">
+    <a href="{{ url_for('buyer_profile') }}"
+       class="text-xs border border-white/20 text-white/80 px-3 py-2 rounded hover:bg-white/10 hover:text-kaijoYellow transition">
+      Buyer Profile
+    </a>
+    <a href="{{ url_for('listings') }}"
+       class="text-xs border border-white/20 text-white/80 px-3 py-2 rounded hover:bg-white/10 hover:text-kaijoYellow transition">
+      Browse Listings
+    </a>
+  </div>
+</div>
+
+<div class="grid md:grid-cols-2 gap-6">
+
+  <!-- Recent Enquiries -->
+  <section class="bg-white/5 border border-white/10 rounded-lg p-4 space-y-3 backdrop-blur-sm">
+    <h2 class="text-sm font-semibold text-white mb-2">Your Recent Enquiries</h2>
+
+    {% if enquiries %}
+      <div class="divide-y divide-white/10">
+        {% for e in enquiries %}
+          <div class="py-3">
+            <p class="font-medium text-sm text-white">{{ e.listing.title }}</p>
+            <p class="text-[11px] text-white/50">
+              Ref: {{ e.listing.listing_code }} · {{ e.created_at.strftime('%d %b %Y') }}
+            </p>
+            <span class="inline-block mt-1 text-[11px] px-2 py-1 rounded
+                         {% if e.status == 'new' %} bg-kaijoPink/30 text-kaijoPink
+                         {% elif e.status == 'read' %} bg-white/10 text-white/70
+                         {% elif e.status == 'archived' %} bg-white/5 text-white/40
+                         {% endif %}">
+              {{ e.status|title }}
+            </span>
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <p class="text-xs text-white/70">You haven't sent any enquiries yet.</p>
+    {% endif %}
+  </section>
+
+  <!-- Recommendations -->
+  <section class="bg-white/5 border border-white/10 rounded-lg p-4 space-y-3 backdrop-blur-sm">
+    <h2 class="text-sm font-semibold text-white mb-2">Recommended For You</h2>
+
+    {% if recommendations %}
+      <div class="space-y-3">
+        {% for l in recommendations %}
+          <a href="{{ url_for('listing_detail', listing_id=l.id) }}"
+             class="block border border-white/10 rounded p-3 bg-black/30 hover:border-kaijoYellow/70 hover:shadow-lg hover:shadow-black/40 transition">
+            <p class="font-medium text-sm text-white mb-1">{{ l.title }}</p>
+            <p class="text-[11px] text-white/50">
+              Ref: {{ l.listing_code }}
+            </p>
+            <p class="text-xs text-white/60">
+              {{ l.region }} • {{ l.care_type }} • {{ l.beds or "?" }} beds
+            </p>
+            <p class="text-xs text-white/60">
+              Guide price:
+              <span class="text-kaijoYellow">
+                {{ l.guide_price_band or "On request" }}
+              </span>
+            </p>
+          </a>
+        {% endfor %}
+      </div>
+    {% else %}
+      <p class="text-xs text-white/70">No personalised recommendations yet.</p>
+    {% endif %}
+  </section>
+
+</div>
+{% endblock %}

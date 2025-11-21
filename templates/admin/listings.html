@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}Admin – Manage Listings{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+  <h1 class="text-xl font-semibold text-kaijoYellow mb-1">Manage Listings</h1>
+  <p class="text-xs text-white/70">Approve or archive listings across the platform</p>
+</div>
+
+{% if listings %}
+  <div class="space-y-4">
+    {% for l in listings %}
+      <div class="bg-white/5 border border-white/10 rounded-lg p-4 backdrop-blur-sm">
+
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+
+          <div>
+            <p class="text-[11px] text-white/50 font-mono">{{ l.listing_code }}</p>
+            <p class="font-semibold text-sm text-white">{{ l.title }}</p>
+            <p class="text-xs text-white/60 mt-0.5">
+              {{ l.region }} • {{ l.care_type }} • {{ l.beds or "?" }} beds
+            </p>
+
+            <span class="inline-block mt-2 px-2 py-1 text-[11px] rounded
+              {% if l.status == 'draft' %} bg-white/10 text-white/70
+              {% elif l.status == 'live' %} bg-green-600/30 text-green-300
+              {% elif l.status == 'under_offer' %} bg-yellow-600/30 text-kaijoYellow
+              {% elif l.status == 'sold' %} bg-kaijoPurple/40 text-kaijoPurple
+              {% elif l.status == 'archived' %} bg-white/5 text-white/40
+              {% endif %}">
+              {{ l.status|replace('_',' ')|title }}
+            </span>
+          </div>
+
+          <div class="flex flex-col gap-2 text-xs sm:w-40">
+
+            <form method="post" action="{{ url_for('admin_approve_listing', listing_id=l.id) }}">
+              <button class="w-full border border-white/20 px-3 py-1 rounded text-white/80 hover:bg-white/10 hover:text-kaijoYellow transition">
+                Approve (Make Live)
+              </button>
+            </form>
+
+            <form method="post" action="{{ url_for('admin_archive_listing', listing_id=l.id) }}">
+              <button class="w-full border border-white/20 px-3 py-1 rounded text-white/80 hover:bg-white/10 hover:text-kaijoPink transition">
+                Archive
+              </button>
+            </form>
+
+          </div>
+
+        </div>
+
+      </div>
+    {% endfor %}
+  </div>
+{% else %}
+  <p class="text-sm text-white/70">No listings found.</p>
+{% endif %}
+{% endblock %}

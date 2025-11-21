@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block title %}Buyer Profile{% endblock %}
+
+{% block content %}
+<div class="max-w-xl mx-auto">
+  <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
+    <div>
+      <h1 class="text-xl font-semibold text-kaijoYellow">Buyer Profile</h1>
+      <p class="text-xs text-white/70">Tune your preferences to improve matches</p>
+    </div>
+    <a href="{{ url_for('buyer_dashboard') }}"
+       class="text-xs border border-white/20 text-white/80 px-3 py-2 rounded hover:bg-white/10 hover:text-kaijoYellow transition">
+      ← Back
+    </a>
+  </div>
+
+  <form method="post"
+        class="bg-white/5 border border-white/10 rounded-lg p-5 space-y-4 backdrop-blur-sm">
+
+    <div>
+      <label class="text-xs text-white/70">Preferred Region</label>
+      <select name="region"
+              class="w-full border border-white/20 bg-black/40 text-sm text-white rounded px-3 py-2">
+        <option value="" {% if not profile or not profile.region %}selected{% endif %}>Any</option>
+        {% for r in ['North West','Midlands','South East','South West','London','Scotland'] %}
+          <option value="{{ r }}" {% if profile and profile.region == r %}selected{% endif %}>{{ r }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div>
+      <label class="text-xs text-white/70">Preferred Care Type</label>
+      <select name="care_type"
+              class="w-full border border-white/20 bg-black/40 text-sm text-white rounded px-3 py-2">
+        <option value="" {% if not profile or not profile.care_type %}selected{% endif %}>Any</option>
+        <option value="Elderly" {% if profile and profile.care_type == 'Elderly' %}selected{% endif %}>Elderly</option>
+        <option value="LD" {% if profile and profile.care_type == 'LD' %}selected{% endif %}>Learning Disabilities</option>
+        <option value="MH" {% if profile and profile.care_type == 'MH' %}selected{% endif %}>Mental Health</option>
+        <option value="Children" {% if profile and profile.care_type == 'Children' %}selected{% endif %}>Children</option>
+      </select>
+    </div>
+
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <div>
+        <label class="text-xs text-white/70">Minimum Price Band</label>
+        <select name="min_price_band"
+                class="w-full border border-white/20 bg-black/40 text-sm text-white rounded px-3 py-2">
+          <option value="" {% if not profile or not profile.min_price_band %}selected{% endif %}>No minimum</option>
+          {% for b in ['<£500k','£500k–£1m','£1m–£3m','£3m+'] %}
+            <option value="{{ b }}" {% if profile and profile.min_price_band == b %}selected{% endif %}>{{ b }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div>
+        <label class="text-xs text-white/70">Maximum Price Band</label>
+        <select name="max_price_band"
+                class="w-full border border-white/20 bg-black/40 text-sm text-white rounded px-3 py-2">
+          <option value="" {% if not profile or not profile.max_price_band %}selected{% endif %}>No maximum</option>
+          {% for b in ['<£500k','£500k–£1m','£1m–£3m','£3m+'] %}
+            <option value="{{ b }}" {% if profile and profile.max_price_band == b %}selected{% endif %}>{{ b }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+
+    <div>
+      <label class="text-xs text-white/70">Experience Level</label>
+      <select name="experience_level"
+              class="w-full border border-white/20 bg-black/40 text-sm text-white rounded px-3 py-2">
+        <option value="" {% if not profile or not profile.experience_level %}selected{% endif %}>Select</option>
+        {% for lvl in ['First-time buyer','Existing provider','Investor','Other'] %}
+          <option value="{{ lvl }}" {% if profile and profile.experience_level == lvl %}selected{% endif %}>{{ lvl }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <button
+      class="w-full bg-kaijoPink text-white text-sm rounded py-2 hover:bg-kaijoYellow hover:text-black transition">
+      Save Profile
+    </button>
+  </form>
+</div>
+{% endblock %}

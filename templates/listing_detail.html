@@ -1,0 +1,201 @@
+{% extends "base.html" %}
+{% block title %}Listing – {{ listing.title }}{% endblock %}
+
+{% block content %}
+
+{# Decide which image to use as the main hero #}
+{% if listing.photos and listing.photos|length > 0 %}
+  {% set main_photo = listing.photos[0].filename %}
+{% elif listing.photo_filename %}
+  {% set main_photo = listing.photo_filename %}
+{% else %}
+  {% set main_photo = None %}
+{% endif %}
+
+<div class="space-y-6">
+
+  <!-- HERO CARD -->
+  <section class="rounded-xl border border-white/10 bg-black/30 backdrop-blur-sm overflow-hidden shadow-[0_0_35px_rgba(0,0,0,0.6)]">
+
+    {% if main_photo %}
+      <div class="w-full h-52 sm:h-64 md:h-72 lg:h-80 overflow-hidden">
+        <img src="{{ url_for('static', filename='uploads/' ~ main_photo) }}"
+             alt="{{ listing.title }}"
+             class="w-full h-full object-cover">
+      </div>
+    {% endif %}
+
+    <!-- Thumbnails + Title -->
+    <div class="p-4 sm:p-6">
+      {% if listing.photos and listing.photos|length > 1 %}
+        <div class="flex flex-wrap gap-2 mb-4">
+          {% for photo in listing.photos %}
+            <div class="w-16 h-16 rounded overflow-hidden border border-white/10">
+              <img src="{{ url_for('static', filename='uploads/' ~ photo.filename) }}"
+                   alt="{{ listing.title }} photo {{ loop.index }}"
+                   class="w-full h-full object-cover">
+            </div>
+          {% endfor %}
+        </div>
+      {% endif %}
+
+      <div class="flex flex-col sm:flex-row sm:items-baseline sm:justify-between gap-2">
+        <div>
+          <p class="text-[11px] font-mono text-white/50 mb-1">
+            Ref: {{ listing.listing_code or "Pending" }}
+          </p>
+          <h1 class="text-xl sm:text-2xl font-semibold text-white">
+            {{ listing.title }}
+          </h1>
+        </div>
+        <div class="flex items-center gap-2 text-[11px]">
+          <span class="px-2 py-1 rounded-full border border-white/15 text-white/70">
+            {{ listing.region or "Region tbc" }}
+          </span>
+          <span class="px-2 py-1 rounded-full border border-white/15 text-white/70">
+            {{ listing.care_type or "Care type tbc" }}
+          </span>
+        </div>
+      </div>
+
+      {% if listing.short_description %}
+        <p class="mt-3 text-sm text-white/80 max-w-3xl">
+          {{ listing.short_description }}
+        </p>
+      {% endif %}
+    </div>
+  </section>
+
+  <!-- DETAILS CARD -->
+  <section class="rounded-xl border border-white/10 bg-black/40 backdrop-blur-sm p-4 sm:p-6">
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm text-white/85">
+      <div>
+        <p class="text-[11px] uppercase tracking-wide text-white/50 mb-1">Region</p>
+        <p>{{ listing.region or "Not specified" }}</p>
+      </div>
+      <div>
+        <p class="text-[11px] uppercase tracking-wide text-white/50 mb-1">Care type</p>
+        <p>{{ listing.care_type or "Not specified" }}</p>
+      </div>
+      <div>
+        <p class="text-[11px] uppercase tracking-wide text-white/50 mb-1">Beds</p>
+        <p>{{ listing.beds or "Not specified" }}</p>
+      </div>
+
+      <div>
+        <p class="text-[11px] uppercase tracking-wide text-white/50 mb-1">Occupancy</p>
+        <p>
+          {% if listing.occupancy_percent %}
+            {{ listing.occupancy_percent }}%
+          {% else %}
+            Not specified
+          {% endif %}
+        </p>
+      </div>
+      <div>
+        <p class="text-[11px] uppercase tracking-wide text-white/50 mb-1">CQC Rating</p>
+        <p>{{ listing.cqc_rating or "Not specified" }}</p>
+      </div>
+      <div>
+        <p class="text-[11px] uppercase tracking-wide text-white/50 mb-1">Tenure</p>
+        <p>{{ listing.tenure or "Not specified" }}</p>
+      </div>
+
+      <div>
+        <p class="text-[11px] uppercase tracking-wide text-white/50 mb-1">Revenue band</p>
+        <p>{{ listing.revenue_band or "On request" }}</p>
+      </div>
+      <div>
+        <p class="text-[11px] uppercase tracking-wide text-white/50 mb-1">EBITDA band</p>
+        <p>{{ listing.ebitda_band or "On request" }}</p>
+      </div>
+      <div>
+        <p class="text-[11px] uppercase tracking-wide text-white/50 mb-1">Guide price</p>
+        <p class="text-kaijoYellow font-medium">
+          {{ listing.guide_price_band or "On request" }}
+        </p>
+      </div>
+    </div>
+
+    {% if listing.is_confidential %}
+      <p class="mt-4 text-[11px] text-white/60 flex items-center gap-1">
+        <span class="inline-block w-2 h-2 rounded-full bg-kaijoPink"></span>
+        This is a confidential listing. Further details are provided after NDA and seller approval.
+      </p>
+    {% endif %}
+  </section>
+
+  <!-- ENQUIRY PANEL -->
+  <section class="rounded-xl border border-white/10 bg-black/40 backdrop-blur-sm p-4 sm:p-6">
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+      <div>
+        <h2 class="text-lg font-semibold text-white">Send an enquiry</h2>
+        <p class="text-xs text-white/65 mt-1">
+          Introduce yourself, outline your experience and your interest in this opportunity.
+        </p>
+      </div>
+
+      <a href="{{ url_for('listings') }}"
+         class="text-[11px] px-3 py-2 rounded border border-white/25 text-white/80 hover:bg-white/10 hover:text-kaijoYellow transition">
+        ← Back to listings
+      </a>
+    </div>
+
+    {% if not current_user.is_authenticated or current_user.role != 'buyer' %}
+      <div class="bg-black/40 border border-white/10 rounded-lg p-4 text-sm text-white/80">
+        <p class="mb-3">
+          You must be logged in as a <span class="font-semibold">buyer</span> to send an enquiry on this listing.
+        </p>
+        <div class="flex flex-wrap gap-2 text-xs">
+          <a href="{{ url_for('login') }}"
+             class="px-3 py-2 rounded bg-kaijoPink text-white hover:bg-kaijoYellow hover:text-black transition">
+            Login as buyer
+          </a>
+          <a href="{{ url_for('register_buyer') }}"
+             class="px-3 py-2 rounded border border-white/25 text-white/80 hover:bg-white/10 hover:text-kaijoYellow transition">
+            Create buyer account
+          </a>
+        </div>
+      </div>
+    {% else %}
+      <form method="post"
+            class="bg-black/50 border border-white/10 rounded-lg p-4 sm:p-5 space-y-4">
+
+        {% if not nda_already_accepted %}
+          <label class="text-xs flex items-start gap-2 text-white/80">
+            <input type="checkbox" name="nda_accepted" value="1"
+                   class="mt-0.5 rounded border-white/40 bg-transparent" required>
+            <span>
+              I agree to treat all information shared about this opportunity as confidential,
+              and not to disclose or use it outside an agreed transaction process.
+            </span>
+          </label>
+        {% else %}
+          <p class="text-[11px] text-white/60">
+            You have already accepted confidentiality terms for this listing.
+          </p>
+        {% endif %}
+
+        <div>
+          <label class="block text-xs text-white/70 mb-1">Message</label>
+          <textarea name="message" rows="4"
+                    class="w-full border border-white/20 bg-black/40 rounded text-sm px-2 py-2 text-white placeholder:text-white/40"
+                    placeholder="Introduce yourself, your experience in care, funding position and why this service is of interest..."
+                    required></textarea>
+        </div>
+        <a
+  href="{{ url_for('enquire', listing_id=listing.id) }}"
+  class="inline-flex items-center px-4 py-2 rounded bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700"
+>
+  Request details / Arrange viewing
+</a>
+
+        <button class="inline-flex items-center justify-center px-5 py-2.5 text-sm rounded bg-kaijoPink text-white hover:bg-kaijoYellow hover:text-black transition">
+          Send enquiry
+        </button>
+      </form>
+    {% endif %}
+  </section>
+
+</div>
+{% endblock %}

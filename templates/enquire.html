@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block title %}Enquiry – {{ listing.name or "Care Home" }}{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto py-8">
+  <h1 class="text-2xl font-semibold mb-2">Enquire about this care home</h1>
+  <p class="text-gray-600 mb-6">
+    {{ listing.name }}{% if listing.region %} · {{ listing.region }}{% endif %}
+  </p>
+
+  <form method="post" class="space-y-4">
+
+    <div>
+      <label class="block text-sm font-medium mb-1" for="buyer_name">Your name *</label>
+      <input
+        type="text"
+        id="buyer_name"
+        name="buyer_name"
+        value="{{ form_data.get('buyer_name', '') }}"
+        class="w-full border rounded px-3 py-2 text-gray-900"
+        required
+      >
+    </div>
+
+    <div>
+      <label class="block text-sm font-medium mb-1" for="buyer_email">Email *</label>
+      <input
+        type="email"
+        id="buyer_email"
+        name="buyer_email"
+        value="{{ form_data.get('buyer_email', '') }}"
+        class="w-full border rounded px-3 py-2 text-gray-900"
+        required
+      >
+    </div>
+
+    <div>
+      <label class="block text-sm font-medium mb-1" for="buyer_phone">Phone</label>
+      <input
+        type="text"
+        id="buyer_phone"
+        name="buyer_phone"
+        value="{{ form_data.get('buyer_phone', '') }}"
+        class="w-full border rounded px-3 py-2 text-gray-900"
+      >
+    </div>
+
+    <div>
+      <label class="block text-sm font-medium mb-1" for="buyer_company">Company</label>
+      <input
+        type="text"
+        id="buyer_company"
+        name="buyer_company"
+        value="{{ form_data.get('buyer_company', '') }}"
+        class="w-full border rounded px-3 py-2 text-gray-900"
+      >
+    </div>
+
+    <div>
+      <label class="block text-sm font-medium mb-1" for="message">Message *</label>
+      <textarea
+        id="message"
+        name="message"
+        rows="5"
+        class="w-full border rounded px-3 py-2 text-gray-900"
+        required
+      >{{ form_data.get('message', '') }}</textarea>
+      <p class="text-xs text-gray-500 mt-1">
+        Include anything helpful, e.g. preferred viewing times, funding position, or whether you’ve seen the home already.
+      </p>
+    </div>
+
+    <div class="flex items-center justify-between mt-6">
+      <a href="{{ url_for('listing_detail', listing_id=listing.id) }}" class="text-sm text-gray-600 hover:underline">
+        ← Back to listing
+      </a>
+      <button
+        type="submit"
+        class="px-4 py-2 rounded bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700"
+      >
+        Send enquiry
+      </button>
+    </div>
+  </form>
+</div>
+{% endblock %}

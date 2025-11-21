@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}My Shortlist{% endblock %}
+
+{% block content %}
+<div class="max-w-5xl mx-auto space-y-4">
+  <header class="mb-2">
+    <h1 class="text-2xl font-semibold text-white">My Shortlist</h1>
+    <p class="text-sm text-white/70">
+      Care homes you’ve saved while browsing listings.
+    </p>
+  </header>
+
+  {% if listings %}
+    <div class="space-y-4">
+      {% for l in listings %}
+        <a href="{{ url_for('listing_detail', listing_id=l.id) }}"
+           class="block rounded-xl border border-white/10 bg-black/30 backdrop-blur-sm p-5
+                  hover:border-kaijoYellow/40 hover:bg-black/40 transition
+                  shadow-[0_0_20px_rgba(0,0,0,0.5)] hover:shadow-[0_0_35px_rgba(0,0,0,0.7)]">
+
+          <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div class="flex-1">
+              <p class="text-[11px] font-mono text-white/50 mb-2">{{ l.listing_code }}</p>
+              <p class="font-semibold text-white text-lg">{{ l.title }}</p>
+              <p class="text-sm text-white/80 mt-1">
+                {{ l.region or "Region" }} •
+                {{ l.care_type or "Care type" }} •
+                {{ l.beds or "?" }} beds
+              </p>
+              <p class="text-sm text-kaijoYellow mt-1">
+                Guide price: {{ l.guide_price_band or "On request" }}
+              </p>
+            </div>
+
+            {% set cover_photo = None %}
+            {% if l.photos and l.photos|length > 0 %}
+              {% for p in l.photos %}
+                {% if p.is_cover %}
+                  {% set cover_photo = p.filename %}
+                {% endif %}
+              {% endfor %}
+              {% if not cover_photo %}
+                {% set cover_photo = l.photos[0].filename %}
+              {% endif %}
+            {% elif l.photo_filename %}
+              {% set cover_photo = l.photo_filename %}
+            {% endif %}
+
+            {% if cover_photo %}
+              <div class="w-full sm:w-40 h-28 rounded-lg overflow-hidden border border-white/10 shrink-0 group">
+                <img src="{{ url_for('static', filename='uploads/' ~ cover_photo) }}"
+                     alt="{{ l.title }}"
+                     class="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-300">
+              </div>
+            {% endif %}
+          </div>
+        </a>
+      {% endfor %}
+    </div>
+  {% else %}
+    <p class="text-sm text-white/60">
+      Your shortlist is empty. Browse the
+      <a href="{{ url_for('listings') }}" class="underline text-kaijoYellow hover:text-kaijoPink">live listings</a>
+      and tap the ♥ icon to save opportunities.
+    </p>
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}Login{% endblock %}
+
+{% block content %}
+<div class="max-w-md mx-auto">
+  <h1 class="text-xl font-semibold text-kaijoYellow mb-3">Login</h1>
+
+  <form method="post"
+        class="bg-white/5 border border-white/10 rounded-lg p-5 space-y-4 backdrop-blur-sm shadow-[0_0_20px_rgba(0,0,0,0.35)]">
+    <div>
+      <label class="block text-xs text-white/70 mb-1">Email</label>
+      <input type="email" name="email" required
+             class="w-full border border-white/20 bg-black/40 text-sm text-white rounded px-3 py-2 placeholder:text-white/40"
+             placeholder="you@example.com">
+    </div>
+
+    <div>
+      <label class="block text-xs text-white/70 mb-1">Password</label>
+      <input type="password" name="password" required
+             class="w-full border border-white/20 bg-black/40 text-sm text-white rounded px-3 py-2 placeholder:text-white/40"
+             placeholder="••••••••">
+    </div>
+
+    <button
+      class="w-full bg-kaijoPink text-white text-sm rounded py-2 hover:bg-kaijoYellow hover:text-black transition">
+      Login
+    </button>
+  </form>
+
+  <div class="mt-4 text-[11px] text-white/70 space-y-1">
+    <p>New to the platform?</p>
+    <p>
+      <a href="{{ url_for('register_buyer') }}" class="text-kaijoYellow hover:underline">Register as buyer</a>
+      or
+      <a href="{{ url_for('register_seller') }}" class="text-kaijoYellow hover:underline">register as seller</a>.
+    </p>
+  </div>
+</div>
+{% endblock %}
