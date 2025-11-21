@@ -1,0 +1,51 @@
+# ---------------------------
+# Python
+# ---------------------------
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pyc
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+
+# ---------------------------
+# Flask / App specific
+# ---------------------------
+
+# Local secrets
+.env
+*.env
+
+# SQLite database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Uploaded images
+static/uploads/
+
+# Byte-compiled / temp files
+instance/
+*.log
+
+# ---------------------------
+# OS / Editor junk
+# ---------------------------
+
+# macOS
+.DS_Store
+
+# Windows
+Thumbs.db
+
+# vscode
+.vscode/
+*.code-workspace
+
+# PyCharm
+.idea/
