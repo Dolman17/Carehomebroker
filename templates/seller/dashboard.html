@@ -1,101 +1,115 @@
 {% extends "base.html" %}
-{% block title %}Seller Dashboard{% endblock %}
+{% block title %}Seller Dashboard – Care Home Broker{% endblock %}
 
 {% block content %}
-<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-3">
-  <div>
-    <h1 class="text-xl font-semibold text-kaijoYellow mb-1">Seller Dashboard</h1>
-    <p class="text-xs text-white/70">Manage your listings & enquiries</p>
+<div class="max-w-5xl mx-auto text-white py-6">
+
+  <!-- Header -->
+  <div class="flex items-center justify-between mb-4">
+    <div>
+      <h1 class="text-2xl font-semibold">Seller Dashboard</h1>
+      <p class="text-sm text-white/70">
+        Manage your profile and listings in the Kaijo Care Home Broker marketplace.
+      </p>
+    </div>
+    <a href="{{ url_for('seller_profile') }}"
+       class="hidden sm:inline-flex items-center px-4 py-2 rounded bg-kaijoPink text-white text-xs font-semibold hover:bg-kaijoYellow hover:text-black transition">
+      Edit seller profile
+    </a>
   </div>
 
-  <a href="{{ url_for('seller_new_listing') }}"
-     class="text-xs bg-kaijoPink text-white px-3 py-2 rounded hover:bg-kaijoYellow hover:text-black transition">
-    + New Listing
-  </a>
-</div>
-
-{% if listings %}
-  <div class="space-y-4">
-    {% for l in listings %}
-      <div class="bg-white/5 border border-white/10 backdrop-blur-sm rounded-lg p-4 space-y-3 shadow-[0_0_20px_rgba(0,0,0,0.35)]">
-
-        <div class="flex gap-3">
-
-          {# Cover photo #}
-          {% set cover = l.photos|selectattr('is_cover')|list|first %}
-          {% if not cover and l.photos %}
-            {% set cover = l.photos[0] %}
-          {% endif %}
-
-          {% if cover %}
-            <img src="{{ url_for('static', filename='uploads/' ~ cover.filename) }}"
-                 class="w-20 h-16 object-cover rounded border border-white/20">
-          {% endif %}
-
-          <div class="flex-1 flex flex-col sm:flex-row sm:items-center sm:justify-between">
-
-            <div>
-              <p class="text-xs text-white/40 font-mono">{{ l.listing_code }}</p>
-              <p class="font-semibold text-sm text-white">{{ l.title }}</p>
-              <p class="text-xs text-white/60">
-                {{ l.region }} • {{ l.care_type }} • {{ l.beds or "?" }} beds
-              </p>
-
-              {% if l.photos|length > 1 %}
-                <p class="text-[11px] text-white/50 mt-1">
-                  {{ l.photos|length }} photos
-                </p>
-              {% endif %}
-            </div>
-
-            <div class="mt-2 sm:mt-0 flex flex-col items-start sm:items-end">
-
-              <span class="px-2 py-1 text-[11px] rounded
-                {% if l.status == 'draft' %} bg-white/10 text-white/70
-                {% elif l.status == 'live' %} bg-green-600/30 text-green-300
-                {% elif l.status == 'under_offer' %} bg-yellow-600/30 text-kaijoYellow
-                {% elif l.status == 'sold' %} bg-kaijoPurple/40 text-kaijoPurple
-                {% endif %}">
-                {{ l.status|replace('_',' ')|title }}
-              </span>
-
-              <p class="text-[11px] text-white/50 mt-1">
-                {{ l.total_enquiries }} enquiries
-              </p>
-            </div>
-
+  <!-- Profile completion banner -->
+  {% if profile_incomplete %}
+    <div class="mb-5 rounded-lg border border-kaijoYellow/70 bg-black/30 px-4 py-3 text-xs">
+      <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+        <div>
+          <div class="font-semibold text-kaijoYellow mb-1">
+            Complete your seller profile
           </div>
+          <p class="text-white/80">
+            Add your organisation details and headline financials so we can position your
+            opportunity clearly for buyers and investors.
+          </p>
         </div>
-
-        <!-- BUTTONS -->
-        <div class="flex flex-wrap gap-2 text-xs">
-
-          <a href="{{ url_for('seller_edit_listing', listing_id=l.id) }}"
-             class="border border-white/20 text-white/80 px-3 py-1 rounded hover:bg-white/10 hover:text-kaijoYellow transition">
-            Edit
+        <div class="flex-shrink-0">
+          <a href="{{ url_for('seller_profile') }}"
+             class="inline-flex items-center px-3 py-1.5 rounded bg-kaijoPink text-white text-[11px] font-semibold hover:bg-kaijoYellow hover:text-black transition">
+            Complete profile
           </a>
-
-          {% for status,label in [
-            ('draft','Mark Draft'),
-            ('live','Mark Live'),
-            ('under_offer','Under Offer'),
-            ('sold','Sold')
-          ] %}
-          <form method="post" action="{{ url_for('seller_update_listing_status', listing_id=l.id) }}">
-            <input type="hidden" name="status" value="{{ status }}">
-            <button
-              class="border border-white/20 text-white/80 px-3 py-1 rounded hover:bg-white/10 hover:text-kaijoPink transition">
-              {{ label }}
-            </button>
-          </form>
-          {% endfor %}
-
         </div>
-
       </div>
-    {% endfor %}
+    </div>
+  {% endif %}
+
+  <!-- Quick actions -->
+  <div class="mb-5 flex flex-wrap items-center gap-2 text-xs">
+    <a href="{{ url_for('seller_new_listing') }}"
+       class="inline-flex items-center px-3 py-2 rounded bg-kaijoYellow text-black font-semibold hover:bg-white hover:text-black transition">
+      + Create new listing
+    </a>
+    <a href="{{ url_for('seller_profile') }}"
+       class="inline-flex items-center px-3 py-2 rounded border border-white/20 text-white/80 hover:bg-white/10 hover:text-kaijoYellow transition">
+      View / edit seller profile
+    </a>
   </div>
-{% else %}
-  <p class="text-sm text-white/70">You have no listings yet.</p>
-{% endif %}
+
+  <!-- Listings section -->
+  <div class="rounded-lg border border-white/10 bg-white/5 p-4">
+    <div class="flex items-center justify-between mb-3">
+      <h2 class="text-sm font-semibold text-white">Your listings</h2>
+      <span class="text-[11px] text-white/60">
+        {{ listings|length }} active record{{ '' if listings|length == 1 else 's' }}
+      </span>
+    </div>
+
+    {% if listings %}
+      <div class="space-y-3">
+        {% for l in listings %}
+          <div class="rounded border border-white/10 bg-black/30 px-3 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-xs">
+            <div>
+              <p class="text-[11px] font-mono text-white/50 mb-0.5">
+                {{ l.listing_code }}
+              </p>
+              <p class="font-semibold text-sm text-white">
+                {{ l.title }}
+              </p>
+              <p class="text-white/60">
+                {{ l.region or 'Region tbc' }} •
+                {{ l.care_type or 'Care type tbc' }} •
+                {{ l.beds or '?' }} beds
+              </p>
+              <p class="text-white/50 mt-0.5">
+                Status:
+                <span class="text-white">
+                  {{ l.status.replace('_', ' ').title() }}
+                </span>
+                · Enquiries:
+                <span class="text-white">
+                  {{ l.total_enquiries or 0 }}
+                </span>
+              </p>
+            </div>
+
+            <div class="flex flex-wrap gap-2 justify-end">
+              <a href="{{ url_for('listing_detail', listing_id=l.id) }}"
+                 class="px-3 py-1.5 rounded border border-white/20 text-white/80 hover:bg-white/10">
+                View
+              </a>
+              <a href="{{ url_for('seller_edit_listing', listing_id=l.id) }}"
+                 class="px-3 py-1.5 rounded bg-kaijoPink text-white hover:bg-kaijoYellow hover:text-black">
+                Edit
+              </a>
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <p class="text-xs text-white/70">
+        You don’t have any listings yet. Start by creating a new listing and we’ll guide you
+        through the basics.
+      </p>
+    {% endif %}
+  </div>
+
+</div>
 {% endblock %}

@@ -1,83 +1,123 @@
 {% extends "base.html" %}
-{% block title %}Buyer Dashboard{% endblock %}
+{% block title %}Buyer dashboard{% endblock %}
 
 {% block content %}
-<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-3">
+<div class="flex justify-between items-center mb-4">
   <div>
-    <h1 class="text-xl font-semibold text-kaijoYellow mb-1">Buyer Dashboard</h1>
-    <p class="text-xs text-white/70">Your enquiries and personalised recommendations</p>
+    <h1 class="text-xl font-semibold">Buyer dashboard</h1>
+    <p class="text-xs text-slate-400">Track your enquiries and discover new opportunities.</p>
   </div>
-
-  <div class="flex gap-2">
-    <a href="{{ url_for('buyer_profile') }}"
-       class="text-xs border border-white/20 text-white/80 px-3 py-2 rounded hover:bg-white/10 hover:text-kaijoYellow transition">
-      Buyer Profile
-    </a>
-    <a href="{{ url_for('listings') }}"
-       class="text-xs border border-white/20 text-white/80 px-3 py-2 rounded hover:bg-white/10 hover:text-kaijoYellow transition">
-      Browse Listings
-    </a>
-  </div>
+  <a href="{{ url_for('buyer_listings') }}"
+     class="text-[11px] px-3 py-2 rounded bg-blue-600 hover:bg-blue-500">
+    Browse listings
+  </a>
 </div>
 
+{% set is_premium = has_active_subscription(current_user, 'buyer', 'premium') %}
+{% if not is_premium %}
+  <div class="mb-4 rounded-lg border border-amber-500/60 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-100">
+    <div class="flex justify-between items-center gap-2">
+      <div>
+        <strong class="font-semibold">Upgrade to Buyer Premium.</strong>
+        <span class="ml-1">
+          Unlock full listing details, direct introductions via the broker, and weekly deal digests.
+        </span>
+      </div>
+      <a href="{{ url_for('pricing') }}#buyer"
+         class="hidden sm:inline px-3 py-1 rounded bg-amber-500 text-slate-900 font-semibold">
+        View plans
+      </a>
+    </div>
+  </div>
+{% endif %}
+
+{% if not buyer_profile_complete %}
+  <div class="mb-4 rounded border border-kaijoYellow/60 bg-black/40 px-4 py-3 text-xs text-kaijoYellow">
+    <div class="font-semibold mb-1">Complete your buyer profile</div>
+    <p class="text-white/80 mb-2">
+      A fuller profile helps us match you to the right opportunities and is required for Premium access.
+    </p>
+    <a href="{{ url_for('buyer_profile') }}"
+       class="inline-flex items-center px-3 py-1.5 rounded bg-kaijoPink text-white text-[11px] hover:bg-kaijoYellow hover:text-black transition">
+      Update buyer profile
+    </a>
+  </div>
+{% endif %}
+
+
+
 <div class="grid md:grid-cols-2 gap-6">
-
-  <!-- Recent Enquiries -->
-  <section class="bg-white/5 border border-white/10 rounded-lg p-4 space-y-3 backdrop-blur-sm">
-    <h2 class="text-sm font-semibold text-white mb-2">Your Recent Enquiries</h2>
-
+  <!-- Recent enquiries -->
+  <section class="border border-slate-800 rounded-xl bg-slate-900/60 p-4">
+    <h2 class="text-sm font-semibold mb-3">Recent enquiries</h2>
     {% if enquiries %}
-      <div class="divide-y divide-white/10">
+      <ul class="space-y-3 text-xs">
         {% for e in enquiries %}
-          <div class="py-3">
-            <p class="font-medium text-sm text-white">{{ e.listing.title }}</p>
-            <p class="text-[11px] text-white/50">
-              Ref: {{ e.listing.listing_code }} · {{ e.created_at.strftime('%d %b %Y') }}
+          <li class="border border-slate-800 rounded-lg px-3 py-2">
+            <p class="font-medium text-slate-100">
+              {{ e.listing.title }} <span class="text-[10px] text-slate-500">({{ e.listing.listing_code }})</span>
             </p>
-            <span class="inline-block mt-1 text-[11px] px-2 py-1 rounded
-                         {% if e.status == 'new' %} bg-kaijoPink/30 text-kaijoPink
-                         {% elif e.status == 'read' %} bg-white/10 text-white/70
-                         {% elif e.status == 'archived' %} bg-white/5 text-white/40
-                         {% endif %}">
-              {{ e.status|title }}
-            </span>
-          </div>
+            <p class="text-[11px] text-slate-400 mb-1">
+              {{ e.listing.region or "Region tbc" }} • {{ e.listing.care_type or "Care type tbc" }}
+            </p>
+            <p class="text-[11px] text-slate-400 line-clamp-2">{{ e.message }}</p>
+          </li>
         {% endfor %}
-      </div>
+      </ul>
     {% else %}
-      <p class="text-xs text-white/70">You haven't sent any enquiries yet.</p>
+      <p class="text-xs text-slate-400">You haven’t sent any enquiries yet.</p>
     {% endif %}
   </section>
 
-  <!-- Recommendations -->
-  <section class="bg-white/5 border border-white/10 rounded-lg p-4 space-y-3 backdrop-blur-sm">
-    <h2 class="text-sm font-semibold text-white mb-2">Recommended For You</h2>
+  <!-- Recommendations + shortlist -->
+  <section class="space-y-4">
+    <div class="border border-slate-800 rounded-xl bg-slate-900/60 p-4">
+      <h2 class="text-sm font-semibold mb-3">Recommended listings</h2>
+      {% if recommendations %}
+        <ul class="space-y-3 text-xs">
+          {% for l in recommendations %}
+            <li class="border border-slate-800 rounded-lg px-3 py-2 hover:border-blue-500/60 hover:bg-slate-900/80">
+              <a href="{{ url_for('listing_detail', listing_id=l.id) }}">
+                <p class="font-medium text-slate-100">{{ l.title }}</p>
+                <p class="text-[11px] text-slate-400">
+                  {{ l.region or "Region tbc" }} • {{ l.care_type or "Care type tbc" }}
+                  {% if l.beds %} • {{ l.beds }} beds{% endif %}
+                </p>
+              </a>
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p class="text-xs text-slate-400">
+          No matches yet. Update your buyer profile to get tailored opportunities.
+        </p>
+      {% endif %}
+    </div>
 
-    {% if recommendations %}
-      <div class="space-y-3">
-        {% for l in recommendations %}
-          <a href="{{ url_for('listing_detail', listing_id=l.id) }}"
-             class="block border border-white/10 rounded p-3 bg-black/30 hover:border-kaijoYellow/70 hover:shadow-lg hover:shadow-black/40 transition">
-            <p class="font-medium text-sm text-white mb-1">{{ l.title }}</p>
-            <p class="text-[11px] text-white/50">
-              Ref: {{ l.listing_code }}
-            </p>
-            <p class="text-xs text-white/60">
-              {{ l.region }} • {{ l.care_type }} • {{ l.beds or "?" }} beds
-            </p>
-            <p class="text-xs text-white/60">
-              Guide price:
-              <span class="text-kaijoYellow">
-                {{ l.guide_price_band or "On request" }}
-              </span>
-            </p>
-          </a>
-        {% endfor %}
+    <div class="border border-slate-800 rounded-xl bg-slate-900/60 p-4">
+      <div class="flex items-center justify-between mb-2">
+        <h2 class="text-sm font-semibold">Shortlist</h2>
+        <a href="{{ url_for('buyer_shortlist') }}" class="text-[11px] text-blue-400 hover:text-blue-300">
+          View shortlist →
+        </a>
       </div>
-    {% else %}
-      <p class="text-xs text-white/70">No personalised recommendations yet.</p>
-    {% endif %}
+      {% if shortlist_listings %}
+        <ul class="space-y-2 text-xs">
+          {% for l in shortlist_listings %}
+            <li>
+              <a href="{{ url_for('listing_detail', listing_id=l.id) }}"
+                 class="text-slate-100 hover:text-blue-300">
+                {{ l.listing_code }} – {{ l.title }}
+              </a>
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p class="text-xs text-slate-400">
+          Shortlist listings from the main listings page to keep an eye on them.
+        </p>
+      {% endif %}
+    </div>
   </section>
-
 </div>
 {% endblock %}

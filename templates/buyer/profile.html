@@ -1,84 +1,321 @@
 {% extends "base.html" %}
-{% block title %}Buyer Profile{% endblock %}
+{% block title %}Buyer Profile – Care Home Broker{% endblock %}
 
 {% block content %}
-<div class="max-w-xl mx-auto">
-  <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
+<div class="max-w-4xl mx-auto py-6 text-white">
+
+  <div class="flex items-center justify-between mb-4">
     <div>
-      <h1 class="text-xl font-semibold text-kaijoYellow">Buyer Profile</h1>
-      <p class="text-xs text-white/70">Tune your preferences to improve matches</p>
+      <h1 class="text-xl font-semibold">Buyer Profile</h1>
+      <p class="text-xs text-white/70">
+        Tell us what you’re looking to acquire so we can match you to the right opportunities.
+      </p>
     </div>
     <a href="{{ url_for('buyer_dashboard') }}"
-       class="text-xs border border-white/20 text-white/80 px-3 py-2 rounded hover:bg-white/10 hover:text-kaijoYellow transition">
-      ← Back
+       class="text-[11px] border border-white/30 text-white/80 px-3 py-1.5 rounded hover:bg-white/10 transition">
+      ← Back to dashboard
     </a>
   </div>
 
-  <form method="post"
-        class="bg-white/5 border border-white/10 rounded-lg p-5 space-y-4 backdrop-blur-sm">
+  <form method="post" class="space-y-6">
 
-    <div>
-      <label class="text-xs text-white/70">Preferred Region</label>
-      <select name="region"
-              class="w-full border border-white/20 bg-black/40 text-sm text-white rounded px-3 py-2">
-        <option value="" {% if not profile or not profile.region %}selected{% endif %}>Any</option>
-        {% for r in ['North West','Midlands','South East','South West','London','Scotland'] %}
-          <option value="{{ r }}" {% if profile and profile.region == r %}selected{% endif %}>{{ r }}</option>
-        {% endfor %}
-      </select>
-    </div>
+    <!-- BASIC DETAILS -->
+    <section class="rounded-lg border border-white/10 bg-black/30 p-4">
+      <h2 class="text-sm font-semibold mb-3 text-kaijoYellow">Basic details</h2>
 
-    <div>
-      <label class="text-xs text-white/70">Preferred Care Type</label>
-      <select name="care_type"
-              class="w-full border border-white/20 bg-black/40 text-sm text-white rounded px-3 py-2">
-        <option value="" {% if not profile or not profile.care_type %}selected{% endif %}>Any</option>
-        <option value="Elderly" {% if profile and profile.care_type == 'Elderly' %}selected{% endif %}>Elderly</option>
-        <option value="LD" {% if profile and profile.care_type == 'LD' %}selected{% endif %}>Learning Disabilities</option>
-        <option value="MH" {% if profile and profile.care_type == 'MH' %}selected{% endif %}>Mental Health</option>
-        <option value="Children" {% if profile and profile.care_type == 'Children' %}selected{% endif %}>Children</option>
-      </select>
-    </div>
+      <div class="grid md:grid-cols-2 gap-4 text-xs">
+        <div>
+          <label class="block mb-1" for="business_name">Business / group name *</label>
+          <input id="business_name" name="business_name" type="text"
+                 value="{{ (profile.business_name if profile else '') or '' }}"
+                 class="w-full rounded border border-white/20 bg-black/40 px-3 py-2 text-xs text-white"
+                 required>
+        </div>
 
-    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-      <div>
-        <label class="text-xs text-white/70">Minimum Price Band</label>
-        <select name="min_price_band"
-                class="w-full border border-white/20 bg-black/40 text-sm text-white rounded px-3 py-2">
-          <option value="" {% if not profile or not profile.min_price_band %}selected{% endif %}>No minimum</option>
-          {% for b in ['<£500k','£500k–£1m','£1m–£3m','£3m+'] %}
-            <option value="{{ b }}" {% if profile and profile.min_price_band == b %}selected{% endif %}>{{ b }}</option>
-          {% endfor %}
-        </select>
+        <div>
+          <label class="block mb-1" for="contact_person">Contact person *</label>
+          <input id="contact_person" name="contact_person" type="text"
+                 value="{{ (profile.contact_person if profile else '') or '' }}"
+                 class="w-full rounded border border-white/20 bg-black/40 px-3 py-2 text-xs text-white"
+                 required>
+        </div>
+
+        <div>
+          <label class="block mb-1" for="phone">Phone</label>
+          <input id="phone" name="phone" type="text"
+                 value="{{ (profile.phone if profile else '') or '' }}"
+                 class="w-full rounded border border-white/20 bg-black/40 px-3 py-2 text-xs text-white">
+        </div>
+
+        <div>
+          <label class="block mb-1" for="funding_source">Funding source</label>
+          <select id="funding_source" name="funding_source"
+                  class="w-full rounded border border-white/20 bg-black/40 px-3 py-2 text-xs text-white">
+            {% set fs = (profile.funding_source if profile else '') or '' %}
+            <option value="" {% if not fs %}selected{% endif %}>Select</option>
+            <option value="Cash" {% if fs == 'Cash' %}selected{% endif %}>Cash / own funds</option>
+            <option value="Bank finance" {% if fs == 'Bank finance' %}selected{% endif %}>Bank finance</option>
+            <option value="Private equity" {% if fs == 'Private equity' %}selected{% endif %}>Private equity / fund</option>
+            <option value="Mixed" {% if fs == 'Mixed' %}selected{% endif %}>Mixed</option>
+          </select>
+        </div>
       </div>
+    </section>
 
-      <div>
-        <label class="text-xs text-white/70">Maximum Price Band</label>
-        <select name="max_price_band"
-                class="w-full border border-white/20 bg-black/40 text-sm text-white rounded px-3 py-2">
-          <option value="" {% if not profile or not profile.max_price_band %}selected{% endif %}>No maximum</option>
-          {% for b in ['<£500k','£500k–£1m','£1m–£3m','£3m+'] %}
-            <option value="{{ b }}" {% if profile and profile.max_price_band == b %}selected{% endif %}>{{ b }}</option>
-          {% endfor %}
-        </select>
+    <!-- DEAL APPETITE -->
+    <section class="rounded-lg border border-white/10 bg-black/30 p-4">
+      <h2 class="text-sm font-semibold mb-3 text-kaijoPink">Deal appetite</h2>
+
+      <div class="grid md:grid-cols-2 gap-4 text-xs">
+        <div>
+          <label class="block mb-1" for="investment_type">Investment type *</label>
+          {% set itype = (profile.investment_type if profile else '') or '' %}
+          <select id="investment_type" name="investment_type"
+                  class="w-full rounded border border-white/20 bg-black/40 px-3 py-2 text-xs text-white"
+                  required>
+            <option value="" {% if not itype %}selected{% endif %}>Select</option>
+            <option value="Acquisition" {% if itype == 'Acquisition' %}selected{% endif %}>Acquisition</option>
+            <option value="Lease" {% if itype == 'Lease' %}selected{% endif %}>Lease</option>
+            <option value="Development" {% if itype == 'Development' %}selected{% endif %}>Development</option>
+            <option value="Mixed" {% if itype == 'Mixed' %}selected{% endif %}>Mixed / flexible</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="block mb-1" for="deal_structure">Preferred deal structure</label>
+          {% set dstruct = (profile.deal_structure if profile else '') or '' %}
+          <select id="deal_structure" name="deal_structure"
+                  class="w-full rounded border border-white/20 bg-black/40 px-3 py-2 text-xs text-white">
+            <option value="" {% if not dstruct %}selected{% endif %}>No strong preference</option>
+            <option value="Asset sale" {% if dstruct == 'Asset sale' %}selected{% endif %}>Asset sale</option>
+            <option value="Share sale" {% if dstruct == 'Share sale' %}selected{% endif %}>Share sale</option>
+            <option value="Leasehold" {% if dstruct == 'Leasehold' %}selected{% endif %}>Leasehold</option>
+            <option value="Freehold" {% if dstruct == 'Freehold' %}selected{% endif %}>Freehold</option>
+            <option value="Either" {% if dstruct == 'Either' %}selected{% endif %}>Either</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="block mb-1" for="min_budget">Minimum deal size (guide)</label>
+          <input id="min_budget" name="min_budget" type="text"
+                 placeholder="e.g. £1m"
+                 value="{{ (profile.min_budget if profile else '') or '' }}"
+                 class="w-full rounded border border-white/20 bg-black/40 px-3 py-2 text-xs text-white">
+        </div>
+
+        <div>
+          <label class="block mb-1" for="max_budget">Maximum deal size (guide)</label>
+          <input id="max_budget" name="max_budget" type="text"
+                 placeholder="e.g. £10m+"
+                 value="{{ (profile.max_budget if profile else '') or '' }}"
+                 class="w-full rounded border border-white/20 bg-black/40 px-3 py-2 text-xs text-white">
+        </div>
+
+        <div>
+          <label class="block mb-1">Proof of funds</label>
+          {% set pof = (profile.proof_of_funds if profile else '') or '' %}
+          <div class="flex gap-4 mt-1">
+            <label class="inline-flex items-center gap-1">
+              <input type="radio" name="proof_of_funds" value="Yes"
+                     class="h-3 w-3"
+                     {% if pof == 'Yes' %}checked{% endif %}>
+              <span>Yes</span>
+            </label>
+            <label class="inline-flex items-center gap-1">
+              <input type="radio" name="proof_of_funds" value="No"
+                     class="h-3 w-3"
+                     {% if pof == 'No' %}checked{% endif %}>
+              <span>No / in progress</span>
+            </label>
+          </div>
+        </div>
+
+        <div>
+          <label class="block mb-1" for="preferred_multiple">Preferred multiple (if relevant)</label>
+          <input id="preferred_multiple" name="preferred_multiple" type="text"
+                 placeholder="e.g. 5–7x EBITDA"
+                 value="{{ (profile.preferred_multiple if profile else '') or '' }}"
+                 class="w-full rounded border border-white/20 bg-black/40 px-3 py-2 text-xs text-white">
+        </div>
       </div>
+    </section>
+
+    <!-- TARGET CRITERIA -->
+    <section class="rounded-lg border border-white/10 bg-black/30 p-4">
+      <h2 class="text-sm font-semibold mb-3 text-kaijoPurple">Target criteria</h2>
+
+      <div class="grid md:grid-cols-2 gap-4 text-xs">
+
+        <!-- Regions -->
+        <div>
+          <p class="mb-1">Preferred regions *</p>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-1">
+            {% for r in region_choices %}
+              <label class="inline-flex items-center gap-1">
+                <input type="checkbox"
+                       name="preferred_regions"
+                       value="{{ r }}"
+                       class="h-3 w-3"
+                       {% if r in selected_regions %}checked{% endif %}>
+                <span>{{ r }}</span>
+              </label>
+            {% endfor %}
+          </div>
+        </div>
+
+        <!-- Care types -->
+        <div>
+          <p class="mb-1">Care types of interest *</p>
+          <div class="grid grid-cols-1 gap-1">
+            {% for ct in care_type_choices %}
+              <label class="inline-flex items-center gap-1">
+                <input type="checkbox"
+                       name="care_types"
+                       value="{{ ct }}"
+                       class="h-3 w-3"
+                       {% if ct in selected_care_types %}checked{% endif %}>
+                <span>{{ ct }}</span>
+              </label>
+            {% endfor %}
+          </div>
+        </div>
+
+        <!-- Beds -->
+        <div>
+          <label class="block mb-1">Beds range (approx)</label>
+          <div class="flex gap-2">
+            <input type="number" name="beds_min" min="0" placeholder="Min"
+                   value="{{ profile.beds_min if profile and profile.beds_min is not none else '' }}"
+                   class="w-1/2 rounded border border-white/20 bg-black/40 px-3 py-2 text-xs text-white">
+            <input type="number" name="beds_max" min="0" placeholder="Max"
+                   value="{{ profile.beds_max if profile and profile.beds_max is not none else '' }}"
+                   class="w-1/2 rounded border border-white/20 bg-black/40 px-3 py-2 text-xs text-white">
+          </div>
+        </div>
+
+        <!-- Quality / turnaround -->
+        <div>
+          <label class="block mb-1" for="quality_preference">Quality preference</label>
+          {% set qp = (profile.quality_preference if profile else '') or '' %}
+          <select id="quality_preference" name="quality_preference"
+                  class="w-full rounded border border-white/20 bg-black/40 px-3 py-2 text-xs text-white">
+            <option value="" {% if not qp %}selected{% endif %}>Flexible</option>
+            <option value="Good and above" {% if qp == 'Good and above' %}selected{% endif %}>Good and above</option>
+            <option value="Requires Improvement and above" {% if qp == 'Requires Improvement and above' %}selected{% endif %}>Requires Improvement and above</option>
+            <option value="Turnaround only" {% if qp == 'Turnaround only' %}selected{% endif %}>Turnaround-focused</option>
+          </select>
+
+          <label class="block mb-1 mt-3" for="turnaround_interest">Turnaround appetite</label>
+          {% set ti = (profile.turnaround_interest if profile else '') or '' %}
+          <select id="turnaround_interest" name="turnaround_interest"
+                  class="w-full rounded border border-white/20 bg-black/40 px-3 py-2 text-xs text-white">
+            <option value="" {% if not ti %}selected{% endif %}>Open to discussion</option>
+            <option value="Yes" {% if ti == 'Yes' %}selected{% endif %}>Actively interested in turnaround</option>
+            <option value="Selective" {% if ti == 'Selective' %}selected{% endif %}>Selective / case by case</option>
+            <option value="No" {% if ti == 'No' %}selected{% endif %}>No, stable homes only</option>
+          </select>
+        </div>
+      </div>
+    </section>
+
+    <!-- TIMING & STRATEGY -->
+    <section class="rounded-lg border border-white/10 bg-black/30 p-4">
+      <h2 class="text-sm font-semibold mb-3 text-kaijoYellow">Timing & strategy</h2>
+
+      <div class="grid md:grid-cols-2 gap-4 text-xs">
+        <div>
+          <label class="block mb-1" for="transaction_timeline">Target transaction timeline *</label>
+          {% set tt = (profile.transaction_timeline if profile else '') or '' %}
+          <select id="transaction_timeline" name="transaction_timeline"
+                  class="w-full rounded border border-white/20 bg-black/40 px-3 py-2 text-xs text-white"
+                  required>
+            <option value="" {% if not tt %}selected{% endif %}>Select</option>
+            <option value="0–3 months" {% if tt == '0–3 months' %}selected{% endif %}>0–3 months</option>
+            <option value="3–6 months" {% if tt == '3–6 months' %}selected{% endif %}>3–6 months</option>
+            <option value="6–12 months" {% if tt == '6–12 months' %}selected{% endif %}>6–12 months</option>
+            <option value="Flexible" {% if tt == 'Flexible' %}selected{% endif %}>Flexible / opportunistic</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="block mb-1" for="expansion_strategy">Expansion strategy</label>
+          <textarea id="expansion_strategy" name="expansion_strategy" rows="3"
+                    class="w-full rounded border border-white/20 bg-black/40 px-3 py-2 text-xs text-white"
+                    placeholder="e.g. Platform build, bolt-ons around existing homes, regional consolidation, etc.">{{ (profile.expansion_strategy if profile else '') or '' }}</textarea>
+        </div>
+      </div>
+    </section>
+
+    <!-- ADVISORS & DUE DILIGENCE -->
+    <section class="rounded-lg border border-white/10 bg-black/30 p-4">
+      <h2 class="text-sm font-semibold mb-3 text-kaijoPink">Advisors & due diligence</h2>
+
+      <div class="grid md:grid-cols-2 gap-4 text-xs">
+        <div>
+          <label class="inline-flex items-center gap-2 mb-2">
+            <input type="checkbox" name="has_buy_side_advisor" value="1"
+                   class="h-3 w-3"
+                   {% if profile and profile.has_buy_side_advisor %}checked{% endif %}>
+            <span>You already have a buy-side advisor engaged</span>
+          </label>
+
+          <label class="block mb-1" for="advisor_details">Advisor details (optional)</label>
+          <textarea id="advisor_details" name="advisor_details" rows="3"
+                    class="w-full rounded border border-white/20 bg-black/40 px-3 py-2 text-xs text-white"
+                    placeholder="Firm, lead contact, scope of work.">{{ (profile.advisor_details if profile else '') or '' }}</textarea>
+        </div>
+
+        <div>
+          <p class="mb-1">Which areas of due diligence matter most?</p>
+          <div class="grid grid-cols-1 gap-1">
+            {% for dd in dd_choices %}
+              <label class="inline-flex items-center gap-1">
+                <input type="checkbox"
+                       name="requirements_dd"
+                       value="{{ dd }}"
+                       class="h-3 w-3"
+                       {% if dd in selected_dd %}checked{% endif %}>
+                <span>{{ dd }}</span>
+              </label>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- CONFIDENTIALITY -->
+    <section class="rounded-lg border border-white/10 bg-black/30 p-4">
+      <h2 class="text-sm font-semibold mb-3 text-kaijoPurple">Confidentiality</h2>
+
+      <div class="text-xs space-y-2">
+        <p class="text-white/80">
+          By ticking the box below you confirm that you will treat all information received
+          via the platform as confidential and not share it outside your organisation or
+          advisor team without consent.
+        </p>
+
+        <label class="inline-flex items-center gap-2 mt-2">
+          <input type="checkbox"
+                 name="nda_signed"
+                 value="1"
+                 class="h-3 w-3"
+                 {% if profile and profile.nda_signed %}checked{% endif %}>
+          <span>I agree to the confidentiality terms above.</span>
+        </label>
+      </div>
+    </section>
+
+    <!-- ACTIONS -->
+    <div class="flex items-center justify-between pt-2">
+      <p class="text-[11px] text-white/60">
+        You can update this profile at any time as your strategy evolves.
+      </p>
+      <button type="submit"
+              class="px-4 py-2 rounded bg-kaijoPink text-white text-xs font-semibold hover:bg-kaijoYellow hover:text-black transition">
+        Save buyer profile
+      </button>
     </div>
 
-    <div>
-      <label class="text-xs text-white/70">Experience Level</label>
-      <select name="experience_level"
-              class="w-full border border-white/20 bg-black/40 text-sm text-white rounded px-3 py-2">
-        <option value="" {% if not profile or not profile.experience_level %}selected{% endif %}>Select</option>
-        {% for lvl in ['First-time buyer','Existing provider','Investor','Other'] %}
-          <option value="{{ lvl }}" {% if profile and profile.experience_level == lvl %}selected{% endif %}>{{ lvl }}</option>
-        {% endfor %}
-      </select>
-    </div>
-
-    <button
-      class="w-full bg-kaijoPink text-white text-sm rounded py-2 hover:bg-kaijoYellow hover:text-black transition">
-      Save Profile
-    </button>
   </form>
 </div>
 {% endblock %}

@@ -1,0 +1,273 @@
+{% extends "base.html" %}
+{% block title %}Pricing – Care Home Broker{% endblock %}
+
+{% block content %}
+
+<div class="max-w-5xl mx-auto py-10 text-white">
+
+  <!-- PAGE INTRO -->
+  <h1 class="text-2xl font-semibold mb-2">Plans & Pricing</h1>
+  <p class="text-sm text-white/70 max-w-2xl mb-6">
+    The Care Home Broker platform is built for three groups:
+    buyers, sellers, and valuers. Start by choosing your role, then pick
+    the access level that fits how active you want to be in the marketplace.
+  </p>
+
+  {% set role = (selected_role or '') %}
+  {% set is_buyer = (role == 'buyer') %}
+  {% set is_seller = (role == 'seller') %}
+  {% set is_valuer = (role == 'valuer') %}
+
+  <!-- STEP INDICATOR -->
+  <div class="flex items-center gap-2 text-[11px] uppercase tracking-[0.18em] text-white/60 mb-6">
+    <span class="px-2 py-0.5 rounded-full bg-white/10 border border-white/20 text-white">
+      Step 1 – Choose role
+    </span>
+    <span class="px-2 py-0.5 rounded-full bg-black/20 border border-white/10 text-white/70">
+      Step 2 – Choose tier
+    </span>
+  </div>
+
+  <!-- STEP 1: ROLE SELECTION -->
+  <div class="grid md:grid-cols-3 gap-6 mb-10">
+
+    <!-- Buyer -->
+    <section id="role-buyer"
+             class="rounded-lg p-6 flex flex-col transition
+                    {% if is_buyer %}
+                      border border-kaijoYellow/80 bg-black/50 shadow-[0_0_25px_rgba(0,0,0,0.7)]
+                    {% else %}
+                      border border-white/10 bg-black/30 backdrop-blur-sm
+                    {% endif %}">
+      <h2 class="text-md font-semibold text-kaijoYellow mb-1">Buyer / Investor</h2>
+      <p class="text-sm text-white/75 mb-4">
+        For operators, groups and investors looking to acquire care homes.
+      </p>
+
+      <ul class="text-xs text-white/65 space-y-1 mb-4">
+        <li>Define your buying criteria (region, size, price band).</li>
+        <li>Receive curated opportunities that fit your profile.</li>
+        <li>Shortlist, track and follow up on leads.</li>
+      </ul>
+
+      <div class="mt-auto space-y-2 text-[11px]">
+        <p class="text-white/55">Choose your access level:</p>
+        <div class="flex flex-col gap-2">
+          <a href="{{ url_for('register_buyer') }}?tier=basic"
+             class="inline-flex items-center justify-center px-3 py-1.5 rounded border border-white/30 text-white/85 hover:bg-white/10 hover:text-kaijoYellow transition">
+            Tier 1 – Register only
+          </a>
+          <a href="{{ url_for('register_buyer') }}?tier=premium"
+             class="inline-flex items-center justify-center px-3 py-1.5 rounded bg-kaijoPink text-white hover:bg-kaijoYellow hover:text-black font-semibold transition">
+            Tier 2 – Full marketplace
+          </a>
+        </div>
+      </div>
+    </section>
+
+    <!-- Seller -->
+    <section id="role-seller"
+             class="rounded-lg p-6 flex flex-col transition
+                    {% if is_seller %}
+                      border border-kaijoPink/80 bg-black/50 shadow-[0_0_25px_rgba(0,0,0,0.7)]
+                    {% else %}
+                      border border-white/10 bg-white/5 backdrop-blur-sm
+                    {% endif %}">
+      <h2 class="text-md font-semibold text-kaijoPink mb-1">Seller / Owner</h2>
+      <p class="text-sm text-white/75 mb-4">
+        For owners who want to quietly explore a sale, without a noisy public process.
+      </p>
+
+      <ul class="text-xs text-white/65 space-y-1 mb-4">
+        <li>Indicate appetite to sell one or more homes.</li>
+        <li>Share headline numbers without full disclosure.</li>
+        <li>Use a structured channel to handle enquiries.</li>
+      </ul>
+
+      <div class="mt-auto space-y-2 text-[11px]">
+        <p class="text-white/55">Choose your access level:</p>
+        <div class="flex flex-col gap-2">
+          <a href="{{ url_for('register_seller') }}?tier=basic"
+             class="inline-flex items-center justify-center px-3 py-1.5 rounded border border-white/30 text-white/85 hover:bg-white/10 hover:text-kaijoYellow transition">
+            Tier 1 – Register only
+          </a>
+          <a href="{{ url_for('register_seller') }}?tier=premium"
+             class="inline-flex items-center justify-center px-3 py-1.5 rounded bg-kaijoPink text-white hover:bg-kaijoYellow hover:text-black font-semibold transition">
+            Tier 2 – Full marketplace
+          </a>
+        </div>
+      </div>
+    </section>
+
+    <!-- Valuer -->
+    <section id="role-valuer"
+             class="rounded-lg p-6 flex flex-col transition
+                    {% if is_valuer %}
+                      border border-kaijoPurple/80 bg-black/50 shadow-[0_0_25px_rgba(0,0,0,0.7)]
+                    {% else %}
+                      border border-white/10 bg-white/5 backdrop-blur-sm
+                    {% endif %}">
+      <h2 class="text-md font-semibold text-kaijoPurple mb-1">Valuer / Appraiser</h2>
+      <p class="text-sm text-white/75 mb-4">
+        For valuation professionals who want to be part of a trusted framework.
+      </p>
+
+      <ul class="text-xs text-white/65 space-y-1 mb-4">
+        <li>Appear in the broker’s valuer framework.</li>
+        <li>Be considered when buyers or sellers need a valuation.</li>
+        <li>Align with a specialist social care advisory brand.</li>
+      </ul>
+
+      <div class="mt-auto space-y-2 text-[11px]">
+        <p class="text-white/55">Choose your access level:</p>
+        <div class="flex flex-col gap-2">
+          <a href="{{ url_for('register_valuer') }}?tier=basic"
+             class="inline-flex items-center justify-center px-3 py-1.5 rounded border border-white/30 text-white/85 hover:bg-white/10 hover:text-kaijoYellow transition">
+            Tier 1 – Register only
+          </a>
+          <a href="{{ url_for('register_valuer') }}?tier=premium"
+             class="inline-flex items-center justify-center px-3 py-1.5 rounded bg-kaijoPink text-white hover:bg-kaijoYellow hover:text-black font-semibold transition">
+            Tier 2 – Full marketplace
+          </a>
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+  <!-- STEP 2 LABEL -->
+  <div class="flex items-center gap-2 text-[11px] uppercase tracking-[0.18em] text-white/60 mb-4">
+    <span class="px-2 py-0.5 rounded-full bg-white/10 border border-white/20 text-white">
+      Step 2 – Choose tier
+    </span>
+    <span class="px-2 py-0.5 rounded-full bg-black/20 border border-white/10 text-white/70">
+      Same structure across buyers, sellers and valuers
+    </span>
+  </div>
+
+  <!-- TIER CARDS -->
+  <div class="grid md:grid-cols-2 gap-6 mb-10">
+
+    <!-- Tier 1: Register only -->
+    <section class="rounded-lg border border-white/10 bg-white/5 backdrop-blur-sm p-6">
+      <h2 class="text-lg font-semibold text-kaijoYellow mb-1">Tier 1 – Register Only</h2>
+      <p class="text-sm text-white/80 mb-4">
+        Be on the radar without committing to full marketplace access yet.
+        Ideal if you’re exploring your options or want the broker to make
+        targeted introductions.
+      </p>
+
+      <ul class="text-sm text-white/75 space-y-2 list-disc list-inside mb-4">
+        <li>Profile stored in the private broker database.</li>
+        <li>Basic details captured (e.g. region, size, appetite).</li>
+        <li>Broker can reach out when there’s a relevant match.</li>
+        <li class="text-white/45">
+          <span class="blur-[2px] select-none">Direct access to live listings.</span>
+          <span class="ml-1 text-[10px] text-kaijoYellow/80">Unlocked in Tier 2</span>
+        </li>
+        <li class="text-white/45">
+          <span class="blur-[2px] select-none">Full buyer/seller directory view.</span>
+          <span class="ml-1 text-[10px] text-kaijoYellow/80">Unlocked in Tier 2</span>
+        </li>
+      </ul>
+
+      <p class="text-xl font-semibold text-white mb-1">£0 / month</p>
+      <p class="text-[11px] text-white/60">No commitment, join the pipeline.</p>
+    </section>
+
+    <!-- Tier 2: Full marketplace -->
+    <section class="rounded-lg border border-kaijoPink/70 bg-black/40 backdrop-blur-sm p-6 relative overflow-hidden">
+      <div class="absolute top-0 right-0 px-3 py-1 text-[10px] uppercase tracking-[0.22em]
+                  bg-kaijoPink text-white/90 rounded-bl-lg">
+        Recommended
+      </div>
+
+      <h2 class="text-lg font-semibold text-kaijoPink mb-1">Tier 2 – Full Marketplace Access</h2>
+      <p class="text-sm text-white/80 mb-4">
+        Unlock the full private marketplace: view opportunities, signal your appetite,
+        and connect directly through structured workflows.
+      </p>
+
+      <ul class="text-sm text-white/80 space-y-2 list-disc list-inside mb-4">
+        <li>All Tier 1 profile and broker database features.</li>
+        <li>View confidential listings behind the NDA gate.</li>
+        <li>View relevant buyers/sellers aligned to your criteria.</li>
+        <li>Send and receive enquiries directly through the platform.</li>
+        <li>Track interest, shortlist, and progress deals in one place.</li>
+      </ul>
+
+      <p class="text-xl font-semibold text-white mb-1">£49 / month</p>
+      <p class="text-[11px] text-white/60">Per organisation, per role. No long-term lock-in.</p>
+    </section>
+
+  </div>
+
+  <!-- FAQ / ACCORDION -->
+  <section class="mb-10">
+    <h2 class="text-lg font-semibold mb-3">Frequently asked questions</h2>
+    <div class="space-y-2 text-sm">
+
+      <details class="rounded-lg border border-white/10 bg-black/30 backdrop-blur-sm px-4 py-3">
+        <summary class="cursor-pointer text-white/90 font-medium">
+          How is confidentiality handled?
+        </summary>
+        <p class="mt-2 text-white/75 text-xs">
+          Listings are kept off public marketplaces. Buyers only see headline,
+          non-identifying information until NDAs are in place and the broker
+          agrees it’s appropriate to share more detail.
+        </p>
+      </details>
+
+      <details class="rounded-lg border border-white/10 bg-black/30 backdrop-blur-sm px-4 py-3">
+        <summary class="cursor-pointer text-white/90 font-medium">
+          Do I have to upgrade to Tier 2 to get value?
+        </summary>
+        <p class="mt-2 text-white/75 text-xs">
+          Not necessarily. Tier 1 is useful if you simply want to be on the radar
+          and let the broker contact you when something clearly fits. 
+          Tier 2 is for organisations that want to actively browse, compare and engage.
+        </p>
+      </details>
+
+      <details class="rounded-lg border border-white/10 bg-black/30 backdrop-blur-sm px-4 py-3">
+        <summary class="cursor-pointer text-white/90 font-medium">
+          How does the broker get paid on a successful deal?
+        </summary>
+        <p class="mt-2 text-white/75 text-xs">
+          Alongside any subscription, an agreed success fee or percentage of the
+          transaction value is payable if an introduction from the platform leads to
+          a completed deal. This is agreed directly with Kaijo North Consulting.
+        </p>
+      </details>
+
+      <details class="rounded-lg border border-white/10 bg-black/30 backdrop-blur-sm px-4 py-3">
+        <summary class="cursor-pointer text-white/90 font-medium">
+          Can valuers join without taking on full marketplace access?
+        </summary>
+        <p class="mt-2 text-white/75 text-xs">
+          Yes. Many valuers start on Tier 1 to get listed in the framework, then
+          move to Tier 2 if they want deeper data visibility or closer collaboration
+          on deal flow.
+        </p>
+      </details>
+
+    </div>
+  </section>
+
+  <!-- BOTTOM CTA STRIP -->
+  <section class="rounded-xl border border-white/15 bg-gradient-to-r from-kaijoPurple/60 via-black/60 to-kaijoYellow/40 px-5 py-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+    <div>
+      <p class="text-sm font-semibold text-white">Not sure which option fits best?</p>
+      <p class="text-xs text-white/80">
+        Share your situation and appetite, and we’ll recommend a simple starting point.
+      </p>
+    </div>
+    <a href="mailto:hello@kaijonorth.com?subject=Care%20Home%20Broker%20pricing%20question"
+       class="inline-flex items-center justify-center px-4 py-2 rounded bg-black/70 border border-white/30 text-xs text-white hover:bg-white hover:text-black font-semibold transition">
+      Email the broker
+    </a>
+  </section>
+
+</div>
+
+{% endblock %}

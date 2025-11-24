@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block title %}Valuer Profile – Care Home Broker{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto py-8 text-white">
+  <h1 class="text-xl font-semibold mb-2">Valuer Profile</h1>
+  <p class="text-xs text-white/70 mb-6">
+    This information is shown to care home owners when they look for valuation support.
+  </p>
+
+  <form method="post" class="space-y-4">
+
+    <div>
+      <label class="block text-xs font-medium mb-1" for="company_name">Company name</label>
+      <input
+        type="text"
+        id="company_name"
+        name="company_name"
+        value="{{ profile.company_name if profile else '' }}"
+        class="w-full rounded border border-white/20 bg-black/30 px-3 py-2 text-sm text-white"
+      >
+    </div>
+
+    <div>
+      <label class="block text-xs font-medium mb-1" for="accreditation">Accreditation</label>
+      <input
+        type="text"
+        id="accreditation"
+        name="accreditation"
+        value="{{ profile.accreditation if profile else '' }}"
+        class="w-full rounded border border-white/20 bg-black/30 px-3 py-2 text-sm text-white"
+        placeholder="e.g. RICS, specialist healthcare valuer etc."
+      >
+    </div>
+
+    <div>
+      <label class="block text-xs font-medium mb-1" for="regions">Regions covered</label>
+      <input
+        type="text"
+        id="regions"
+        name="regions"
+        value="{{ profile.regions if profile else '' }}"
+        class="w-full rounded border border-white/20 bg-black/30 px-3 py-2 text-sm text-white"
+        placeholder="e.g. North West, Yorkshire, West Midlands"
+      >
+      <p class="text-[10px] text-white/60 mt-1">
+        Comma-separated list (for now).
+      </p>
+    </div>
+
+    <div>
+      <label class="block text-xs font-medium mb-1" for="pricing_notes">Pricing / fee notes</label>
+      <textarea
+        id="pricing_notes"
+        name="pricing_notes"
+        rows="3"
+        class="w-full rounded border border-white/20 bg-black/30 px-3 py-2 text-xs text-white"
+      >{{ profile.pricing_notes if profile else '' }}</textarea>
+    </div>
+
+    <div>
+      <label class="block text-xs font-medium mb-1" for="bio">Short bio</label>
+      <textarea
+        id="bio"
+        name="bio"
+        rows="4"
+        class="w-full rounded border border-white/20 bg-black/30 px-3 py-2 text-xs text-white"
+      >{{ profile.bio if profile else '' }}</textarea>
+      <p class="text-[10px] text-white/60 mt-1">
+        A few lines on your experience in valuing care businesses.
+      </p>
+    </div>
+
+    <button type="submit"
+            class="px-4 py-2 rounded bg-kaijoPink text-white text-sm font-semibold hover:bg-kaijoYellow hover:text-black transition">
+      Save profile
+    </button>
+  </form>
+</div>
+{% endblock %}

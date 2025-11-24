@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Approved Valuers{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto py-10 text-white">
+  <h1 class="text-2xl font-semibold mb-2">Valuer Framework</h1>
+  <p class="text-xs text-gray-300 mb-6">
+    Independent valuers who support transactions on the platform.
+  </p>
+
+  {% if profiles %}
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {% for profile in profiles %}
+        <div class="rounded-lg border border-white/10 bg-white/5 p-4 text-xs">
+          <div class="font-semibold mb-1">
+            {{ profile.company_name or profile.user.email }}
+          </div>
+          {% if profile.accreditation %}
+            <p class="text-gray-200 mb-1">{{ profile.accreditation }}</p>
+          {% endif %}
+          {% if profile.regions %}
+            <p class="text-[11px] text-gray-300 mb-1">
+              Regions: {{ profile.regions }}
+            </p>
+          {% endif %}
+          {% if profile.pricing_notes %}
+            <p class="text-[11px] text-gray-300 mb-1">
+              {{ profile.pricing_notes }}
+            </p>
+          {% endif %}
+          {% if profile.bio %}
+            <p class="text-[11px] text-gray-200 mt-2">
+              {{ profile.bio }}
+            </p>
+          {% endif %}
+        </div>
+      {% endfor %}
+    </div>
+  {% else %}
+    <p class="text-xs text-gray-400">No valuers listed yet.</p>
+  {% endif %}
+</div>
+{% endblock %}

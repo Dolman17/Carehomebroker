@@ -34,11 +34,11 @@
       </div>
 
       <div class="flex flex-wrap gap-3 text-xs sm:text-sm">
-        <a href="{{ url_for('register_seller') }}"
+        <a href="{{ url_for('pricing', role='seller') }}"
            class="inline-flex items-center justify-center px-4 py-2 rounded bg-kaijoPink text-white hover:bg-kaijoYellow hover:text-black transition">
           I want to sell a care home
         </a>
-        <a href="{{ url_for('register_buyer') }}"
+        <a href="{{ url_for('pricing', role='buyer')  }}"
            class="inline-flex items-center justify-center px-4 py-2 rounded border border-white/30 text-white hover:bg-white/10 hover:text-kaijoYellow transition">
           I want to buy a care home
         </a>
@@ -105,7 +105,7 @@
     </div>
 
     <div class="bg-white/5 border border-white/10 rounded-lg p-4 backdrop-blur-sm">
-      <div class="text-kaijoPurple text-sm font-semibold mb-1">3. Structured enquiries</div>
+      <div class="text-kaijoGreenMid text-sm font-semibold mb-1">3. Structured enquiries</div>
       <p class="text-xs text-white/75">
         Buyers send enquiries behind an NDA gate. Sellers receive, track and manage responses
         without sharing sensitive details too early.
@@ -114,9 +114,10 @@
   </div>
 </section>
 
-<!-- FEATURES FOR SELLERS & BUYERS -->
+<!-- FEATURES -->
 <section class="mb-10">
   <div class="grid md:grid-cols-2 gap-6">
+
     <!-- Sellers -->
     <div class="bg-white/5 border border-white/10 rounded-lg p-5 backdrop-blur-sm">
       <h3 class="text-md font-semibold text-kaijoYellow mb-2">For Sellers</h3>
@@ -130,7 +131,7 @@
         <li>Review enquiries in one place with status tracking.</li>
         <li>Option to work with Kaijo North Consulting for deeper advisory support.</li>
       </ul>
-      <a href="{{ url_for('register_seller') }}"
+      <a href="{{ url_for('pricing', role='seller') }}"
          class="inline-flex items-center justify-center mt-4 px-4 py-2 rounded bg-kaijoPink text-white text-xs hover:bg-kaijoYellow hover:text-black transition">
         Start as a seller
       </a>
@@ -149,11 +150,12 @@
         <li>Track your enquiry history and upcoming follow-ups.</li>
         <li>Benefit from an operator-led view of quality and sustainability, not just yield.</li>
       </ul>
-      <a href="{{ url_for('register_buyer') }}"
+      <a href="{{ url_for('pricing', role='buyer') }}"
          class="inline-flex items-center justify-center mt-4 px-4 py-2 rounded border border-white/30 text-white text-xs hover:bg-white/10 hover:text-kaijoYellow transition">
         Start as a buyer
       </a>
     </div>
+
   </div>
 </section>
 
@@ -181,23 +183,39 @@
           <p class="text-[11px] font-mono text-white/50 mb-1">
             {{ l.listing_code }}
           </p>
-          <p class="font-semibold text-sm text-white mb-1">{{ l.title }}</p>
+
+          <!-- Confidential title -->
+          <p class="font-semibold text-sm text-white mb-1">
+            {% if is_premium_buyer|default(false) %}
+              {{ l.title }}
+            {% else %}
+              <span class="blur-sm select-none">Confidential care home</span>
+              <span class="text-[10px] text-kaijoYellow ml-1">Premium only</span>
+            {% endif %}
+          </p>
 
           <p class="text-[11px] text-white/60 mb-1">
             {{ l.region }} • {{ l.care_type }} • {{ l.beds or "?" }} beds
           </p>
 
+          <!-- Confidential guide price -->
           <p class="text-[11px] text-white/60">
             Guide price:
-            <span class="text-kaijoYellow">
-              {{ l.guide_price_band or "On request" }}
-            </span>
+            {% if is_premium_buyer|default(false) %}
+              <span class="text-kaijoYellow">{{ l.guide_price_band or "On request" }}</span>
+            {% else %}
+              <span class="blur-sm select-none text-kaijoYellow">£X,XXX,XXX</span>
+              <span class="text-[10px] text-kaijoYellow ml-1">Premium only</span>
+            {% endif %}
           </p>
+
         </a>
       {% endfor %}
     </div>
   {% else %}
-    <p class="text-sm text-white/70">No live listings yet. New opportunities will appear here as they go live.</p>
+    <p class="text-sm text-white/70">
+      No live listings yet. New opportunities will appear here as they go live.
+    </p>
   {% endif %}
 </section>
 

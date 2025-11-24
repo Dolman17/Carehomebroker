@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block title %}Valuer Directory – Care Home Broker{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto py-8 text-white">
+  <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
+    <div>
+      <h1 class="text-xl font-semibold">Valuer framework</h1>
+      <p class="text-xs text-white/70">
+        Independent valuers with experience in health and social care businesses.
+      </p>
+    </div>
+
+    <a href="{{ url_for('register_valuer') }}"
+       class="inline-flex items-center px-3 py-2 rounded bg-kaijoPink text-white text-xs font-semibold hover:bg-kaijoYellow hover:text-black transition">
+      Join as a valuer
+    </a>
+  </div>
+
+  {% if valuers %}
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {% for v in valuers %}
+        <div class="rounded-lg border border-white/10 bg-black/30 p-4 text-xs">
+          <div class="flex items-center justify-between mb-2">
+            <div>
+              <p class="text-sm font-semibold">
+                {{ v.company_name or "Valuer" }}
+              </p>
+              {% if v.accreditation %}
+                <p class="text-[11px] text-white/60">{{ v.accreditation }}</p>
+              {% endif %}
+            </div>
+
+            {% if v.user_id in valuer_sub_ids %}
+              <span class="inline-flex items-center px-2 py-0.5 rounded-full bg-kaijoYellow text-black text-[10px] font-semibold">
+                Premium
+              </span>
+            {% endif %}
+          </div>
+
+          {% if v.regions %}
+            <p class="text-[11px] text-white/70 mb-1">
+              <span class="text-white/40">Regions:</span> {{ v.regions }}
+            </p>
+          {% endif %}
+
+          {% if v.pricing_notes %}
+            <p class="text-[11px] text-white/70 mb-1">
+              <span class="text-white/40">Fees:</span> {{ v.pricing_notes }}
+            </p>
+          {% endif %}
+
+          {% if v.bio %}
+            <p class="text-[11px] text-white/70 mt-1">
+              {{ v.bio }}
+            </p>
+          {% endif %}
+        </div>
+      {% endfor %}
+    </div>
+  {% else %}
+    <p class="text-sm text-white/70">
+      No valuers listed yet. This section will show independent care business valuers as they join the framework.
+    </p>
+  {% endif %}
+</div>
+{% endblock %}

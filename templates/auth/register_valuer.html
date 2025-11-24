@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}Valuer Sign Up – Care Home Broker{% endblock %}
+
+{% block content %}
+<div class="max-w-md mx-auto py-10 text-white">
+  <h1 class="text-xl font-semibold mb-2">Register as a Valuer</h1>
+  <p class="text-xs text-white/70 mb-6">
+    Join the Kaijo North valuer framework to be visible to care home owners exploring a sale.
+  </p>
+
+  <form method="post" class="space-y-4">
+
+    <div>
+      <label class="block text-xs font-medium mb-1" for="email">Email</label>
+      <input
+        type="email"
+        id="email"
+        name="email"
+        required
+        class="w-full rounded border border-white/20 bg-black/30 px-3 py-2 text-sm text-white"
+      >
+    </div>
+
+    <div>
+      <label class="block text-xs font-medium mb-1" for="password">Password</label>
+      <input
+        type="password"
+        id="password"
+        name="password"
+        required
+        class="w-full rounded border border-white/20 bg-black/30 px-3 py-2 text-sm text-white"
+      >
+      <p class="text-[10px] text-white/60 mt-1">
+        At least 10 characters, with upper, lower, number and symbol.
+      </p>
+    </div>
+
+    <button type="submit"
+            class="w-full px-4 py-2 rounded bg-kaijoPink text-white text-sm font-semibold hover:bg-kaijoYellow hover:text-black transition">
+      Create valuer account
+    </button>
+
+    <p class="text-[11px] text-white/60 mt-3">
+      Already registered?
+      <a href="{{ url_for('login') }}" class="text-kaijoYellow hover:underline">
+        Log in here
+      </a>.
+    </p>
+  </form>
+</div>
+{% endblock %}

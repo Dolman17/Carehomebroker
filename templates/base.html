@@ -39,8 +39,8 @@
 <body class="min-h-full flex flex-col font-sans
              bg-gradient-to-br from-kaijoGreenDark via-kaijoGreenMid to-kaijoPurple text-white">
 
-  <!-- NAVBAR -->
-  <header class="border-b border-white/10 bg-black/30 backdrop-blur z-30 relative">
+  <!-- NAVBAR (sticky) -->
+  <header class="border-b border-white/10 bg-black/30 backdrop-blur z-40 sticky top-0">
     <nav class="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
 
       <!-- Logo -->
@@ -59,6 +59,11 @@
         <a href="{{ url_for('listings') }}"
            class="text-white/80 hover:text-kaijoYellow transition-colors">
           Listings
+        </a>
+
+        <a href="{{ url_for('pricing') }}"
+           class="text-white/80 hover:text-kaijoYellow transition-colors">
+          Pricing
         </a>
 
         {% if current_user.is_authenticated %}
@@ -101,14 +106,6 @@
              class="text-white/80 hover:text-kaijoYellow transition-colors">
             Login
           </a>
-          <a href="{{ url_for('register_buyer') }}"
-             class="text-white/80 hover:text-kaijoYellow transition-colors">
-            Buyer Sign Up
-          </a>
-          <a href="{{ url_for('register_seller') }}"
-             class="text-white/80 hover:text-kaijoYellow transition-colors">
-            Seller Sign Up
-          </a>
         {% endif %}
       </div>
 
@@ -124,9 +121,9 @@
     </nav>
   </header>
 
-  <!-- IMPERSONATION TOOLBAR (sticky) -->
+  <!-- IMPERSONATION TOOLBAR (no longer sticky) -->
   {% if session.get('impersonator_id') %}
-    <div class="bg-kaijoPink/25 border-b border-kaijoPink/70 sticky top-0 z-20">
+    <div class="bg-kaijoPink/25 border-b border-kaijoPink/70">
       <div class="max-w-6xl mx-auto px-4 py-2 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-[11px] text-white">
         <span>
           You are currently impersonating another user. Actions will be recorded as them.
@@ -191,6 +188,10 @@
            class="py-1 text-white/80 hover:text-kaijoYellow">
           Listings
         </a>
+        <a href="{{ url_for('pricing') }}"
+           class="py-1 text-white/80 hover:text-kaijoYellow">
+          Pricing
+        </a>
 
         {% if current_user.is_authenticated %}
           {% if current_user.role == 'buyer' %}
@@ -229,14 +230,6 @@
              class="py-1 text-white/80 hover:text-kaijoYellow">
             Login
           </a>
-          <a href="{{ url_for('register_buyer') }}"
-             class="py-1 text-white/80 hover:text-kaijoYellow">
-            Buyer Sign Up
-          </a>
-          <a href="{{ url_for('register_seller') }}"
-             class="py-1 text-white/80 hover:text-kaijoYellow">
-            Seller Sign Up
-          </a>
         {% endif %}
       </nav>
     </div>
@@ -250,7 +243,7 @@
       </span>
       <div class="flex gap-2 ml-auto">
         <a href="{{ url_for('register_buyer') }}"
-           class="px-3 py-1 rounded border border-white/30 text-white/90 hover:bg-white/10 hover:text-kaijoYellow">
+           class="px-3 py-1 rounded border border-white/30 text-white/90 hover:bg_white/10 hover:text-kaijoYellow">
           Buy
         </a>
         <a href="{{ url_for('register_seller') }}"

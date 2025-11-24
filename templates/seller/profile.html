@@ -1,0 +1,169 @@
+{% extends "base.html" %}
+{% block title %}Seller Profile – Care Home Broker{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto text-white py-6">
+
+  <!-- Header -->
+  <h1 class="text-2xl font-semibold mb-1">Seller Profile</h1>
+  <p class="text-sm text-white/70 mb-6">
+    Tell us about your organisation so buyers and brokers can assess opportunities accurately.
+  </p>
+
+  <form method="POST"
+        enctype="multipart/form-data"
+        class="space-y-8">
+
+    <!-- Business Info -->
+    <div class="rounded-lg border border-white/10 bg-white/5 p-5">
+      <h2 class="text-lg font-semibold mb-4 text-kaijoYellow">Business Details</h2>
+
+      <div class="grid md:grid-cols-2 gap-4 text-sm">
+        <div>
+          <label class="block mb-1 text-white/80">Business Name</label>
+          <input type="text" name="business_name"
+                 value="{{ profile.business_name if profile else '' }}"
+                 class="w-full rounded bg-black/20 border border-white/20 px-3 py-2 text-white text-sm">
+        </div>
+
+        <div>
+          <label class="block mb-1 text-white/80">Care Type</label>
+          <input type="text" name="care_type"
+                 value="{{ profile.care_type if profile else '' }}"
+                 placeholder="Elderly, LD, MH, etc."
+                 class="w-full rounded bg-black/20 border border-white/20 px-3 py-2 text-white text-sm">
+        </div>
+
+        <div>
+          <label class="block mb-1 text-white/80">Regions</label>
+          <input type="text" name="regions"
+                 value="{{ profile.regions if profile else '' }}"
+                 placeholder="North West, Midlands, etc."
+                 class="w-full rounded bg-black/20 border border-white/20 px-3 py-2 text-white text-sm">
+        </div>
+
+        <div>
+          <label class="block mb-1 text-white/80">Staff Count</label>
+          <input type="number" name="staff_count"
+                 value="{{ profile.staff_count if profile else '' }}"
+                 class="w-full rounded bg-black/20 border border-white/20 px-3 py-2 text-white text-sm">
+        </div>
+      </div>
+    </div>
+
+    <!-- Financial Info -->
+    <div class="rounded-lg border border-white/10 bg-white/5 p-5">
+      <h2 class="text-lg font-semibold mb-4 text-kaijoPink">Financial Information</h2>
+
+      <div class="grid md:grid-cols-2 gap-4 text-sm">
+
+        <div>
+          <label class="block mb-1 text-white/80">Turnover</label>
+          <input type="text" name="turnover"
+                 value="{{ profile.turnover if profile else '' }}"
+                 placeholder="e.g. £3.2m"
+                 class="w-full rounded bg-black/20 border border-white/20 px-3 py-2 text-white">
+        </div>
+
+        <div>
+          <label class="block mb-1 text-white/80">EBITDA</label>
+          <input type="text" name="ebitda"
+                 value="{{ profile.ebitda if profile else '' }}"
+                 placeholder="e.g. £450k"
+                 class="w-full rounded bg-black/20 border border-white/20 px-3 py-2 text-white">
+        </div>
+
+        <div>
+          <label class="block mb-1 text-white/80">Profit</label>
+          <input type="text" name="profit"
+                 value="{{ profile.profit if profile else '' }}"
+                 placeholder="e.g. £210k"
+                 class="w-full rounded bg-black/20 border border-white/20 px-3 py-2 text-white">
+        </div>
+
+        <div>
+          <label class="block mb-1 text-white/80">Loss</label>
+          <input type="text" name="loss"
+                 value="{{ profile.loss if profile else '' }}"
+                 placeholder="Optional"
+                 class="w-full rounded bg-black/20 border border-white/20 px-3 py-2 text-white">
+        </div>
+
+        <div>
+          <label class="block mb-1 text-white/80">Assets</label>
+          <input type="text" name="assets"
+                 value="{{ profile.assets if profile else '' }}"
+                 placeholder="e.g. Properties, equipment"
+                 class="w-full rounded bg-black/20 border border-white/20 px-3 py-2 text-white">
+        </div>
+
+        <div>
+          <label class="block mb-1 text-white/80">Debts</label>
+          <input type="text" name="debts"
+                 value="{{ profile.debts if profile else '' }}"
+                 placeholder="e.g. Loans, lease liabilities"
+                 class="w-full rounded bg-black/20 border border-white/20 px-3 py-2 text-white">
+        </div>
+      </div>
+    </div>
+
+    <!-- Summary -->
+    <div class="rounded-lg border border-white/10 bg-white/5 p-5">
+      <h2 class="text-lg font-semibold mb-3 text-kaijoPurple">Business Summary</h2>
+
+      <textarea name="summary" rows="5"
+                placeholder="Provide any helpful background about your operations, performance and sale appetite."
+                class="w-full rounded bg-black/20 border border-white/20 px-3 py-2 text-white text-sm">{{ profile.summary if profile else '' }}</textarea>
+    </div>
+
+    <!-- NDA Acceptance -->
+    <div class="rounded-lg border border-white/10 bg-white/5 p-5">
+      <label class="flex items-center gap-2 text-sm text-white/80">
+        <input type="checkbox" name="nda_accepted"
+               {% if profile and profile.nda_accepted %}checked{% endif %}
+               class="h-4 w-4 bg-black/40 border-white/30 rounded">
+        I confirm that all details provided are accurate and may be used in confidential buyer matching.
+      </label>
+    </div>
+
+    <!-- Documents -->
+    <div class="rounded-lg border border-white/10 bg-white/5 p-5">
+      <h2 class="text-lg font-semibold mb-3 text-kaijoYellow">Documents</h2>
+
+      <p class="text-xs text-white/60 mb-3">
+        Upload accounts, business summaries or supporting documents (PDF, DOCX, XLSX, images).
+      </p>
+
+      <input type="file"
+             name="documents"
+             multiple
+             class="text-xs text-white mb-4">
+
+      {% if profile and profile.documents %}
+        <div class="space-y-2 text-xs">
+          {% for doc in profile.documents %}
+            <div class="flex items-center justify-between bg-black/30 p-2 rounded border border-white/10">
+              <span>{{ doc.original_filename }}</span>
+
+              <form method="POST"
+                    action="{{ url_for('delete_seller_document', doc_id=doc.id) }}"
+                    onsubmit="return confirm('Delete this document?');">
+                <button class="text-red-400 hover:text-red-200">Delete</button>
+              </form>
+            </div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    </div>
+
+    <!-- Submit -->
+    <div class="flex justify-end">
+      <button class="px-6 py-2 rounded bg-kaijoPink text-white text-sm font-semibold 
+                     hover:bg-kaijoYellow hover:text-black transition">
+        Save Profile
+      </button>
+    </div>
+  </form>
+
+</div>
+{% endblock %}
