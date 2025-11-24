@@ -1,67 +1,68 @@
 {% extends "base.html" %}
-{% block title %}Valuer Directory – Care Home Broker{% endblock %}
+{% block title %}Valuer Directory{% endblock %}
 
 {% block content %}
-<div class="max-w-4xl mx-auto py-8 text-white">
-  <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
-    <div>
-      <h1 class="text-xl font-semibold">Valuer framework</h1>
-      <p class="text-xs text-white/70">
-        Independent valuers with experience in health and social care businesses.
-      </p>
-    </div>
+<div class="mb-6">
+  <h1 class="text-2xl font-semibold text-white">Valuer Directory</h1>
+  <p class="text-sm text-white/70">
+    Accredited valuers available for business assessments, financial reviews and sale valuations.
+  </p>
+</div>
 
-    <a href="{{ url_for('register_valuer') }}"
-       class="inline-flex items-center px-3 py-2 rounded bg-kaijoPink text-white text-xs font-semibold hover:bg-kaijoYellow hover:text-black transition">
-      Join as a valuer
-    </a>
-  </div>
+{% if valuers %}
+  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
 
-  {% if valuers %}
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-      {% for v in valuers %}
-        <div class="rounded-lg border border-white/10 bg-black/30 p-4 text-xs">
-          <div class="flex items-center justify-between mb-2">
-            <div>
-              <p class="text-sm font-semibold">
-                {{ v.company_name or "Valuer" }}
-              </p>
-              {% if v.accreditation %}
-                <p class="text-[11px] text-white/60">{{ v.accreditation }}</p>
-              {% endif %}
-            </div>
+    {% for v in valuers %}
+      <a href="{{ url_for('valuer_detail', valuer_id=v.id) }}"
+         class="block rounded-lg bg-white/5 border border-white/10 p-4 backdrop-blur-sm hover:bg-white/10 transition shadow-sm">
 
-            {% if v.user_id in valuer_sub_ids %}
-              <span class="inline-flex items-center px-2 py-0.5 rounded-full bg-kaijoYellow text-black text-[10px] font-semibold">
-                Premium
+        <!-- HEADER -->
+        <div class="mb-2">
+          <p class="text-xs text-white/50">{{ v.accreditation or "Accreditation not listed" }}</p>
+          <h2 class="text-lg font-semibold text-white">{{ v.company_name or "Unnamed Valuer" }}</h2>
+        </div>
+
+        <!-- REGIONS AS CHIPS -->
+        {% set region_list = (v.regions.split(',') if v.regions else []) %}
+        {% if region_list %}
+          <div class="flex flex-wrap gap-1 mb-3">
+            {% for r in region_list %}
+              <span class="text-[11px] px-2 py-1 rounded bg-kaijoPurple/40 border border-kaijoPurple/60 text-white/80">
+                {{ r.strip() }}
               </span>
-            {% endif %}
+            {% endfor %}
           </div>
+        {% endif %}
 
-          {% if v.regions %}
-            <p class="text-[11px] text-white/70 mb-1">
-              <span class="text-white/40">Regions:</span> {{ v.regions }}
-            </p>
-          {% endif %}
+        <!-- BIO SNIPPET -->
+        <p class="text-xs text-white/70 mb-3">
+          {{ (v.bio or "No biography provided.")[:160] }}{% if v.bio and v.bio|length > 160 %}…{% endif %}
+        </p>
 
-          {% if v.pricing_notes %}
-            <p class="text-[11px] text-white/70 mb-1">
-              <span class="text-white/40">Fees:</span> {{ v.pricing_notes }}
-            </p>
-          {% endif %}
+        <!-- PRICING SNIPPET -->
+        {% if v.pricing_notes %}
+          <p class="text-[11px] text-white/60 italic mb-3">
+            {{ v.pricing_notes[:120] }}{% if v.pricing_notes|length > 120 %}…{% endif %}
+          </p>
+        {% endif %}
 
-          {% if v.bio %}
-            <p class="text-[11px] text-white/70 mt-1">
-              {{ v.bio }}
-            </p>
+        <!-- CONTACT INFO -->
+        <div class="mt-4 text-xs">
+          <p class="text-white/50">Contact</p>
+
+          {% if can_view_contact %}
+            <p class="text-white">{{ v.user.email }}</p>
+          {% else %}
+            <p class="text-white/30 blur-sm select-none">email@example.com</p>
+            <p class="text-[10px] text-kaijoYellow mt-1">Login as Seller or Premium Buyer</p>
           {% endif %}
         </div>
-      {% endfor %}
-    </div>
-  {% else %}
-    <p class="text-sm text-white/70">
-      No valuers listed yet. This section will show independent care business valuers as they join the framework.
-    </p>
-  {% endif %}
-</div>
+      </a>
+    {% endfor %}
+
+  </div>
+{% else %}
+  <p class="text-white/70 text-sm">No valuers available yet.</p>
+{% endif %}
+
 {% endblock %}

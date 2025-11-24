@@ -1,51 +1,110 @@
 {% extends "base.html" %}
-{% block title %}Valuer Sign Up – Care Home Broker{% endblock %}
+{% block title %}Register as Valuer – Care Home Broker{% endblock %}
 
 {% block content %}
-<div class="max-w-md mx-auto py-10 text-white">
-  <h1 class="text-xl font-semibold mb-2">Register as a Valuer</h1>
-  <p class="text-xs text-white/70 mb-6">
-    Join the Kaijo North valuer framework to be visible to care home owners exploring a sale.
-  </p>
-
-  <form method="post" class="space-y-4">
-
-    <div>
-      <label class="block text-xs font-medium mb-1" for="email">Email</label>
-      <input
-        type="email"
-        id="email"
-        name="email"
-        required
-        class="w-full rounded border border-white/20 bg-black/30 px-3 py-2 text-sm text-white"
-      >
-    </div>
-
-    <div>
-      <label class="block text-xs font-medium mb-1" for="password">Password</label>
-      <input
-        type="password"
-        id="password"
-        name="password"
-        required
-        class="w-full rounded border border-white/20 bg-black/30 px-3 py-2 text-sm text-white"
-      >
-      <p class="text-[10px] text-white/60 mt-1">
-        At least 10 characters, with upper, lower, number and symbol.
-      </p>
-    </div>
-
-    <button type="submit"
-            class="w-full px-4 py-2 rounded bg-kaijoPink text-white text-sm font-semibold hover:bg-kaijoYellow hover:text-black transition">
-      Create valuer account
-    </button>
-
-    <p class="text-[11px] text-white/60 mt-3">
-      Already registered?
-      <a href="{{ url_for('login') }}" class="text-kaijoYellow hover:underline">
-        Log in here
-      </a>.
+<div class="max-w-xl mx-auto py-8">
+  <div class="mb-6">
+    <h1 class="text-2xl font-semibold text-white mb-1">Register as a Valuer</h1>
+    <p class="text-xs text-white/70">
+      Join the Kaijo North valuer framework to be discoverable by care home buyers and sellers.
     </p>
+  </div>
+
+  <form method="post" class="space-y-5 bg-black/30 border border-white/10 rounded-xl p-5">
+    <!-- Email & password -->
+    <div class="grid sm:grid-cols-2 gap-4">
+      <div>
+        <label for="email" class="block text-xs font-medium text-white/80 mb-1">
+          Work email *
+        </label>
+        <input type="email" id="email" name="email" required
+               class="w-full rounded border border-white/20 bg-black/40 px-3 py-2 text-sm text-white placeholder:text-white/40"
+               placeholder="you@firm.co.uk">
+      </div>
+      <div>
+        <label for="password" class="block text-xs font-medium text-white/80 mb-1">
+          Password *
+        </label>
+        <input type="password" id="password" name="password" required
+               class="w-full rounded border border-white/20 bg-black/40 px-3 py-2 text-sm text-white placeholder:text-white/40"
+               placeholder="At least 10 characters">
+        <p class="mt-1 text-[10px] text-white/50">
+          Must include upper &amp; lower case, number and symbol.
+        </p>
+      </div>
+    </div>
+
+    <!-- Company & accreditation -->
+    <div class="grid sm:grid-cols-2 gap-4">
+      <div>
+        <label for="company_name" class="block text-xs font-medium text-white/80 mb-1">
+          Company name
+        </label>
+        <input type="text" id="company_name" name="company_name"
+               class="w-full rounded border border-white/20 bg-black/40 px-3 py-2 text-sm text-white placeholder:text-white/40"
+               placeholder="Valuation practice / firm">
+      </div>
+      <div>
+        <label for="accreditation" class="block text-xs font-medium text-white/80 mb-1">
+          Accreditation / memberships
+        </label>
+        <input type="text" id="accreditation" name="accreditation"
+               class="w-full rounded border border-white/20 bg-black/40 px-3 py-2 text-sm text-white placeholder:text-white/40"
+               placeholder="RICS, specialist panels, etc.">
+      </div>
+    </div>
+
+    <!-- Regions -->
+    <div>
+      <span class="block text-xs font-medium text-white/80 mb-1">
+        Regions covered
+      </span>
+      <p class="text-[10px] text-white/50 mb-2">
+        Select the regions in which you actively provide valuations.
+      </p>
+      <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+        {% for region in region_choices %}
+          <label class="flex items-center gap-2 text-[11px] text-white/80">
+            <input type="checkbox"
+                   name="regions"
+                   value="{{ region }}"
+                   class="h-3 w-3 rounded border-white/30 bg-black/40">
+            <span>{{ region }}</span>
+          </label>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Pricing notes -->
+    <div>
+      <label for="pricing_notes" class="block text-xs font-medium text-white/80 mb-1">
+        Valuation fee notes
+      </label>
+      <textarea id="pricing_notes" name="pricing_notes" rows="3"
+                class="w-full rounded border border-white/20 bg-black/40 px-3 py-2 text-sm text-white placeholder:text-white/40"
+                placeholder="Outline how you typically structure valuation fees, travel, minimums, etc."></textarea>
+    </div>
+
+    <!-- Bio -->
+    <div>
+      <label for="bio" class="block text-xs font-medium text-white/80 mb-1">
+        Short bio
+      </label>
+      <textarea id="bio" name="bio" rows="4"
+                class="w-full rounded border border-white/20 bg-black/40 px-3 py-2 text-sm text-white placeholder:text-white/40"
+                placeholder="Summarise your experience in valuing care homes and social care businesses."></textarea>
+    </div>
+
+    <div class="flex items-center justify-between pt-2">
+      <a href="{{ url_for('login') }}"
+         class="text-[11px] text-white/60 hover:text-kaijoYellow">
+        Already registered? Log in
+      </a>
+      <button type="submit"
+              class="px-4 py-2 rounded bg-kaijoPink text-white text-xs font-semibold hover:bg-kaijoYellow hover:text-black transition">
+        Create valuer account
+      </button>
+    </div>
   </form>
 </div>
 {% endblock %}

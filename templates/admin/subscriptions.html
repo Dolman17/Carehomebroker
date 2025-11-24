@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+{% block title %}Admin – Subscriptions{% endblock %}
+
+{% block content %}
+<div class="max-w-5xl mx-auto py-8 text-white">
+
+  <div class="flex items-center justify-between mb-6">
+    <div>
+      <h1 class="text-xl font-semibold">Subscriptions</h1>
+      <p class="text-xs text-white/70">
+        Manage buyer, seller and valuer subscription tiers.
+      </p>
+    </div>
+    <a href="{{ url_for('admin_dashboard') }}"
+       class="text-xs border border-white/30 px-3 py-1.5 rounded hover:bg-white/10">
+      ← Back to admin
+    </a>
+  </div>
+
+  <!-- Quick grant form -->
+  <div class="mb-6 rounded-lg border border-white/10 bg-black/30 p-4 text-xs">
+    <h2 class="text-sm font-semibold mb-2">Grant subscription</h2>
+    <p class="text-white/70 mb-3">
+      Use this to quickly mark a user as having an active subscription
+      for demo or onboarding purposes.
+    </p>
+    <form method="post" action="{{ url_for('admin_grant_subscription') }}" class="flex flex-wrap gap-2 items-end">
+      <div>
+        <label class="block mb-1 text-white/60">User ID</label>
+        <input type="number" name="user_id"
+               class="w-28 rounded border border-white/20 bg-black/40 px-2 py-1 text-xs"
+               required>
+      </div>
+      <div>
+        <label class="block mb-1 text-white/60">Role</label>
+        <select name="role"
+                class="rounded border border-white/20 bg-black/40 px-2 py-1 text-xs">
+          <option value="buyer">Buyer</option>
+          <option value="seller">Seller</option>
+          <option value="valuer">Valuer</option>
+        </select>
+      </div>
+      <div>
+        <label class="block mb-1 text-white/60">Tier</label>
+        <select name="tier"
+                class="rounded border border-white/20 bg-black/40 px-2 py-1 text-xs">
+          <option value="basic">Basic</option>
+          <option value="premium" selected>Premium</option>
+        </select>
+      </div>
+      <button type="submit"
+              class="px-3 py-1.5 rounded bg-kaijoPink text-white hover:bg-kaijoYellow hover:text-black">
+        Grant / Refresh
+      </button>
+    </form>
+  </div>
+
+  <!-- Existing subs -->
+  <div class="rounded-lg border border-white/10 bg-black/30 p-4 text-xs">
+    <h2 class="text-sm font-semibold mb-3">Existing subscriptions</h2>
+
+    {% if subs %}
+      <div class="overflow-x-auto">
+        <table class="min-w-full text-xs">
+          <thead class="text-white/60 border-b border-white/10">
+            <tr>
+              <th class="py-2 text-left pr-4">ID</th>
+              <th class="py-2 text-left pr-4">User</th>
+              <th class="py-2 text-left pr-4">Role</th>
+              <th class="py-2 text-left pr-4">Tier</th>
+              <th class="py-2 text-left pr-4">Active</th>
+              <th class="py-2 text-left pr-4">Started</th>
+              <th class="py-2 text-left pr-4">Renews</th>
+              <th class="py-2 text-left pr-4">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for sub in subs %}
+              <tr class="border-b border-white/5">
+                <td class="py-1 pr-4">{{ sub.id }}</td>
+                <td class="py-1 pr-4">
+                  {{ sub.user.email if sub.user else "Unknown user" }}<br>
+                  <span class="text-[10px] text-white/50">User ID: {{ sub.user_id }}</span>
+                </td>
+                <td class="py-1 pr-4">{{ sub.role|capitalize }}</td>
+                <td class="py-1 pr-4">
+                  {% if sub.tier == "premium" %}
+                    <span class="px-2 py-0.5 rounded-full bg-kaijoPurple/60 text-[10px]">
+                      Premium
+                    </span>
+                  {% else %}
+                    <span class="px-2 py-0.5 rounded-full bg-white/10 text-[10px]">
+                      {{ sub.tier|capitalize }}
+                    </span>
+                  {% endif %}
+                </td>
+                <td class="py-1 pr-4">
+                  {% if sub.is_active %}
+                    <span class="text-green-300">Active</span>
+                  {% else %}
+                    <span class="text-white/40">Inactive</span>
+                  {% endif %}
+                </td>
+                <td class="py-1 pr-4">
+                  {{ sub.started_at or "–" }}
+                </td>
+                <td class="py-1 pr-4">
+                  {{ sub.renews_at or "–" }}
+                </td>
+                <td class="py-1 pr-4">
+                  {% if sub.is_active %}
+                    <form method="post"
+                          action="{{ url_for('admin_cancel_subscription') }}"
+                          onsubmit="return confirm('Cancel this subscription?');">
+                      <input type="hidden" name="sub_id" value="{{ sub.id }}">
+                      <button type="submit"
+                              class="px-2 py-1 rounded border border-white/30 text-[11px] hover:bg-white/10">
+                        Cancel
+                      </button>
+                    </form>
+                  {% else %}
+                    <span class="text-white/40 text-[11px]">No actions</span>
+                  {% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <p class="text-white/70">No subscriptions recorded yet.</p>
+    {% endif %}
+  </div>
+
+</div>
+{% endblock %}

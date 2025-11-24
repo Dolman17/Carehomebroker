@@ -1,0 +1,141 @@
+{% extends "base.html" %}
+{% block title %}{{ profile.company_name or "Valuer" }} – Valuer Profile{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto py-8 text-white">
+
+  <!-- HEADER -->
+  <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
+    <div>
+      <p class="text-[11px] text-white/40 mb-1">
+        {{ profile.accreditation or "Valuer / Consultant" }}
+      </p>
+      <h1 class="text-2xl font-semibold">
+        {{ profile.company_name or "Valuation Provider" }}
+      </h1>
+      {% if owner %}
+        <p class="text-xs text-white/60 mt-1">
+          Registered contact: {{ owner.email }}
+        </p>
+      {% endif %}
+    </div>
+
+    {% if is_premium_valuer %}
+      <div class="inline-flex items-center px-3 py-1.5 rounded-full bg-kaijoPurple/60 border border-kaijoYellow/70 text-[11px] font-semibold">
+        ★ Premium Valuer
+      </div>
+    {% endif %}
+  </div>
+
+  <!-- REGIONS -->
+  {% if region_list %}
+    <div class="mb-6">
+      <p class="text-[11px] text-white/60 mb-1 uppercase tracking-[0.18em]">Regions covered</p>
+      <div class="flex flex-wrap gap-1.5">
+        {% for r in region_list %}
+          <span class="px-2 py-1 rounded-full bg-kaijoPurple/40 border border-kaijoPurple/60 text-[11px] text-white/85">
+            {{ r }}
+          </span>
+        {% endfor %}
+      </div>
+    </div>
+  {% endif %}
+
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+
+    <!-- LEFT: BIO & PRICING -->
+    <div class="md:col-span-2 space-y-4">
+
+      <!-- Bio -->
+      <div class="rounded-lg border border-white/10 bg-white/5 p-4 text-sm">
+        <h2 class="text-sm font-semibold mb-2">About this valuer</h2>
+        <p class="text-xs text-white/80 whitespace-pre-line">
+          {{ profile.bio or "No biography has been provided yet." }}
+        </p>
+      </div>
+
+      <!-- Pricing & services -->
+      <div class="rounded-lg border border-white/10 bg-white/5 p-4 text-sm">
+        <h2 class="text-sm font-semibold mb-2">Pricing & services</h2>
+        {% if profile.pricing_notes %}
+          <p class="text-xs text-white/80 whitespace-pre-line mb-2">
+            {{ profile.pricing_notes }}
+          </p>
+        {% else %}
+          <p class="text-xs text-white/60">
+            No specific pricing details have been published. Please enquire directly to discuss fees and scope.
+          </p>
+        {% endif %}
+
+        <ul class="mt-3 text-xs text-white/70 space-y-1">
+          <li>• Business valuations for care homes and social care providers</li>
+          <li>• Impact on sale price, yield and buyer appetite</li>
+          <li>• Independent view to support negotiations and lending</li>
+        </ul>
+      </div>
+
+    </div>
+
+    <!-- RIGHT: CONTACT -->
+    <div class="space-y-4">
+      <div class="rounded-lg border border-white/10 bg-black/40 p-4 text-sm">
+        <h2 class="text-sm font-semibold mb-3">Contact details</h2>
+
+        {% if can_view_contact %}
+          <p class="text-[11px] text-white/50 mb-1">Email</p>
+          <p class="text-xs mb-3 break-all">{{ owner.email if owner else "Not available" }}</p>
+
+          <p class="text-[11px] text-white/50 mb-1">How to use this contact</p>
+          <p class="text-xs text-white/75">
+            Reach out directly to discuss valuation scope, fees and timescales.
+            Reference that you found them via the Care Home Broker platform.
+          </p>
+
+        {% else %}
+          <p class="text-xs text-white/75 mb-3">
+            To protect relationships and avoid spam, direct contact details are only visible to:
+          </p>
+          <ul class="text-xs text-white/70 mb-3 list-disc list-inside">
+            <li>Registered sellers</li>
+            <li>Premium buyers</li>
+            <li>Platform admins</li>
+          </ul>
+
+          <div class="mb-3">
+            <p class="text-[11px] text-white/50 mb-1">Email</p>
+            <p class="text-xs text-white/30 blur-sm select-none">email@example.com</p>
+          </div>
+
+          <div class="space-x-2">
+            {% if not current_user.is_authenticated %}
+              <a href="{{ url_for('login') }}"
+                 class="inline-flex items-center px-3 py-1.5 rounded bg-white text-gray-900 font-semibold text-[11px]">
+                Log in
+              </a>
+              <a href="{{ url_for('pricing') }}"
+                 class="inline-flex items-center px-3 py-1.5 rounded border border-white text-[11px]">
+                View plans
+              </a>
+            {% elif current_user.role == "buyer" %}
+              <a href="{{ url_for('pricing') }}"
+                 class="inline-flex items-center px-3 py-1.5 rounded bg-kaijoPink text-white text-[11px] font-semibold hover:bg-kaijoYellow hover:text-black transition">
+                Upgrade to Buyer Premium
+              </a>
+            {% else %}
+              <p class="text-xs text-white/70">
+                Your role does not currently allow direct access to valuer contact details.
+              </p>
+            {% endif %}
+          </div>
+        {% endif %}
+      </div>
+
+      <a href="{{ url_for('valuers_directory') }}"
+         class="inline-flex items-center text-xs text-white/70 hover:text-kaijoYellow transition">
+        ← Back to valuers
+      </a>
+    </div>
+
+  </div>
+</div>
+{% endblock %}

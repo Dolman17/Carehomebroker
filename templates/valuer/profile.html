@@ -2,79 +2,91 @@
 {% block title %}Valuer Profile – Care Home Broker{% endblock %}
 
 {% block content %}
-<div class="max-w-2xl mx-auto py-8 text-white">
-  <h1 class="text-xl font-semibold mb-2">Valuer Profile</h1>
-  <p class="text-xs text-white/70 mb-6">
-    This information is shown to care home owners when they look for valuation support.
-  </p>
+<div class="max-w-4xl mx-auto py-8 text-white">
 
-  <form method="post" class="space-y-4">
+  <div class="mb-6">
+    <h1 class="text-2xl font-semibold mb-1">Valuer profile</h1>
+    <p class="text-xs text-white/70">
+      These details are used to match you to care home owners and buyers looking for valuation support.
+    </p>
+  </div>
 
-    <div>
-      <label class="block text-xs font-medium mb-1" for="company_name">Company name</label>
-      <input
-        type="text"
-        id="company_name"
-        name="company_name"
-        value="{{ profile.company_name if profile else '' }}"
-        class="w-full rounded border border-white/20 bg-black/30 px-3 py-2 text-sm text-white"
-      >
+  <form method="post" class="space-y-5 bg-black/30 border border-white/10 rounded-xl p-5">
+
+    <div class="grid sm:grid-cols-2 gap-4">
+      <div>
+        <label for="company_name" class="block text-xs font-medium text-white/80 mb-1">
+          Company name
+        </label>
+        <input type="text" id="company_name" name="company_name"
+               value="{{ profile.company_name if profile else '' }}"
+               class="w-full rounded border border-white/20 bg-black/40 px-3 py-2 text-sm text-white placeholder:text-white/40"
+               placeholder="Valuation practice / firm">
+      </div>
+      <div>
+        <label for="accreditation" class="block text-xs font-medium text-white/80 mb-1">
+          Accreditation / memberships
+        </label>
+        <input type="text" id="accreditation" name="accreditation"
+               value="{{ profile.accreditation if profile else '' }}"
+               class="w-full rounded border border-white/20 bg-black/40 px-3 py-2 text-sm text-white placeholder:text-white/40"
+               placeholder="RICS, specialist panels, etc.">
+      </div>
     </div>
 
+    <!-- Regions -->
     <div>
-      <label class="block text-xs font-medium mb-1" for="accreditation">Accreditation</label>
-      <input
-        type="text"
-        id="accreditation"
-        name="accreditation"
-        value="{{ profile.accreditation if profile else '' }}"
-        class="w-full rounded border border-white/20 bg-black/30 px-3 py-2 text-sm text-white"
-        placeholder="e.g. RICS, specialist healthcare valuer etc."
-      >
-    </div>
-
-    <div>
-      <label class="block text-xs font-medium mb-1" for="regions">Regions covered</label>
-      <input
-        type="text"
-        id="regions"
-        name="regions"
-        value="{{ profile.regions if profile else '' }}"
-        class="w-full rounded border border-white/20 bg-black/30 px-3 py-2 text-sm text-white"
-        placeholder="e.g. North West, Yorkshire, West Midlands"
-      >
-      <p class="text-[10px] text-white/60 mt-1">
-        Comma-separated list (for now).
+      <span class="block text-xs font-medium text-white/80 mb-1">
+        Regions covered
+      </span>
+      <p class="text-[10px] text-white/50 mb-2">
+        Select the regions in which you actively provide valuations.
       </p>
+      <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+        {% for region in region_choices %}
+          <label class="flex items-center gap-2 text-[11px] text-white/80">
+            <input type="checkbox"
+                   name="regions"
+                   value="{{ region }}"
+                   class="h-3 w-3 rounded border-white/30 bg-black/40"
+                   {% if region in selected_regions %}checked{% endif %}>
+            <span>{{ region }}</span>
+          </label>
+        {% endfor %}
+      </div>
     </div>
 
+    <!-- Pricing notes -->
     <div>
-      <label class="block text-xs font-medium mb-1" for="pricing_notes">Pricing / fee notes</label>
-      <textarea
-        id="pricing_notes"
-        name="pricing_notes"
-        rows="3"
-        class="w-full rounded border border-white/20 bg-black/30 px-3 py-2 text-xs text-white"
-      >{{ profile.pricing_notes if profile else '' }}</textarea>
+      <label for="pricing_notes" class="block text-xs font-medium text-white/80 mb-1">
+        Valuation fee notes
+      </label>
+      <textarea id="pricing_notes" name="pricing_notes" rows="3"
+                class="w-full rounded border border-white/20 bg-black/40 px-3 py-2 text-sm text-white placeholder:text-white/40"
+                placeholder="Outline how you typically structure valuation fees, travel, minimums, etc.">{{ profile.pricing_notes if profile else '' }}</textarea>
     </div>
 
+    <!-- Bio -->
     <div>
-      <label class="block text-xs font-medium mb-1" for="bio">Short bio</label>
-      <textarea
-        id="bio"
-        name="bio"
-        rows="4"
-        class="w-full rounded border border-white/20 bg-black/30 px-3 py-2 text-xs text-white"
-      >{{ profile.bio if profile else '' }}</textarea>
-      <p class="text-[10px] text-white/60 mt-1">
-        A few lines on your experience in valuing care businesses.
-      </p>
+      <label for="bio" class="block text-xs font-medium text-white/80 mb-1">
+        Short bio
+      </label>
+      <textarea id="bio" name="bio" rows="4"
+                class="w-full rounded border border-white/20 bg-black/40 px-3 py-2 text-sm text-white placeholder:text-white/40"
+                placeholder="Summarise your experience in valuing care homes and social care businesses.">{{ profile.bio if profile else '' }}</textarea>
     </div>
 
-    <button type="submit"
-            class="px-4 py-2 rounded bg-kaijoPink text-white text-sm font-semibold hover:bg-kaijoYellow hover:text-black transition">
-      Save profile
-    </button>
+    <div class="flex items-center justify-between pt-2">
+      <a href="{{ url_for('valuer_dashboard') }}"
+         class="text-[11px] text-white/60 hover:text-kaijoYellow">
+        ← Back to valuer dashboard
+      </a>
+      <button type="submit"
+              class="px-4 py-2 rounded bg-kaijoPink text-white text-xs font-semibold hover:bg-kaijoYellow hover:text-black transition">
+        Save profile
+      </button>
+    </div>
+
   </form>
 </div>
 {% endblock %}

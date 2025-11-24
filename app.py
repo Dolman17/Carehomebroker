@@ -570,6 +570,45 @@ def require_subscription(role: str, tier: str = "premium"):
 
     return decorator
 
+def upsert_subscription(user_id: int, role: str, tier: str = "premium", months: int = 1):
+    """
+    Create or update an active subscription for a user.
+    - role: 'buyer' | 'seller' | 'valuer'
+    - tier: 'basic' | 'premium' (we mostly care about 'premium' for gating)
+    """
+    SubscriptionModel = globals().get("Subscription")
+    if SubscriptionModel is None:
+        return None
+
+    now = datetime.utcnow()
+    renews_at = now + timedelta(days=30 * months)
+
+    sub = (
+        SubscriptionModel.query
+        .filter_by(user_id=user_id, role=role, tier=tier)
+        .first()
+    )
+
+    if sub:
+        sub.is_active = True
+        sub.started_at = sub.started_at or now
+        sub.renews_at = renews_at
+    else:
+        sub = SubscriptionModel(
+            user_id=user_id,
+            role=role,
+            tier=tier,
+            started_at=now,
+            renews_at=renews_at,
+            is_active=True,
+        )
+        db.session.add(sub)
+
+    db.session.commit()
+    return sub
+
+
+
 
 def is_premium_seller(user) -> bool:
     return has_active_subscription(user, "seller", "premium")
@@ -1153,12 +1192,23 @@ def register_seller():
 
 @app.route("/register/valuer", methods=["GET", "POST"])
 def register_valuer():
-    if current_user.is_authenticated:
-        return redirect(url_for("index"))
+    """
+    Valuer registration:
+    - Creates a User with role='valuer'
+    - Immediately creates a ValuerProfile with basic fields
+    - No subscription requirement yet (that comes later)
+    """
+    region_choices = sorted(REGION_COORDS.keys())
 
     if request.method == "POST":
         email = (request.form.get("email") or "").strip().lower()
         password = request.form.get("password") or ""
+
+        company_name = (request.form.get("company_name") or "").strip()
+        accreditation = (request.form.get("accreditation") or "").strip()
+        pricing_notes = (request.form.get("pricing_notes") or "").strip()
+        bio = (request.form.get("bio") or "").strip()
+        selected_regions = request.form.getlist("regions")
 
         if not email:
             flash("Email is required.")
@@ -1174,18 +1224,35 @@ def register_valuer():
             flash("An account with that email already exists.")
             return redirect(request.url)
 
+        # Create the valuer user
         user = User(
             email=email,
             password_hash=generate_password_hash(password),
             role="valuer",
         )
         db.session.add(user)
+        db.session.flush()  # get user.id
+
+        # Create the profile
+        profile = ValuerProfile(
+            user_id=user.id,
+            company_name=company_name or None,
+            accreditation=accreditation or None,
+            regions=", ".join(selected_regions) if selected_regions else None,
+            pricing_notes=pricing_notes or None,
+            bio=bio or None,
+        )
+        db.session.add(profile)
         db.session.commit()
-        flash("Valuer account created. You can now log in and complete your profile.")
+
+        flash("Valuer account created. You can now log in.")
         return redirect(url_for("login"))
 
-    return render_template("auth/register_valuer.html")
-
+    # GET
+    return render_template(
+        "auth/register_valuer.html",
+        region_choices=region_choices,
+    )
 
 
 @app.route("/login", methods=["GET", "POST"])
@@ -1213,10 +1280,10 @@ def login():
             return redirect(url_for("seller_dashboard"))
         if user.role == "buyer":
             return redirect(url_for("buyer_dashboard"))
+        if user.role == "valuer":
+            return redirect(url_for("valuer_dashboard"))
         if user.role == "admin":
             return redirect(url_for("admin_dashboard"))
-        if user.role == "valuer":
-            return redirect(url_for("valuer_profile"))
 
         return redirect(url_for("index"))
 
@@ -1802,46 +1869,69 @@ def buyer_profile():
         selected_dd=selected_dd,
     )
 
-
-
-
-
-
-@app.route("/valuers")
-def valuers_directory():
+@app.route("/valuers/<int:valuer_id>")
+def valuer_detail(valuer_id):
     """
-    Public/semi-public valuer directory.
-    Later we can restrict to premium valuers only.
+    Public valuer profile detail page.
+    Shows more information; contact details are still gated.
     """
-    # For now, show all valuers who have a profile
-    valuers = (
-        ValuerProfile.query
-        .join(User, ValuerProfile.user_id == User.id)
-        .order_by(ValuerProfile.created_at.desc())
-        .all()
-    )
+    profile = ValuerProfile.query.get_or_404(valuer_id)
+    owner = profile.user
 
-    # Optional: mark which valuers are premium
-    valuer_sub_ids = set()
+    # Premium flag for future highlighting
+    is_premium_valuer = False
     SubscriptionModel = globals().get("Subscription")
     if SubscriptionModel is not None:
-        active_val_subs = (
+        sub = (
             SubscriptionModel.query
-            .filter_by(role="valuer", tier="premium", is_active=True)
-            .all()
+            .filter_by(user_id=owner.id, role="valuer", tier="premium", is_active=True)
+            .first()
         )
-        valuer_sub_ids = {s.user_id for s in active_val_subs}
+        is_premium_valuer = sub is not None
+
+    # Contact visibility (same rule as directory)
+    can_view_contact = False
+    if current_user.is_authenticated:
+        if current_user.role in ("seller", "admin"):
+            can_view_contact = True
+        elif current_user.role == "buyer" and has_active_subscription(current_user, "buyer", "premium"):
+            can_view_contact = True
+
+    # Pre-split regions for chips
+    region_list = []
+    if profile.regions:
+        region_list = [r.strip() for r in profile.regions.split(",") if r.strip()]
 
     return render_template(
-        "valuers.html",
-        valuers=valuers,
-        valuer_sub_ids=valuer_sub_ids,
+        "valuer_detail.html",
+        profile=profile,
+        owner=owner,
+        is_premium_valuer=is_premium_valuer,
+        can_view_contact=can_view_contact,
+        region_list=region_list,
     )
 
 
+# -------------------------------------------------------------------
+# Valuer Public Directory + Detail Views
+# -------------------------------------------------------------------
 
+def buyer_can_view_valuer_contact() -> bool:
+    """
+    Buyers only get full contact access if premium.
+    Sellers and admins always get access.
+    Guests never do.
+    """
+    if not current_user.is_authenticated:
+        return False
 
+    if current_user.role in ("seller", "admin"):
+        return True
 
+    if current_user.role == "buyer":
+        return has_active_subscription(current_user, "buyer", "premium")
+
+    return False
 
 @app.route("/buyer/shortlist")
 @login_required
@@ -1856,6 +1946,31 @@ def buyer_shortlist():
             .all()
         )
     return render_template("buyer/shortlist.html", listings=listings)
+
+
+# -------------------------------------------------------------------
+# Valuer routes
+# -------------------------------------------------------------------
+
+
+@app.route("/valuer/dashboard")
+@login_required
+@role_required("valuer")
+def valuer_dashboard():
+    profile = ValuerProfile.query.filter_by(user_id=current_user.id).first()
+    # In future: show valuation requests, stats, etc.
+    profile_complete = bool(
+        profile
+        and profile.company_name
+        and profile.regions
+        and profile.accreditation
+    )
+    return render_template(
+        "valuer/dashboard.html",
+        profile=profile,
+        profile_complete=profile_complete,
+    )
+
 
 
 # -------------------------------------------------------------------
@@ -2044,6 +2159,90 @@ def admin_deals():
         .all()
     )
     return render_template("admin/deals.html", deals=deals)
+
+@app.route("/admin/subscriptions")
+@login_required
+@role_required("admin")
+def admin_subscriptions():
+    """
+    Simple admin view to see all subscriptions.
+    """
+    subs = (
+        Subscription.query
+        .join(User, Subscription.user_id == User.id)
+        .order_by(Subscription.started_at.desc())
+        .all()
+    )
+    return render_template("admin/subscriptions.html", subs=subs)
+
+@app.route("/admin/subscriptions/grant", methods=["POST"])
+@login_required
+@role_required("admin")
+def admin_grant_subscription():
+    """
+    Grant or refresh a subscription for a given user/role/tier.
+    Used from the admin/subscriptions screen.
+    """
+    user_id = request.form.get("user_id")
+    role = (request.form.get("role") or "").strip().lower()
+    tier = (request.form.get("tier") or "").strip().lower() or "premium"
+
+    if not user_id or not role:
+        flash("Missing user or role.", "error")
+        return redirect(url_for("admin_subscriptions"))
+
+    try:
+        user_id_int = int(user_id)
+    except ValueError:
+        flash("Invalid user id.", "error")
+        return redirect(url_for("admin_subscriptions"))
+
+    user = User.query.get(user_id_int)
+    if not user:
+        flash("User not found.", "error")
+        return redirect(url_for("admin_subscriptions"))
+
+    # Basic sanity: role must match user's role
+    if user.role != role:
+        flash("User role mismatch for that subscription type.", "error")
+        return redirect(url_for("admin_subscriptions"))
+
+    upsert_subscription(user.id, role=role, tier=tier, months=1)
+    flash(f"{tier.capitalize()} subscription granted for {user.email} ({role}).", "success")
+    return redirect(url_for("admin_subscriptions"))
+
+
+@app.route("/admin/subscriptions/cancel", methods=["POST"])
+@login_required
+@role_required("admin")
+def admin_cancel_subscription():
+    """
+    Soft-cancel a subscription (mark inactive).
+    """
+    sub_id = request.form.get("sub_id")
+    if not sub_id:
+        flash("Missing subscription id.", "error")
+        return redirect(url_for("admin_subscriptions"))
+
+    try:
+        sub_id_int = int(sub_id)
+    except ValueError:
+        flash("Invalid subscription id.", "error")
+        return redirect(url_for("admin_subscriptions"))
+
+    sub = Subscription.query.get(sub_id_int)
+    if not sub:
+        flash("Subscription not found.", "error")
+        return redirect(url_for("admin_subscriptions"))
+
+    sub.is_active = False
+    db.session.commit()
+    flash("Subscription cancelled.", "success")
+    return redirect(url_for("admin_subscriptions"))
+
+
+
+
 
 
 # -------- Admin user management / impersonation --------

@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}Valuer Dashboard – Care Home Broker{% endblock %}
+
+{% block content %}
+<div class="max-w-5xl mx-auto py-8 text-white">
+
+  <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
+    <div>
+      <h1 class="text-2xl font-semibold mb-1">Valuer dashboard</h1>
+      <p class="text-xs text-white/70">
+        Welcome, {{ current_user.email }} – part of the Kaijo North valuer framework.
+      </p>
+    </div>
+
+    <a href="{{ url_for('valuer_profile') }}"
+       class="inline-flex items-center justify-center px-3 py-2 rounded border border-white/30 text-xs text-white hover:bg-white/10 hover:text-kaijoYellow transition">
+      Edit profile
+    </a>
+  </div>
+
+  <div class="grid md:grid-cols-3 gap-4">
+
+    <!-- Profile status -->
+    <div class="md:col-span-1 bg-black/30 border border-white/10 rounded-lg p-4">
+      <h2 class="text-sm font-semibold mb-2">Profile status</h2>
+      {% if profile_complete %}
+        <p class="text-xs text-green-300 mb-1">Complete</p>
+        <p class="text-[11px] text-white/70">
+          Your details are ready to appear in the valuer framework when the directory goes live.
+        </p>
+      {% else %}
+        <p class="text-xs text-kaijoYellow mb-1">Needs attention</p>
+        <p class="text-[11px] text-white/70 mb-2">
+          Add your company, accreditation and regions so sellers and buyers can find you.
+        </p>
+        <a href="{{ url_for('valuer_profile') }}"
+           class="inline-flex items-center px-3 py-1.5 rounded bg-kaijoPink text-white text-[11px] hover:bg-kaijoYellow hover:text-black transition">
+          Complete profile
+        </a>
+      {% endif %}
+    </div>
+
+    <!-- Upcoming feature: valuation requests -->
+    <div class="md:col-span-2 bg-black/30 border border-white/10 rounded-lg p-4">
+      <h2 class="text-sm font-semibold mb-2">Valuation requests</h2>
+      <p class="text-[11px] text-white/60">
+        In the next phase, sellers will be able to request valuations directly from the framework.
+        Those requests will appear here with filters by region, care type and deal stage.
+      </p>
+    </div>
+
+  </div>
+</div>
+{% endblock %}
