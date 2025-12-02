@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Care Home Broker – Kaijo North Consulting{% endblock %}
+{% block title %}Private Deal Broker – Kaijo North Consulting{% endblock %}
 
 {% block content %}
 {% set can_edit_copy = current_user.is_authenticated and current_user.role in ['admin', 'valuer'] %}
@@ -38,7 +38,7 @@
       <div>
         {% set slug = "home_hero_heading" %}
         <h1 class="text-2xl sm:text-3xl lg:text-4xl font-semibold text-kaijoYellow mb-3">
-          {{ page_text(slug, "A confidential marketplace for buying & selling care homes.") }}
+          {{ page_text(slug, "A confidential marketplace for buying & selling businesses.") }}
           {% if can_edit_copy %}
             <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
                class="ml-2 text-[10px] text-kaijoYellow underline">Edit</a>
@@ -49,7 +49,7 @@
         <p class="text-sm sm:text-base text-white/80 max-w-xl">
           {{ page_text(
             slug,
-            "Built for operators, investors and owners in social care who want a discreet, structured way to explore sales and acquisitions – without going straight to a public agent process."
+            "Built for operators, investors and owners who want a discreet, structured way to explore sales and acquisitions – without going straight to a public agent process."
           ) }}
           {% if can_edit_copy %}
             <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
@@ -62,7 +62,7 @@
         {% set slug = "home_hero_cta_seller" %}
         <a href="{{ url_for('pricing') }}"
            class="inline-flex items-center justify-center px-4 py-2 rounded bg-kaijoPink text-white hover:bg-kaijoYellow hover:text-black transition">
-          {{ page_text(slug, "I want to sell a care home") }}
+          {{ page_text(slug, "I want to sell a business") }}
           {% if can_edit_copy %}
             <span class="ml-2 text-[10px] text-black/80 underline">Edit</span>
           {% endif %}
@@ -71,7 +71,7 @@
         {% set slug = "home_hero_cta_buyer" %}
         <a href="{{ url_for('pricing') }}"
            class="inline-flex items-center justify-center px-4 py-2 rounded border border-white/30 text-white hover:bg-white/10 hover:text-kaijoYellow transition">
-          {{ page_text(slug, "I want to buy a care home") }}
+          {{ page_text(slug, "I want to buy a business") }}
           {% if can_edit_copy %}
             <span class="ml-2 text-[10px] text-kaijoYellow underline">Edit</span>
           {% endif %}
@@ -113,7 +113,7 @@
         <p class="text-xs sm:text-sm text-white/60 mt-4">
           {{ page_text(
             slug,
-            "Kaijo North Consulting brings together sector insight, commercial discipline and a practical route to market for owners and buyers in social care."
+            "Kaijo North Consulting brings together sector insight, commercial discipline and a practical route to market for owners and buyers."
           ) }}
           {% if can_edit_copy %}
             <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
@@ -130,7 +130,7 @@
   <div class="max-w-4xl space-y-3">
     {% set slug = "home_what_is_heading" %}
     <h2 class="text-xl font-semibold text-white">
-      {{ page_text(slug, "What is the Care Home Broker platform?") }}
+      {{ page_text(slug, "What is the Private Deal Portal platform?") }}
       {% if can_edit_copy %}
         <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
            class="ml-2 text-[10px] text-kaijoYellow underline">Edit</a>
@@ -141,7 +141,7 @@
     <p class="text-sm text-white/80">
       {{ page_text(
         slug,
-        "The platform is a private deal portal for UK care home businesses. Sellers can quietly indicate their interest in a sale, and vetted buyers can review opportunities, send enquiries, and receive curated matches – all with a focus on confidentiality and quality, not volume."
+        "The platform is a private deal portal for UK businesses. Sellers can quietly indicate their interest in a sale, and vetted buyers can review opportunities, send enquiries, and receive curated matches – all with a focus on confidentiality and quality, not volume."
       ) }}
       {% if can_edit_copy %}
         <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
@@ -189,7 +189,7 @@
       <p class="text-xs text-white/75">
         {{ page_text(
           slug,
-          "Sellers outline their care home(s) and appetite to sell. Buyers set preferences for region, care type, size, and price band."
+          "Sellers outline their business and appetite to sell. Buyers set preferences for region, sector type, size, and price band."
         ) }}
         {% if can_edit_copy %}
           <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
@@ -363,7 +363,7 @@
         <li>
           {{ page_text(
             slug,
-            "Set your preferences for region, care type, size and guide price band."
+            "Set your preferences for region, sector type, size and guide price band."
           ) }}
           {% if can_edit_copy %}
             <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
@@ -493,7 +493,7 @@
             {% if can_see_full %}
               {{ l.title }}
             {% else %}
-              Confidential care home
+              Confidential Business
             {% endif %}
           </p>
 

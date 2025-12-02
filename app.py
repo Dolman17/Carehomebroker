@@ -19,6 +19,7 @@ from flask import (
     make_response,
 )
 from flask_sqlalchemy import SQLAlchemy
+from flask_migrate import Migrate
 from flask_login import (
     LoginManager,
     login_user,
@@ -27,6 +28,7 @@ from flask_login import (
     login_required,
     UserMixin,
 )
+
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 from sqlalchemy import func, desc
@@ -57,6 +59,8 @@ app.config["SQLALCHEMY_DATABASE_URI"] = raw_db_url
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
 db = SQLAlchemy(app)
+migrate = Migrate(app, db)
+
 
 
 login_manager = LoginManager(app)
@@ -4430,6 +4434,14 @@ def stripe_webhook():
     # For everything else, just acknowledge
     return "ignored", 200
 
+# -------------------------------------------------------------------
+# Auto-run migrations on startup (for Railway)
+# -------------------------------------------------------------------
+if os.getenv("RUN_MIGRATIONS_ON_START", "0") == "1":
+    from flask_migrate import upgrade as alembic_upgrade
+
+    with app.app_context():
+        alembic_upgrade()
 
 # -------------------------------------------------------------------
 # Main
