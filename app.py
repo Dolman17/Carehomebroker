@@ -4436,8 +4436,12 @@ def stripe_webhook():
 # -------------------------------------------------------------------
 
 if __name__ == "__main__":
-    if os.getenv("AUTO_SEED_ADMIN") == "1":
-        seed_admin_user()
+    # Only do seeding inside an app context, and only if explicitly enabled
+    with app.app_context():
+        if os.environ.get("AUTO_SEED_ADMIN", "0") == "1":
+            seed_admin_user()
 
-    app.run(host="0.0.0.0", port=int(os.getenv("PORT", 5000)))
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)
+
 
