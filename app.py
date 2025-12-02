@@ -39,14 +39,25 @@ from flask import current_app
 
 app = Flask(__name__)
 
-# Secret key & DB
+# Secret key
 app.config["SECRET_KEY"] = os.getenv("SECRET_KEY", "change-me-in-production")
-app.config["SQLALCHEMY_DATABASE_URI"] = os.getenv(
-    "DATABASE_URL", "sqlite:///care_broker.db"
-)
+
+# -------------------------------------------------------------------
+# Database (SQLite fallback, pg8000 for Railway/Postgres)
+# -------------------------------------------------------------------
+raw_db_url = os.getenv("DATABASE_URL", "sqlite:///care_broker.db")
+
+# Convert to SQLAlchemy pg8000 format so it never tries to use psycopg2
+if raw_db_url.startswith("postgres://"):
+    raw_db_url = raw_db_url.replace("postgres://", "postgresql+pg8000://", 1)
+elif raw_db_url.startswith("postgresql://"):
+    raw_db_url = raw_db_url.replace("postgresql://", "postgresql+pg8000://", 1)
+
+app.config["SQLALCHEMY_DATABASE_URI"] = raw_db_url
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
 db = SQLAlchemy(app)
+
 
 login_manager = LoginManager(app)
 login_manager.login_view = "login"
@@ -73,7 +84,7 @@ app.config["LEADS_NOTIFICATION_EMAIL"] = os.getenv(
 app.config["STRIPE_SECRET_KEY"] = os.getenv("STRIPE_SECRET_KEY")
 app.config["STRIPE_WEBHOOK_SECRET"] = os.getenv("STRIPE_WEBHOOK_SECRET")
 
-# Price IDs for each role / tier (set in your .env)
+# Price IDs for each role / tier
 app.config["STRIPE_PRICE_BUYER_BASIC"] = os.getenv("STRIPE_PRICE_BUYER_BASIC")
 app.config["STRIPE_PRICE_BUYER_PREMIUM"] = os.getenv("STRIPE_PRICE_BUYER_PREMIUM")
 app.config["STRIPE_PRICE_SELLER_BASIC"] = os.getenv("STRIPE_PRICE_SELLER_BASIC")
@@ -94,18 +105,11 @@ STRIPE_PRICE_MAP = {
     ("valuer", "premium"): os.getenv("STRIPE_PRICE_VALUER_PREMIUM"),
 }
 
-
 # Upload config
 UPLOAD_FOLDER = os.path.join(app.root_path, "static", "uploads")
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 app.config["ALLOWED_EXTENSIONS"] = {"png", "jpg", "jpeg", "gif", "webp"}
-
-# Seller document upload folder
-SELLER_DOCS_FOLDER = os.path.join(app.root_path, "static", "seller_docs")
-os.makedirs(SELLER_DOCS_FOLDER, exist_ok=True)
-app.config["SELLER_DOCS_FOLDER"] = SELLER_DOCS_FOLDER
 
 # Seller document upload folder
 SELLER_DOCS_FOLDER = os.path.join(app.root_path, "static", "seller_docs")
@@ -116,8 +120,6 @@ app.config["SELLER_DOCS_FOLDER"] = SELLER_DOCS_FOLDER
 OFFER_DOCS_FOLDER = os.path.join(app.root_path, "static", "offer_docs")
 os.makedirs(OFFER_DOCS_FOLDER, exist_ok=True)
 app.config["OFFER_DOCS_FOLDER"] = OFFER_DOCS_FOLDER
-
-
 
 # -------------------------------------------------------------------
 # Deal / introduction status pipeline
