@@ -1,114 +1,245 @@
 {% extends "base.html" %}
-{% block title %}Seller Dashboard – Care Home Broker{% endblock %}
+{% block title %}Seller dashboard{% endblock %}
 
 {% block content %}
-<div class="max-w-5xl mx-auto text-white py-6">
+<div class="space-y-6">
 
-  <!-- Header -->
-  <div class="flex items-center justify-between mb-4">
+  <!-- HEADER + SUBSCRIPTION STATUS -->
+  <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
     <div>
-      <h1 class="text-2xl font-semibold">Seller Dashboard</h1>
-      <p class="text-sm text-white/70">
-        Manage your profile and listings in the Kaijo Care Home Broker marketplace.
+      <h1 class="text-xl font-semibold text-white">Seller dashboard</h1>
+      <p class="text-xs text-white/60">
+        Manage your listings, track enquiries and keep your profile up to date.
       </p>
     </div>
-    <a href="{{ url_for('seller_profile') }}"
-       class="hidden sm:inline-flex items-center px-4 py-2 rounded bg-kaijoPink text-white text-xs font-semibold hover:bg-kaijoYellow hover:text-black transition">
-      Edit seller profile
-    </a>
+
+    <div class="flex items-center gap-2">
+      {% if is_premium_seller(current_user) %}
+        <span class="inline-flex items-center px-3 py-1 rounded-full text-[11px] bg-kaijoYellow text-black font-semibold uppercase tracking-[0.15em]">
+          Seller Premium
+        </span>
+      {% else %}
+        <span class="inline-flex items-center px-3 py-1 rounded-full text-[11px] bg-black/40 border border-white/20 text-white/80 uppercase tracking-[0.15em]">
+          Seller Basic
+        </span>
+      {% endif %}
+    </div>
   </div>
 
-  <!-- Profile completion banner -->
+  <!-- PLAN BADGE / BILLING -->
+  {% if current_plan_label %}
+    <div class="mb-4 flex flex-wrap items-center justify-between gap-3 text-xs">
+      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/5 border border-white/15 text-white/80">
+        <span class="text-[10px] uppercase tracking-[0.2em] text-white/50">Your plan</span>
+        <span class="font-semibold text-kaijoYellow">{{ current_plan_label }}</span>
+      </div>
+
+      <form method="POST" action="{{ url_for('billing_portal') }}">
+        <button type="submit"
+                class="px-3 py-1.5 rounded border border-white/25 text-white/80 text-[11px] hover:bg-white/10 hover:text-kaijoYellow transition">
+          Manage billing
+        </button>
+      </form>
+    </div>
+  {% else %}
+    <div class="mb-4 text-[11px] text-white/60">
+      You don’t have an active subscription yet.
+      <a href="{{ url_for('pricing', role='seller') }}" class="underline hover:text-kaijoYellow">
+        Choose a seller plan
+      </a>
+    </div>
+  {% endif %}
+
+  <!-- PROFILE COMPLETION NUDGE -->
   {% if profile_incomplete %}
-    <div class="mb-5 rounded-lg border border-kaijoYellow/70 bg-black/30 px-4 py-3 text-xs">
+    <div class="rounded-lg border border-kaijoYellow/60 bg-black/40 px-4 py-3 text-xs text-white/80">
       <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
         <div>
-          <div class="font-semibold text-kaijoYellow mb-1">
-            Complete your seller profile
-          </div>
-          <p class="text-white/80">
-            Add your organisation details and headline financials so we can position your
-            opportunity clearly for buyers and investors.
+          <p class="font-semibold text-kaijoYellow mb-1">Complete your seller profile</p>
+          <p class="text-white/70">
+            Add business details and financials so buyers and valuers have enough context when you list or request valuations.
           </p>
         </div>
-        <div class="flex-shrink-0">
-          <a href="{{ url_for('seller_profile') }}"
-             class="inline-flex items-center px-3 py-1.5 rounded bg-kaijoPink text-white text-[11px] font-semibold hover:bg-kaijoYellow hover:text-black transition">
-            Complete profile
-          </a>
-        </div>
+        <a href="{{ url_for('seller_profile') }}"
+           class="inline-flex items-center justify-center px-3 py-1.5 rounded bg-kaijoPink text-white text-[11px] font-semibold hover:bg-kaijoYellow hover:text-black transition">
+          Update seller profile
+        </a>
       </div>
     </div>
   {% endif %}
 
-  <!-- Quick actions -->
-  <div class="mb-5 flex flex-wrap items-center gap-2 text-xs">
-    <a href="{{ url_for('seller_new_listing') }}"
-       class="inline-flex items-center px-3 py-2 rounded bg-kaijoYellow text-black font-semibold hover:bg-white hover:text-black transition">
-      + Create new listing
-    </a>
-    <a href="{{ url_for('seller_profile') }}"
-       class="inline-flex items-center px-3 py-2 rounded border border-white/20 text-white/80 hover:bg-white/10 hover:text-kaijoYellow transition">
-      View / edit seller profile
-    </a>
-  </div>
+  <!-- UPGRADE BANNER FOR BASIC SELLERS -->
+  {% if not is_premium_seller(current_user) %}
+    <div class="rounded-lg border border-white/10 bg-white/5 px-4 py-3 text-xs text-white">
+      <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+        <div>
+          <p class="font-semibold mb-1">Upgrade to Seller Premium to maximise exposure</p>
+          <p class="text-white/80">
+            Seller Premium unlocks priority placement in the marketplace, richer analytics on enquiries and direct introductions to
+            vetted buyers.
+          </p>
+        </div>
+        <a href="{{ url_for('pricing', role='seller') }}"
+           class="inline-flex items-center justify-center px-3 py-1.5 rounded bg-kaijoPink text-white text-[11px] font-semibold hover:bg-kaijoYellow hover:text-black transition">
+          View seller plans
+        </a>
+      </div>
+    </div>
+  {% endif %}
 
-  <!-- Listings section -->
-  <div class="rounded-lg border border-white/10 bg-white/5 p-4">
-    <div class="flex items-center justify-between mb-3">
-      <h2 class="text-sm font-semibold text-white">Your listings</h2>
-      <span class="text-[11px] text-white/60">
-        {{ listings|length }} active record{{ '' if listings|length == 1 else 's' }}
-      </span>
+  <!-- MAIN GRID -->
+  <div class="grid md:grid-cols-3 gap-6">
+
+    <!-- LEFT: LISTINGS -->
+    <div class="md:col-span-2 space-y-3">
+      <div class="flex items-center justify-between gap-2 mb-2">
+        <div>
+          <h2 class="text-sm font-semibold text-white">Your listings</h2>
+          <p class="text-[11px] text-white/60">
+            Drafts, live opportunities and archived deals you’ve marketed through the platform.
+          </p>
+        </div>
+        <a href="{{ url_for('seller_new_listing') }}"
+           class="inline-flex items-center justify-center px-3 py-1.5 rounded bg-kaijoPink text-white text-[11px] font-semibold hover:bg-kaijoYellow hover:text-black transition">
+          + Create new listing
+        </a>
+      </div>
+
+      {% if listings %}
+        <div class="space-y-3">
+          {% for l in listings %}
+            <div class="rounded-lg bg-black/40 border border-white/10 p-4 text-xs text-white flex flex-col gap-2">
+              <div class="flex items-start justify-between gap-3">
+                <div>
+                  <p class="text-[11px] font-mono text-white/40 mb-1">
+                    {{ l.listing_code or "Ref pending" }}
+                  </p>
+                  <p class="font-semibold text-sm text-white">
+                    {{ l.title }}
+                  </p>
+                  <p class="text-[11px] text-white/60 mt-0.5">
+                    {{ l.region or "Region tbc" }}
+                    {% if l.care_type %} • {{ l.care_type }}{% endif %}
+                    {% if l.beds %} • {{ l.beds }} beds{% endif %}
+                  </p>
+                </div>
+
+                <div class="text-right text-[11px]">
+                  <span class="inline-flex items-center px-2 py-0.5 rounded-full
+                               {% if l.status == 'live' %}
+                                 bg-kaijoYellow text-black
+                               {% elif l.status == 'draft' %}
+                                 bg-white/5 text-white/70
+                               {% elif l.status == 'under_offer' %}
+                                 bg-kaijoPurple/80 text-white
+                               {% elif l.status == 'sold' %}
+                                 bg-emerald-500/80 text-black
+                               {% else %}
+                                 bg-white/10 text-white/70
+                               {% endif %}">
+                    {{ l.status|replace('_', ' ')|title }}
+                  </span>
+                  <p class="mt-1 text-white/50">
+                    Enquiries: {{ l.total_enquiries or 0 }}
+                  </p>
+                </div>
+              </div>
+              <div class="flex flex-wrap gap-2 mt-2 text-[11px]">
+  <a href="{{ url_for('listing_detail', listing_id=l.id) }}"
+     class="px-3 py-1.5 rounded border border-white/20 text-white/80 hover:bg-white/10 hover:text-kaijoYellow transition">
+    View listing
+  </a>
+  <a href="{{ url_for('seller_edit_listing', listing_id=l.id) }}"
+     class="px-3 py-1.5 rounded border border-white/20 text-white/80 hover:bg-white/10 hover:text-kaijoYellow transition">
+    Edit
+  </a>
+</div>
+
+              
+            </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <p class="text-xs text-white/60">
+          You don’t have any listings yet.
+          <a href="{{ url_for('seller_new_listing') }}" class="underline hover:text-kaijoYellow">
+            Create your first listing.
+          </a>
+        </p>
+      {% endif %}
     </div>
 
-    {% if listings %}
-      <div class="space-y-3">
-        {% for l in listings %}
-          <div class="rounded border border-white/10 bg-black/30 px-3 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-xs">
-            <div>
-              <p class="text-[11px] font-mono text-white/50 mb-0.5">
-                {{ l.listing_code }}
-              </p>
-              <p class="font-semibold text-sm text-white">
-                {{ l.title }}
-              </p>
-              <p class="text-white/60">
-                {{ l.region or 'Region tbc' }} •
-                {{ l.care_type or 'Care type tbc' }} •
-                {{ l.beds or '?' }} beds
-              </p>
-              <p class="text-white/50 mt-0.5">
-                Status:
-                <span class="text-white">
-                  {{ l.status.replace('_', ' ').title() }}
-                </span>
-                · Enquiries:
-                <span class="text-white">
-                  {{ l.total_enquiries or 0 }}
-                </span>
-              </p>
-            </div>
+    <!-- RIGHT: QUICK STATS / PROFILE -->
+    <div class="space-y-4">
 
-            <div class="flex flex-wrap gap-2 justify-end">
-              <a href="{{ url_for('listing_detail', listing_id=l.id) }}"
-                 class="px-3 py-1.5 rounded border border-white/20 text-white/80 hover:bg-white/10">
-                View
-              </a>
-              <a href="{{ url_for('seller_edit_listing', listing_id=l.id) }}"
-                 class="px-3 py-1.5 rounded bg-kaijoPink text-white hover:bg-kaijoYellow hover:text-black">
-                Edit
-              </a>
-            </div>
-          </div>
-        {% endfor %}
+      <!-- QUICK STATS CARD -->
+      <div class="rounded-lg border border-white/10 bg-black/40 p-4 text-xs text-white">
+        <h2 class="text-sm font-semibold text-white mb-2">Overview</h2>
+        <ul class="space-y-1 text-[11px] text-white/70">
+          <li>
+            <span class="text-white/50">Total listings:</span>
+            <span class="ml-1 font-semibold">
+              {{ listings|length }}
+            </span>
+          </li>
+          <li>
+            <span class="text-white/50">Live listings:</span>
+            <span class="ml-1 font-semibold">
+              {{ listings|selectattr("status", "equalto", "live")|list|length }}
+            </span>
+          </li>
+          <li>
+            <span class="text-white/50">Draft listings:</span>
+            <span class="ml-1 font-semibold">
+              {{ listings|selectattr("status", "equalto", "draft")|list|length }}
+            </span>
+          </li>
+        </ul>
       </div>
+
+      <!-- PROFILE SNAPSHOT -->
+      <div class="rounded-lg border border-white/10 bg-black/40 p-4 text-xs text-white">
+        <div class="flex items-center justify-between gap-2 mb-2">
+          <h2 class="text-sm font-semibold text-white">Seller profile</h2>
+          <a href="{{ url_for('seller_profile') }}"
+             class="text-[11px] text-white/60 hover:text-kaijoYellow">
+            Edit profile
+          </a>
+        </div>
+
+        {% if profile %}
+          <dl class="space-y-1 text-[11px] text-white/70">
+            <div>
+              <dt class="text-white/50">Business name</dt>
+              <dd class="font-semibold">{{ profile.business_name or "Not set" }}</dd>
+            </div>
+            <div>
+              <dt class="text-white/50">Region</dt>
+              <dd>{{ profile.region or "Not set" }}</dd>
+            </div>
+            <div>
+              <dt class="text-white/50">Care type</dt>
+              <dd>{{ profile.care_type or "Not set" }}</dd>
+            </div>
+            <div>
+              <dt class="text-white/50">Turnover</dt>
+              <dd>{% if profile.turnover %}
+      £{{ profile.turnover }}
     {% else %}
-      <p class="text-xs text-white/70">
-        You don’t have any listings yet. Start by creating a new listing and we’ll guide you
-        through the basics.
-      </p>
+      Not set
     {% endif %}
+  </dd>
+</div>
+
+          </dl>
+        {% else %}
+          <p class="text-[11px] text-white/60">
+            No seller profile yet. Completing this makes it easier to request valuations and onboard buyers.
+          </p>
+        {% endif %}
+      </div>
+
+    </div>
   </div>
 
 </div>

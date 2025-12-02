@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}Introduction Requests{% endblock %}
+
+{% block content %}
+<div class="max-w-5xl mx-auto">
+
+  <h1 class="text-xl font-semibold text-white mb-4">
+    Pending Introduction Requests
+  </h1>
+
+  {% if not pending %}
+    <p class="text-white/70 text-sm">No pending requests.</p>
+    {% endblock %}
+    {% return %}
+  {% endif %}
+
+  <div class="space-y-4">
+    {% for intro in pending %}
+      <div class="rounded-lg border border-white/10 bg-black/30 p-4 text-sm">
+
+        <p class="text-white mb-1">
+          <strong>Seller:</strong> {{ intro.seller.email }}
+        </p>
+        <p class="text-white mb-1">
+          <strong>Buyer:</strong> {{ intro.buyer.email }}
+        </p>
+        <p class="text-white mb-2">
+          <strong>Listing:</strong> {{ intro.listing.title }} ({{ intro.listing.listing_code }})
+        </p>
+
+        <div class="flex gap-2 mt-3">
+
+          <form method="post"
+                action="{{ url_for('admin_approve_intro_request', intro_id=intro.id) }}">
+            <button class="px-3 py-1.5 bg-kaijoYellow text-black text-xs rounded hover:bg-yellow-400">
+              Approve
+            </button>
+          </form>
+
+          <form method="post"
+                action="{{ url_for('admin_decline_intro_request', intro_id=intro.id) }}">
+            <button class="px-3 py-1.5 bg-red-600 text-white text-xs rounded hover:bg-red-700">
+              Decline
+            </button>
+          </form>
+
+        </div>
+
+      </div>
+    {% endfor %}
+  </div>
+
+</div>
+{% endblock %}

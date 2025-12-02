@@ -1,45 +1,81 @@
 {% extends "base.html" %}
-{% block title %}Introductions{% endblock %}
+{% block title %}Introductions – Admin{% endblock %}
 
 {% block content %}
-<div class="max-w-5xl mx-auto py-8 text-white">
-  <h1 class="text-2xl font-semibold mb-4">Introductions</h1>
+<div class="flex items-center justify-between mb-6">
+  <div>
+    <h1 class="text-xl font-semibold text-white">Introductions pipeline</h1>
+    <p class="text-xs text-white/70">
+      Track buyer–seller introductions from first contact through to completed deals.
+    </p>
+  </div>
+</div>
 
-  {% if introductions %}
-    <table class="w-full text-xs border-collapse">
-      <thead>
-        <tr class="border-b border-white/20 text-[11px] text-gray-300">
-          <th class="text-left py-2 pr-2">Created</th>
-          <th class="text-left py-2 pr-2">Listing</th>
-          <th class="text-left py-2 pr-2">Buyer</th>
-          <th class="text-left py-2 pr-2">Seller</th>
-          <th class="text-left py-2 pr-2">Status</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for intro in introductions %}
-          <tr class="border-b border-white/10">
-            <td class="py-2 pr-2 text-gray-300">
-              {{ intro.created_at.strftime("%Y-%m-%d") if intro.created_at else "" }}
-            </td>
-            <td class="py-2 pr-2">
-              {{ intro.listing.listing_code }} – {{ intro.listing.title }}
-            </td>
-            <td class="py-2 pr-2 text-gray-200">
-              {{ intro.buyer.email }}
-            </td>
-            <td class="py-2 pr-2 text-gray-200">
-              {{ intro.seller.email }}
-            </td>
-            <td class="py-2 pr-2 text-gray-100">
-              {{ intro.status }}
-            </td>
-          </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  {% else %}
-    <p class="text-xs text-gray-400">No introductions yet.</p>
-  {% endif %}
+<div class="overflow-x-auto pb-4">
+  <div class="min-w-max grid gap-4"
+       style="grid-template-columns: repeat({{ statuses|length }}, minmax(220px, 1fr));">
+
+    {% for key, label in statuses %}
+      {% set column_intros = status_columns.get(key, []) %}
+
+      <div class="bg-black/30 border border-white/10 rounded-lg p-3 flex flex-col max-h-[80vh]">
+        <div class="flex items-center justify-between mb-2">
+          <h2 class="text-xs font-semibold uppercase tracking-[0.18em] text-white/70">
+            {{ label }}
+          </h2>
+          <span class="text-[10px] px-2 py-0.5 rounded-full bg-white/5 text-white/60">
+            {{ column_intros|length }}
+          </span>
+        </div>
+
+        <div class="space-y-2 overflow-y-auto pr-1">
+          {% if column_intros %}
+            {% for intro in column_intros %}
+              <a href="{{ url_for('admin_introduction_detail', intro_id=intro.id) }}"
+                 class="block bg-white/5 border border-white/10 rounded-md p-3 hover:border-kaijoYellow/80 hover:bg-white/10 transition text-xs text-white/80">
+
+                <div class="flex items-center justify-between mb-1">
+                  <span class="font-mono text-[10px] text-white/50">
+                    {{ intro.listing.listing_code or "Ref " ~ intro.listing.id }}
+                  </span>
+                  <span class="text-[10px] text-white/40">
+                    {{ intro.created_at.strftime("%d %b %Y") }}
+                  </span>
+                </div>
+
+                <p class="text-[11px] font-semibold text-white line-clamp-2">
+                  {{ intro.listing.title }}
+                </p>
+
+                <p class="text-[10px] text-white/60 mt-1">
+                  Buyer: {{ intro.buyer.email }}
+                  {% if intro.buyer.buyer_profile and intro.buyer.buyer_profile.business_name %}
+                    · {{ intro.buyer.buyer_profile.business_name }}
+                  {% endif %}
+                </p>
+
+                <p class="text-[10px] text-white/50">
+                  Seller: {{ intro.seller.email }}
+                </p>
+
+                {% if intro.deal %}
+                  <div class="mt-2 text-[10px] text-kaijoYellow/90">
+                    Deal: {{ intro.deal.agreed_price or "TBC" }}
+                    {% if intro.deal.status == "completed" %}
+                      · <span class="text-green-300">Completed</span>
+                    {% endif %}
+                  </div>
+                {% endif %}
+              </a>
+            {% endfor %}
+          {% else %}
+            <p class="text-[11px] text-white/40 italic">
+              No introductions in this stage yet.
+            </p>
+          {% endif %}
+        </div>
+      </div>
+    {% endfor %}
+  </div>
 </div>
 {% endblock %}

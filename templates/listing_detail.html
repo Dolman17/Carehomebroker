@@ -4,16 +4,32 @@
 {% block content %}
 <div class="max-w-5xl mx-auto py-8 text-white">
 
+  {# Compute gating flags #}
+  {% set can_see_full_title = false %}
+  {% set can_see_price = false %}
+
+  {% if current_user.is_authenticated %}
+    {% if current_user.role == "admin" %}
+      {% set can_see_full_title = true %}
+      {% set can_see_price = true %}
+    {% elif current_user.role == "seller" and listing.seller_id == current_user.id %}
+      {% set can_see_full_title = true %}
+      {% set can_see_price = true %}
+    {% elif current_user.role == "buyer" and is_premium_buyer %}
+      {% set can_see_full_title = true %}
+      {% set can_see_price = true %}
+    {% endif %}
+  {% endif %}
+
   <!-- HEADER -->
   <div class="flex items-center justify-between mb-4">
     <div>
       <p class="text-[11px] font-mono text-white/40 mb-1">{{ listing.listing_code }}</p>
       <h1 class="text-2xl font-semibold">
-        {% if is_premium_buyer|default(false) %}
+        {% if can_see_full_title %}
           {{ listing.title }}
         {% else %}
-          <span class="blur-sm select-none">Confidential care home</span>
-          <span class="text-[11px] text-kaijoYellow ml-1">Premium only</span>
+          Confidential care home – {{ listing.region or "UK" }}
         {% endif %}
       </h1>
       <p class="text-xs text-white/60 mt-1">
@@ -41,13 +57,13 @@
   </div>
 
   <!-- PREMIUM / LOGIN BANNERS -->
-  {% if current_user.is_authenticated and current_user.role == "buyer" and not is_premium_buyer|default(false) %}
+  {% if current_user.is_authenticated and current_user.role == "buyer" and not is_premium_buyer %}
     <div class="mb-5 rounded-lg border border-kaijoYellow/60 bg-black/20 px-4 py-3 text-xs text-kaijoYellow">
       <div class="font-semibold mb-1">Buyer Premium required for full access</div>
       <p class="mb-2 text-white/80">
         Upgrade to Buyer Premium to unlock full financials and send structured enquiries.
       </p>
-      <a href="{{ url_for('pricing') }}"
+      <a href="{{ url_for('pricing', role='buyer') }}"
          class="inline-flex items-center px-3 py-1.5 rounded bg-kaijoPink text-white font-semibold text-[11px] hover:bg-kaijoYellow hover:text-black transition">
         View buyer plans
       </a>
@@ -60,7 +76,7 @@
         Log in or register as a buyer to view full headline figures and send an enquiry.
       </p>
       <div class="space-x-2">
-        <a href="{{ url_for('login') }}"
+        <a href="{{ url_for('login', next=request.path) }}"
            class="inline-flex items-center px-3 py-1.5 rounded bg-white text-gray-900 font-semibold text-[11px]">
           Log in
         </a>
@@ -96,7 +112,7 @@
           <div>
             <dt class="text-white/40">Guide price</dt>
             <dd class="mt-0.5">
-              {% if is_premium_buyer|default(false) %}
+              {% if can_see_price %}
                 {{ listing.guide_price_band or "On request" }}
               {% else %}
                 <span class="blur-sm select-none">£X,XXX,XXX</span>
@@ -168,7 +184,7 @@
           <p class="text-xs text-white/70">
             Upgrade to Buyer Premium to contact sellers directly.
           </p>
-          <a href="{{ url_for('pricing') }}"
+          <a href="{{ url_for('pricing', role='buyer') }}"
              class="mt-3 inline-flex items-center px-3 py-1.5 rounded bg-kaijoPink text-white text-[11px] font-semibold hover:bg-kaijoYellow hover:text-black transition">
             Upgrade to Buyer Premium
           </a>
@@ -178,7 +194,7 @@
             Log in or register as a buyer to send an enquiry.
           </p>
           <div class="space-x-2">
-            <a href="{{ url_for('login') }}"
+            <a href="{{ url_for('login', next=request.path) }}"
                class="inline-flex items-center px-3 py-1.5 rounded bg-white text-gray-900 font-semibold text-[11px]">
               Log in
             </a>

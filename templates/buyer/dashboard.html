@@ -1,123 +1,250 @@
 {% extends "base.html" %}
-{% block title %}Buyer dashboard{% endblock %}
+{% block title %}Buyer Dashboard – Care Home Broker{% endblock %}
 
 {% block content %}
-<div class="flex justify-between items-center mb-4">
-  <div>
-    <h1 class="text-xl font-semibold">Buyer dashboard</h1>
-    <p class="text-xs text-slate-400">Track your enquiries and discover new opportunities.</p>
-  </div>
-  <a href="{{ url_for('buyer_listings') }}"
-     class="text-[11px] px-3 py-2 rounded bg-blue-600 hover:bg-blue-500">
-    Browse listings
-  </a>
-</div>
+<div class="space-y-6 text-white">
 
-{% set is_premium = has_active_subscription(current_user, 'buyer', 'premium') %}
-{% if not is_premium %}
-  <div class="mb-4 rounded-lg border border-amber-500/60 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-100">
-    <div class="flex justify-between items-center gap-2">
-      <div>
-        <strong class="font-semibold">Upgrade to Buyer Premium.</strong>
-        <span class="ml-1">
-          Unlock full listing details, direct introductions via the broker, and weekly deal digests.
-        </span>
-      </div>
-      <a href="{{ url_for('pricing') }}#buyer"
-         class="hidden sm:inline px-3 py-1 rounded bg-amber-500 text-slate-900 font-semibold">
-        View plans
-      </a>
+  <!-- HEADER -->
+  <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+    <div>
+      <h1 class="text-xl sm:text-2xl font-semibold">Buyer Dashboard</h1>
+      <p class="text-xs text-white/70">
+        See your matches, shortlist, and enquiries – all in one place.
+      </p>
     </div>
-  </div>
-{% endif %}
 
-{% if not buyer_profile_complete %}
-  <div class="mb-4 rounded border border-kaijoYellow/60 bg-black/40 px-4 py-3 text-xs text-kaijoYellow">
-    <div class="font-semibold mb-1">Complete your buyer profile</div>
-    <p class="text-white/80 mb-2">
-      A fuller profile helps us match you to the right opportunities and is required for Premium access.
-    </p>
     <a href="{{ url_for('buyer_profile') }}"
-       class="inline-flex items-center px-3 py-1.5 rounded bg-kaijoPink text-white text-[11px] hover:bg-kaijoYellow hover:text-black transition">
-      Update buyer profile
+       class="inline-flex items-center justify-center text-xs px-3 py-2 rounded border border-white/20 text-white/90 hover:bg-white/10 hover:text-kaijoYellow transition">
+      ✏️ Update buyer profile
     </a>
   </div>
-{% endif %}
 
+  {% if current_plan_label %}
+  <div class="mb-4 flex flex-wrap items-center justify-between gap-3 text-xs">
+    <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/5 border border-white/15 text-white/80">
+      <span class="text-[10px] uppercase tracking-[0.2em] text-white/50">Your plan</span>
+      <span class="font-semibold text-kaijoYellow">{{ current_plan_label }}</span>
+    </div>
 
+    <form method="POST" action="{{ url_for('billing_portal') }}">
+      <button type="submit"
+              class="px-3 py-1.5 rounded border border-white/25 text-white/80 text-[11px] hover:bg-white/10 hover:text-kaijoYellow transition">
+        Manage billing
+      </button>
+    </form>
+  </div>
+  {% else %}
+  <div class="mb-4 text-[11px] text-white/60">
+    You don’t have an active subscription yet.
+    <a href="{{ url_for('pricing', role='buyer') }}" class="underline hover:text-kaijoYellow">
+      Choose a plan
+    </a>
+  </div>
+  {% endif %}
 
-<div class="grid md:grid-cols-2 gap-6">
-  <!-- Recent enquiries -->
-  <section class="border border-slate-800 rounded-xl bg-slate-900/60 p-4">
-    <h2 class="text-sm font-semibold mb-3">Recent enquiries</h2>
-    {% if enquiries %}
-      <ul class="space-y-3 text-xs">
-        {% for e in enquiries %}
-          <li class="border border-slate-800 rounded-lg px-3 py-2">
-            <p class="font-medium text-slate-100">
-              {{ e.listing.title }} <span class="text-[10px] text-slate-500">({{ e.listing.listing_code }})</span>
+  <!-- PREMIUM GATING + PROFILE STATUS -->
+  <div class="grid md:grid-cols-2 gap-4">
+
+    <!-- Profile completion card -->
+    <div class="rounded-lg border border-white/10 bg-black/30 p-4 text-xs">
+      <h2 class="text-sm font-semibold mb-2">Your buyer profile</h2>
+
+      {% if profile_complete %}
+        <p class="text-white/70 mb-2">
+          Your profile is <span class="text-kaijoYellow font-semibold">deal-ready</span>.
+          We’re using it to rank and prioritise opportunities for you.
+        </p>
+      {% else %}
+        <p class="text-white/70 mb-2">
+          Your profile is <span class="text-kaijoPink font-semibold">incomplete</span>.
+          Add your budget, regions and strategy to improve match quality.
+        </p>
+        <a href="{{ url_for('buyer_profile') }}"
+           class="inline-flex items-center px-3 py-1.5 rounded bg-kaijoPink text-white hover:bg-kaijoYellow hover:text-black transition">
+          Complete your buyer profile
+        </a>
+      {% endif %}
+    </div>
+
+    <!-- Premium status card -->
+    <div class="rounded-lg border border-white/10 bg-black/30 p-4 text-xs">
+      <h2 class="text-sm font-semibold mb-2">Marketplace access</h2>
+
+      {% if is_premium_buyer %}
+        <p class="text-white/70 mb-1">
+          You are on <span class="text-kaijoYellow font-semibold">Buyer Premium</span>.
+          You can see full listing details and send structured enquiries.
+        </p>
+        <p class="text-white/50">
+          Use your matches below to prioritise which opportunities to move forward first.
+        </p>
+      {% else %}
+        <p class="text-white/80 mb-2">
+          You are on the <span class="font-semibold">Register-only</span> tier.
+          You’ll see blurred headline details – upgrade to unlock full listings and enquiry tools.
+        </p>
+        <a href="{{ url_for('pricing', role='buyer') }}"
+           class="inline-flex items-center px-3 py-1.5 rounded bg-kaijoPink text-white font-semibold hover:bg-kaijoYellow hover:text-black transition">
+          View Buyer Premium options
+        </a>
+        <p class="mt-2 text-[11px] text-white/50">
+          Premium unlocks: full listing names & guide prices, enquiry tools and curated intros.
+        </p>
+      {% endif %}
+    </div>
+
+  </div>
+
+  <!-- MATCHES -->
+  <section class="rounded-lg border border-white/10 bg-black/30 p-4">
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3">
+      <div>
+        <h2 class="text-sm font-semibold">Matches based on your profile</h2>
+        <p class="text-[11px] text-white/60">
+          Ranked by fit against your regions, care types, beds and budget.
+        </p>
+      </div>
+      <a href="{{ url_for('listings') }}"
+         class="text-[11px] text-white/70 hover:text-kaijoYellow underline-offset-2 hover:underline">
+        Browse all live listings →
+      </a>
+    </div>
+
+    {% if top_matches %}
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+        {% for l in top_matches %}
+          <a href="{{ url_for('listing_detail', listing_id=l.id) }}"
+             class="block rounded-md border border-white/10 bg-black/40 p-3 hover:border-kaijoYellow/80 hover:shadow-lg hover:shadow-black/40 transition">
+
+            <p class="text-[10px] font-mono text-white/40 mb-1">
+              {{ l.listing_code or "Ref pending" }}
             </p>
-            <p class="text-[11px] text-slate-400 mb-1">
-              {{ e.listing.region or "Region tbc" }} • {{ e.listing.care_type or "Care type tbc" }}
+
+            <!-- Service name: blurred for non-premium -->
+            <p class="font-semibold text-sm mb-1">
+              {% if is_premium_buyer %}
+                {{ l.title }}
+              {% else %}
+                <span class="blur-sm select-none">Confidential care home</span>
+                <span class="ml-1 text-[10px] text-kaijoYellow">Premium only</span>
+              {% endif %}
             </p>
-            <p class="text-[11px] text-slate-400 line-clamp-2">{{ e.message }}</p>
-          </li>
+
+            <p class="text-[11px] text-white/70 mb-1">
+              {{ l.region or "Region tbc" }} •
+              {{ l.care_type or "Care type tbc" }} •
+              {{ l.beds or "?" }} beds
+            </p>
+
+            <p class="text-[11px] text-white/60">
+              Guide price:
+              {% if is_premium_buyer %}
+                <span class="text-kaijoYellow">
+                  {{ l.guide_price_band or "On request" }}
+                </span>
+              {% else %}
+                <span class="blur-sm select-none">£X,XXX,XXX</span>
+                <span class="ml-1 text-[10px] text-kaijoYellow">Premium only</span>
+              {% endif %}
+            </p>
+          </a>
         {% endfor %}
-      </ul>
+      </div>
     {% else %}
-      <p class="text-xs text-slate-400">You haven’t sent any enquiries yet.</p>
+      <p class="text-xs text-white/70">
+        No strong matches yet. Once your profile is complete and more listings go live,
+        we’ll surface your top opportunities here.
+      </p>
     {% endif %}
   </section>
 
-  <!-- Recommendations + shortlist -->
-  <section class="space-y-4">
-    <div class="border border-slate-800 rounded-xl bg-slate-900/60 p-4">
-      <h2 class="text-sm font-semibold mb-3">Recommended listings</h2>
-      {% if recommendations %}
-        <ul class="space-y-3 text-xs">
-          {% for l in recommendations %}
-            <li class="border border-slate-800 rounded-lg px-3 py-2 hover:border-blue-500/60 hover:bg-slate-900/80">
-              <a href="{{ url_for('listing_detail', listing_id=l.id) }}">
-                <p class="font-medium text-slate-100">{{ l.title }}</p>
-                <p class="text-[11px] text-slate-400">
-                  {{ l.region or "Region tbc" }} • {{ l.care_type or "Care type tbc" }}
-                  {% if l.beds %} • {{ l.beds }} beds{% endif %}
+  <!-- TWO COLUMN: ENQUIRIES + SHORTLIST -->
+  <div class="grid md:grid-cols-2 gap-4">
+
+    <!-- Recent enquiries -->
+    <section class="rounded-lg border border-white/10 bg-black/30 p-4">
+      <h2 class="text-sm font-semibold mb-2">Recent enquiries</h2>
+
+      {% if enquiries %}
+        <div class="space-y-2 max-h-64 overflow-y-auto pr-1">
+          {% for e in enquiries %}
+            {% set l = e.listing %}
+            <div class="border border-white/10 rounded-md px-3 py-2 text-[11px]">
+              <div class="flex items-center justify-between gap-2 mb-1">
+                <span class="font-mono text-white/50">
+                  {{ l.listing_code if l else "Listing removed" }}
+                </span>
+                <span class="text-white/40">
+                  {{ e.created_at.strftime("%d %b %Y") }}
+                </span>
+              </div>
+              {% if l %}
+                <p class="text-white/80 text-xs mb-1">
+                  {{ l.title }}
                 </p>
-              </a>
-            </li>
+              {% endif %}
+              <p class="text-white/60 line-clamp-2">
+                {{ e.message }}
+              </p>
+            </div>
           {% endfor %}
-        </ul>
+        </div>
       {% else %}
-        <p class="text-xs text-slate-400">
-          No matches yet. Update your buyer profile to get tailored opportunities.
+        <p class="text-xs text-white/70">
+          {% if is_premium_buyer %}
+            You haven’t sent any enquiries yet. From listing pages, use the enquiry form to contact sellers directly.
+          {% else %}
+            You haven’t sent any enquiries yet. Once you upgrade to Premium, you can contact sellers directly from listing pages.
+          {% endif %}
         </p>
       {% endif %}
-    </div>
+    </section>
 
-    <div class="border border-slate-800 rounded-xl bg-slate-900/60 p-4">
+    <!-- Shortlist -->
+    <section class="rounded-lg border border-white/10 bg-black/30 p-4">
       <div class="flex items-center justify-between mb-2">
         <h2 class="text-sm font-semibold">Shortlist</h2>
-        <a href="{{ url_for('buyer_shortlist') }}" class="text-[11px] text-blue-400 hover:text-blue-300">
-          View shortlist →
+        <a href="{{ url_for('buyer_shortlist') }}"
+           class="text-[11px] text-white/70 hover:text-kaijoYellow underline-offset-2 hover:underline">
+          View full shortlist →
         </a>
       </div>
+
       {% if shortlist_listings %}
-        <ul class="space-y-2 text-xs">
+        <div class="space-y-2 max-h-64 overflow-y-auto pr-1">
           {% for l in shortlist_listings %}
-            <li>
-              <a href="{{ url_for('listing_detail', listing_id=l.id) }}"
-                 class="text-slate-100 hover:text-blue-300">
-                {{ l.listing_code }} – {{ l.title }}
-              </a>
-            </li>
+            <a href="{{ url_for('listing_detail', listing_id=l.id) }}"
+               class="block border border-white/10 rounded-md px-3 py-2 text-[11px] hover:border-kaijoYellow/70 transition">
+              <div class="flex items-center justify-between gap-2 mb-1">
+                <span class="font-mono text-white/50">
+                  {{ l.listing_code or "Ref" }}
+                </span>
+                <span class="text-white/40">
+                  {{ l.region or "Region" }}
+                </span>
+              </div>
+              <p class="text-white/80 text-xs mb-0.5">
+                {% if is_premium_buyer %}
+                  {{ l.title }}
+                {% else %}
+                  <span class="blur-sm select-none">Confidential care home</span>
+                  <span class="ml-1 text-[10px] text-kaijoYellow">Premium</span>
+                {% endif %}
+              </p>
+              <p class="text-white/60">
+                {{ l.care_type or "Care type" }} • {{ l.beds or "?" }} beds
+              </p>
+            </a>
           {% endfor %}
-        </ul>
+        </div>
       {% else %}
-        <p class="text-xs text-slate-400">
-          Shortlist listings from the main listings page to keep an eye on them.
+        <p class="text-xs text-white/70">
+          You haven’t shortlisted any homes yet. From listings, use “☆ Add to shortlist” to keep track of interesting opportunities.
         </p>
       {% endif %}
-    </div>
-  </section>
+    </section>
+
+  </div>
+
 </div>
 {% endblock %}

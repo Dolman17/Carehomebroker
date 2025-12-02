@@ -40,7 +40,7 @@
              bg-gradient-to-br from-kaijoGreenDark via-kaijoGreenMid to-kaijoPurple text-white">
 
   <!-- NAVBAR (sticky) -->
-  <header class="border-b border-white/10 bg-black/30 backdrop-blur z-40 sticky top-0">
+  <header class="sticky top-0 z-30 border-b border-white/10 bg-black/40 backdrop-blur">
     <nav class="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
 
       <!-- Logo -->
@@ -54,53 +54,32 @@
       </a>
 
       <!-- Desktop nav -->
-      <div class="hidden sm:flex items-center gap-3 text-xs sm:text-sm">
+      <div class="hidden sm:flex items-center gap-4 text-xs sm:text-sm">
+        <a href="{{ url_for('index') }}"
+           class="text-white/80 hover:text-kaijoYellow transition-colors">
+          Home
+        </a>
 
         <a href="{{ url_for('listings') }}"
            class="text-white/80 hover:text-kaijoYellow transition-colors">
           Listings
         </a>
 
-        <a href="{{ url_for('pricing') }}"
+        <a href="{{ url_for('pricing') }}?role=buyer"
            class="text-white/80 hover:text-kaijoYellow transition-colors">
           Pricing
         </a>
 
         {% if current_user.is_authenticated %}
-
-          {% if current_user.role == 'buyer' %}
-            <a href="{{ url_for('buyer_dashboard') }}"
-               class="text-white/80 hover:text-kaijoYellow transition-colors">
-              Buyer Dashboard
-            </a>
-            <a href="{{ url_for('buyer_shortlist') }}"
-               class="text-white/80 hover:text-kaijoYellow transition-colors text-xs">
-              Shortlist
-            </a>
-
-          {% elif current_user.role == 'seller' %}
-            <a href="{{ url_for('seller_dashboard') }}"
-               class="text-white/80 hover:text-kaijoYellow transition-colors">
-              Seller Dashboard
-            </a>
-
-          {% elif current_user.role == 'admin' %}
-            <a href="{{ url_for('admin_dashboard') }}"
-               class="text-white/80 hover:text-kaijoYellow transition-colors">
-              Admin
-            </a>
-            <a href="{{ url_for('admin_users') }}"
-               class="text-white/80 hover:text-kaijoYellow transition-colors text-xs">
-              Users
-            </a>
-          {% endif %}
-
+          <a href="{{ url_for('my_dashboard') }}"
+             class="text-white/80 hover:text-kaijoYellow transition-colors">
+            My Dashboard
+          </a>
           <form action="{{ url_for('logout') }}" method="POST" class="ml-1">
             <button class="text-kaijoPink hover:text-white transition-colors">
               Logout
             </button>
           </form>
-
         {% else %}
           <a href="{{ url_for('login') }}"
              class="text-white/80 hover:text-kaijoYellow transition-colors">
@@ -121,9 +100,9 @@
     </nav>
   </header>
 
-  <!-- IMPERSONATION TOOLBAR (no longer sticky) -->
+  <!-- IMPERSONATION TOOLBAR (sticky under nav) -->
   {% if session.get('impersonator_id') %}
-    <div class="bg-kaijoPink/25 border-b border-kaijoPink/70">
+    <div class="bg-kaijoPink/25 border-b border-kaijoPink/70 sticky top-[52px] sm:top-[56px] z-20">
       <div class="max-w-6xl mx-auto px-4 py-2 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-[11px] text-white">
         <span>
           You are currently impersonating another user. Actions will be recorded as them.
@@ -166,74 +145,67 @@
   </footer>
 
   <!-- MOBILE SLIDE-OUT MENU -->
-  <div id="mobile-menu"
-       class="sm:hidden fixed inset-0 z-40 bg-black/60 backdrop-blur hidden">
-    <div class="absolute right-0 top-0 h-full w-64 bg-black/95 border-l border-white/10 p-4 flex flex-col gap-4">
+<div id="mobile-menu"
+     class="sm:hidden fixed inset-0 z-40 bg-black/60 backdrop-blur hidden">
+  <div class="absolute right-0 top-0 h-full w-64 bg-black/95 border-l border-white/10 p-4 flex flex-col gap-4">
 
-      <div class="flex items-center justify-between mb-2">
-        <span class="text-[11px] uppercase tracking-[0.2em] text-white/60">Menu</span>
-        <button id="mobile-menu-close"
-                class="p-1 rounded border border-white/30 text-white/80 hover:bg-white/10"
-                aria-label="Close menu">
-          ✕
-        </button>
-      </div>
-
-      <nav class="flex flex-col gap-2 text-sm">
-        <a href="{{ url_for('index') }}"
-           class="py-1 text-white/90 hover:text-kaijoYellow">
-          Home
-        </a>
-        <a href="{{ url_for('listings') }}"
-           class="py-1 text-white/80 hover:text-kaijoYellow">
-          Listings
-        </a>
-        <a href="{{ url_for('pricing') }}"
-           class="py-1 text-white/80 hover:text-kaijoYellow">
-          Pricing
-        </a>
-
-        {% if current_user.is_authenticated %}
-          {% if current_user.role == 'buyer' %}
-            <a href="{{ url_for('buyer_dashboard') }}"
-               class="py-1 text-white/80 hover:text-kaijoYellow">
-              Buyer Dashboard
-            </a>
-            <a href="{{ url_for('buyer_shortlist') }}"
-               class="py-1 text-white/80 hover:text-kaijoYellow text-xs">
-              Shortlist
-            </a>
-          {% elif current_user.role == 'seller' %}
-            <a href="{{ url_for('seller_dashboard') }}"
-               class="py-1 text-white/80 hover:text-kaijoYellow">
-              Seller Dashboard
-            </a>
-          {% elif current_user.role == 'admin' %}
-            <a href="{{ url_for('admin_dashboard') }}"
-               class="py-1 text-white/80 hover:text-kaijoYellow">
-              Admin
-            </a>
-            <a href="{{ url_for('admin_users') }}"
-               class="py-1 text-white/80 hover:text-kaijoYellow text-xs">
-              Users
-            </a>
-          {% endif %}
-
-          <form action="{{ url_for('logout') }}" method="POST" class="mt-2">
-            <button class="w-full text-left py-1 text-kaijoPink hover:text-white">
-              Logout
-            </button>
-          </form>
-
-        {% else %}
-          <a href="{{ url_for('login') }}"
-             class="py-1 text-white/80 hover:text-kaijoYellow">
-            Login
-          </a>
-        {% endif %}
-      </nav>
+    <div class="flex items-center justify-between mb-2">
+      <span class="text-[11px] uppercase tracking-[0.2em] text-white/60">Menu</span>
+      <button id="mobile-menu-close"
+              class="p-1 rounded border border-white/30 text-white/80 hover:bg-white/10"
+              aria-label="Close menu">
+        ✕
+      </button>
     </div>
+
+    <nav class="flex flex-col gap-2 text-sm">
+      <a href="{{ url_for('index') }}"
+         class="py-1 text-white/90 hover:text-kaijoYellow">
+        Home
+      </a>
+
+      <a href="{{ url_for('listings') }}"
+         class="py-1 text-white/80 hover:text-kaijoYellow">
+        Listings
+      </a>
+
+      <a href="{{ url_for('pricing') }}"
+         class="py-1 text-white/80 hover:text-kaijoYellow">
+        Pricing
+      </a>
+
+      {% if current_user.is_authenticated %}
+
+        <a href="{{ url_for('my_dashboard') }}"
+           class="py-1 text-white/80 hover:text-kaijoYellow">
+          My Dashboard
+        </a>
+
+        <a href="{{ url_for('admin_enquiries') }}"
+   class="text-sm text-white/70 hover:text-kaijoYellow">
+  Enquiries
+</a>
+
+
+        <form action="{{ url_for('logout') }}" method="POST" class="mt-2">
+          <button class="w-full text-left py-1 text-kaijoPink hover:text-white">
+            Logout
+          </button>
+        </form>
+
+      {% else %}
+
+        <a href="{{ url_for('login') }}"
+           class="py-1 text-white/80 hover:text-kaijoYellow">
+          Login
+        </a>
+
+      {% endif %}
+    </nav>
+
   </div>
+</div>
+
 
   <!-- FLOATING MOBILE CTA BAR -->
   <div class="md:hidden fixed bottom-0 inset-x-0 z-30 bg-gradient-to-r from-kaijoPurple via-black to-kaijoYellow border-t border-white/10">
@@ -242,11 +214,11 @@
         Looking to buy or sell a care home?
       </span>
       <div class="flex gap-2 ml-auto">
-        <a href="{{ url_for('register_buyer') }}"
-           class="px-3 py-1 rounded border border-white/30 text-white/90 hover:bg_white/10 hover:text-kaijoYellow">
+        <a href="{{ url_for('pricing', role='buyer') }}"
+           class="px-3 py-1 rounded border border-white/30 text-white/90 hover:bg-white/10 hover:text-kaijoYellow">
           Buy
         </a>
-        <a href="{{ url_for('register_seller') }}"
+        <a href="{{ url_for('pricing', role='seller') }}"
            class="px-3 py-1 rounded bg-kaijoPink text-white hover:bg-kaijoYellow hover:text-black">
           Sell
         </a>

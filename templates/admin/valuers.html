@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% block title %}Admin – Valuers{% endblock %}
+
+{% block content %}
+<div class="mb-6 flex items-center justify-between gap-3">
+  <div>
+    <h1 class="text-xl font-semibold text-white">Valuer framework</h1>
+    <p class="text-xs text-white/70">
+      All valuers registered on the framework, with region coverage and tier.
+    </p>
+  </div>
+  <a href="{{ url_for('admin_dashboard') }}"
+     class="text-xs border border-white/20 text-white/70 px-3 py-1.5 rounded hover:bg-white/10">
+    ← Back to admin
+  </a>
+</div>
+
+<div class="bg-black/30 border border-white/10 rounded-lg overflow-hidden">
+  <table class="min-w-full text-left text-xs">
+    <thead class="bg-white/5 text-white/70 uppercase tracking-[0.15em] text-[10px]">
+      <tr>
+        <th class="px-4 py-2">Valuer</th>
+        <th class="px-4 py-2">Company</th>
+        <th class="px-4 py-2">Accreditation</th>
+        <th class="px-4 py-2">Regions</th>
+        <th class="px-4 py-2">Notes</th>
+        <th class="px-4 py-2">Tier</th>
+        <th class="px-4 py-2 text-right">Joined</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for u in valuers %}
+      {% set p = u.valuer_profile %}
+      <tr class="border-t border-white/5 hover:bg-white/5">
+        <td class="px-4 py-2 align-top">
+          <div class="text-white text-xs">{{ u.email }}</div>
+        </td>
+        <td class="px-4 py-2 align-top">
+          {% if p and p.company_name %}
+            <div class="text-xs text-white">{{ p.company_name }}</div>
+          {% else %}
+            <span class="text-[11px] text-white/40">–</span>
+          {% endif %}
+        </td>
+        <td class="px-4 py-2 align-top text-[11px] text-white/70">
+          {% if p and p.accreditation %}
+            {{ p.accreditation }}
+          {% else %}
+            <span class="text-white/40">–</span>
+          {% endif %}
+        </td>
+        <td class="px-4 py-2 align-top text-[11px] text-white/70">
+          {% if p and p.regions %}
+            {{ p.regions }}
+          {% else %}
+            <span class="text-white/40">–</span>
+          {% endif %}
+        </td>
+        <td class="px-4 py-2 align-top text-[11px] text-white/70">
+          {% if p and p.pricing_notes %}
+            {{ p.pricing_notes[:80] }}{% if p.pricing_notes|length > 80 %}…{% endif %}
+          {% elif p and p.bio %}
+            {{ p.bio[:80] }}{% if p.bio|length > 80 %}…{% endif %}
+          {% else %}
+            <span class="text-white/40">–</span>
+          {% endif %}
+        </td>
+        <td class="px-4 py-2 align-top text-[11px]">
+          {% if u.id in premium_ids %}
+            <span class="inline-flex items-center px-2 py-0.5 rounded-full bg-kaijoPink/20 border border-kaijoPink/60 text-kaijoPink">
+              Valuer Premium
+            </span>
+          {% elif u.id in basic_ids %}
+            <span class="inline-flex items-center px-2 py-0.5 rounded-full bg-white/5 border border-white/20 text-white/70">
+              Valuer Basic
+            </span>
+          {% else %}
+            <span class="text-white/40">No active sub</span>
+          {% endif %}
+        </td>
+        <td class="px-4 py-2 align-top text-right text-[11px] text-white/60">
+          {{ u.created_at.strftime("%d %b %Y") if u.created_at else "–" }}
+        </td>
+      </tr>
+    {% else %}
+      <tr>
+        <td colspan="7" class="px-4 py-4 text-center text-[11px] text-white/60">
+          No valuers found.
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

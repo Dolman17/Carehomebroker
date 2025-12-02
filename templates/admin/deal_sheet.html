@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Deal #{{ deal.id }} – {{ listing.listing_code or "Ref" }}</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-size: 13px;
+      color: #111827;
+      margin: 24px;
+    }
+    h1, h2 {
+      margin: 0 0 4px 0;
+    }
+    .section {
+      margin-bottom: 16px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #e5e7eb;
+    }
+    .label {
+      font-size: 11px;
+      color: #6b7280;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 8px;
+    }
+    td {
+      padding: 4px 0;
+      vertical-align: top;
+    }
+    .muted {
+      color: #6b7280;
+      font-size: 12px;
+    }
+  </style>
+</head>
+<body>
+  <div class="section">
+    <div class="label">Deal summary</div>
+    <h1>Deal #{{ deal.id }} – {{ listing.listing_code or "Ref" }}</h1>
+    <div class="muted">
+      Generated {{ datetime.utcnow().strftime("%Y-%m-%d %H:%M") }} (UTC)
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="label">Parties</div>
+    <table>
+      <tr>
+        <td style="width: 120px;">Buyer</td>
+        <td>{{ buyer.email }}</td>
+      </tr>
+      <tr>
+        <td>Seller</td>
+        <td>{{ seller.email }}</td>
+      </tr>
+      <tr>
+        <td>Listing</td>
+        <td>
+          {{ listing.listing_code or "Ref" }} – {{ listing.title or "Listing" }}<br>
+          <span class="muted">
+            {{ listing.region or "Region" }} • {{ listing.care_type or "Care type" }} • {{ listing.beds or "?" }} beds
+          </span>
+        </td>
+      </tr>
+    </table>
+  </div>
+
+  <div class="section">
+    <div class="label">Commercials</div>
+    <table>
+      <tr>
+        <td style="width: 180px;">Agreed price</td>
+        <td>{{ deal.agreed_price or intro.offer_amount or "n/a" }}</td>
+      </tr>
+      <tr>
+        <td>Commission %</td>
+        <td>{{ deal.broker_commission_percent or 0 }}%</td>
+      </tr>
+      <tr>
+        <td>Estimated commission</td>
+        <td>
+          {% if deal.broker_commission_amount %}
+            £{{ "%.2f" | format(deal.broker_commission_amount / 100) }}
+          {% else %}
+            n/a
+          {% endif %}
+        </td>
+      </tr>
+      <tr>
+        <td>Completion date</td>
+        <td>
+          {% if deal.completion_date %}
+            {{ deal.completion_date.strftime("%Y-%m-%d") }}
+          {% else %}
+            TBC
+          {% endif %}
+        </td>
+      </tr>
+      <tr>
+        <td>Deal status</td>
+        <td>{{ deal.status.replace("_", " ") }}</td>
+      </tr>
+    </table>
+  </div>
+
+  <div class="section">
+    <div class="label">Introduction snapshot</div>
+    <table>
+      <tr>
+        <td style="width: 180px;">Introduction status</td>
+        <td>{{ intro.status }}</td>
+      </tr>
+      {% if intro.offer_amount %}
+      <tr>
+        <td>Original offer</td>
+        <td>{{ intro.offer_amount }}</td>
+      </tr>
+      {% endif %}
+      {% if intro.offer_date %}
+      <tr>
+        <td>Offer date</td>
+        <td>{{ intro.offer_date.strftime("%Y-%m-%d") }}</td>
+      </tr>
+      {% endif %}
+      {% if intro.offer_notes %}
+      <tr>
+        <td>Offer notes</td>
+        <td>{{ intro.offer_notes }}</td>
+      </tr>
+      {% endif %}
+    </table>
+  </div>
+
+  <div>
+    <span class="muted">
+      This export is a working summary only and does not constitute a legally binding record.
+    </span>
+  </div>
+</body>
+</html>

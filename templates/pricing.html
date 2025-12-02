@@ -52,16 +52,26 @@
 
       <div class="mt-auto space-y-2 text-[11px]">
         <p class="text-white/55">Choose your access level:</p>
-        <div class="flex flex-col gap-2">
-          <a href="{{ url_for('register_buyer') }}?tier=basic"
-             class="inline-flex items-center justify-center px-3 py-1.5 rounded border border-white/30 text-white/85 hover:bg-white/10 hover:text-kaijoYellow transition">
+
+        <!-- BUYER BASIC (TIER 1) -->
+        <form method="POST" action="{{ url_for('billing_checkout') }}">
+          <input type="hidden" name="role" value="buyer">
+          <input type="hidden" name="tier" value="basic">
+          <button type="submit"
+                  class="w-full inline-flex items-center justify-center px-3 py-1.5 rounded border border-white/30 text-white/85 hover:bg-white/10 hover:text-kaijoYellow transition">
             Tier 1 – Register only
-          </a>
-          <a href="{{ url_for('register_buyer') }}?tier=premium"
-             class="inline-flex items-center justify-center px-3 py-1.5 rounded bg-kaijoPink text-white hover:bg-kaijoYellow hover:text-black font-semibold transition">
+          </button>
+        </form>
+
+        <!-- BUYER PREMIUM (TIER 2) -->
+        <form method="POST" action="{{ url_for('billing_checkout') }}">
+          <input type="hidden" name="role" value="buyer">
+          <input type="hidden" name="tier" value="premium">
+          <button type="submit"
+                  class="w-full inline-flex items-center justify-center px-3 py-1.5 rounded bg-kaijoPink text-white hover:bg-kaijoYellow hover:text-black font-semibold transition">
             Tier 2 – Full marketplace
-          </a>
-        </div>
+          </button>
+        </form>
       </div>
     </section>
 
@@ -86,16 +96,26 @@
 
       <div class="mt-auto space-y-2 text-[11px]">
         <p class="text-white/55">Choose your access level:</p>
-        <div class="flex flex-col gap-2">
-          <a href="{{ url_for('register_seller') }}?tier=basic"
-             class="inline-flex items-center justify-center px-3 py-1.5 rounded border border-white/30 text-white/85 hover:bg-white/10 hover:text-kaijoYellow transition">
+
+        <!-- SELLER BASIC -->
+        <form method="POST" action="{{ url_for('billing_checkout') }}">
+          <input type="hidden" name="role" value="seller">
+          <input type="hidden" name="tier" value="basic">
+          <button type="submit"
+                  class="w-full inline-flex items-center justify-center px-3 py-1.5 rounded border border-white/30 text-white/85 hover:bg-white/10 hover:text-kaijoYellow transition">
             Tier 1 – Register only
-          </a>
-          <a href="{{ url_for('register_seller') }}?tier=premium"
-             class="inline-flex items-center justify-center px-3 py-1.5 rounded bg-kaijoPink text-white hover:bg-kaijoYellow hover:text-black font-semibold transition">
+          </button>
+        </form>
+
+        <!-- SELLER PREMIUM -->
+        <form method="POST" action="{{ url_for('billing_checkout') }}">
+          <input type="hidden" name="role" value="seller">
+          <input type="hidden" name="tier" value="premium">
+          <button type="submit"
+                  class="w-full inline-flex items-center justify-center px-3 py-1.5 rounded bg-kaijoPink text-white hover:bg-kaijoYellow hover:text-black font-semibold transition">
             Tier 2 – Full marketplace
-          </a>
-        </div>
+          </button>
+        </form>
       </div>
     </section>
 
@@ -120,16 +140,26 @@
 
       <div class="mt-auto space-y-2 text-[11px]">
         <p class="text-white/55">Choose your access level:</p>
-        <div class="flex flex-col gap-2">
-          <a href="{{ url_for('register_valuer') }}?tier=basic"
-             class="inline-flex items-center justify-center px-3 py-1.5 rounded border border-white/30 text-white/85 hover:bg-white/10 hover:text-kaijoYellow transition">
+
+        <!-- VALUER BASIC -->
+        <form method="POST" action="{{ url_for('billing_checkout') }}">
+          <input type="hidden" name="role" value="valuer">
+          <input type="hidden" name="tier" value="basic">
+          <button type="submit"
+                  class="w-full inline-flex items-center justify-center px-3 py-1.5 rounded border border-white/30 text-white/85 hover:bg-white/10 hover:text-kaijoYellow transition">
             Tier 1 – Register only
-          </a>
-          <a href="{{ url_for('register_valuer') }}?tier=premium"
-             class="inline-flex items-center justify-center px-3 py-1.5 rounded bg-kaijoPink text-white hover:bg-kaijoYellow hover:text-black font-semibold transition">
+          </button>
+        </form>
+
+        <!-- VALUER PREMIUM -->
+        <form method="POST" action="{{ url_for('billing_checkout') }}">
+          <input type="hidden" name="role" value="valuer">
+          <input type="hidden" name="tier" value="premium">
+          <button type="submit"
+                  class="w-full inline-flex items-center justify-center px-3 py-1.5 rounded bg-kaijoPink text-white hover:bg-kaijoYellow hover:text-black font-semibold transition">
             Tier 2 – Full marketplace
-          </a>
-        </div>
+          </button>
+        </form>
       </div>
     </section>
 
@@ -172,7 +202,22 @@
       </ul>
 
       <p class="text-xl font-semibold text-white mb-1">£0 / month</p>
-      <p class="text-[11px] text-white/60">No commitment, join the pipeline.</p>
+      <p class="text-[11px] text-white/60 mb-3">No commitment, join the pipeline.</p>
+
+      {% if role in ['buyer', 'seller', 'valuer'] %}
+        <form method="POST" action="{{ url_for('billing_checkout') }}" class="mt-1">
+          <input type="hidden" name="role" value="{{ role }}">
+          <input type="hidden" name="tier" value="basic">
+          <button type="submit"
+                  class="inline-flex items-center justify-center px-4 py-2 rounded border border-white/40 text-xs text-white hover:bg-white/10 hover:text-kaijoYellow transition">
+            Continue with Tier 1 as {{ role|title }}
+          </button>
+        </form>
+      {% else %}
+        <p class="text-[11px] text-white/55 mt-2">
+          Choose Buyer, Seller or Valuer above to activate this option.
+        </p>
+      {% endif %}
     </section>
 
     <!-- Tier 2: Full marketplace -->
@@ -197,7 +242,22 @@
       </ul>
 
       <p class="text-xl font-semibold text-white mb-1">£49 / month</p>
-      <p class="text-[11px] text-white/60">Per organisation, per role. No long-term lock-in.</p>
+      <p class="text-[11px] text-white/60 mb-3">Per organisation, per role. No long-term lock-in.</p>
+
+      {% if role in ['buyer', 'seller', 'valuer'] %}
+        <form method="POST" action="{{ url_for('billing_checkout') }}" class="mt-1">
+          <input type="hidden" name="role" value="{{ role }}">
+          <input type="hidden" name="tier" value="premium">
+          <button type="submit"
+                  class="inline-flex items-center justify-center px-4 py-2 rounded bg-kaijoPink text-xs text-white hover:bg-kaijoYellow hover:text-black font-semibold transition">
+            Upgrade to Tier 2 as {{ role|title }}
+          </button>
+        </form>
+      {% else %}
+        <p class="text-[11px] text-white/55 mt-2">
+          Choose Buyer, Seller or Valuer above to see Tier 2 options for your role.
+        </p>
+      {% endif %}
     </section>
 
   </div>

@@ -2,26 +2,101 @@
 {% block title %}Listings{% endblock %}
 
 {% block content %}
-<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
+
+{# ------------------------------------------------------------------
+   GATING LOGIC
+   ------------------------------------------------------------------ #}
+{% set can_view_sensitive = false %}
+{% set is_buyer = current_user.is_authenticated and current_user.role == "buyer" %}
+
+{% if current_user.is_authenticated %}
+  {% if current_user.role in ["seller", "admin", "valuer"] %}
+    {% set can_view_sensitive = true %}
+  {% elif current_user.role == "buyer" and is_premium_buyer %}
+    {% set can_view_sensitive = true %}
+  {% endif %}
+{% endif %}
+
+{# ------------------------------------------------------------------
+   HEADER + GATING BANNERS
+   ------------------------------------------------------------------ #}
+<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
   <div>
     <h1 class="text-xl font-semibold text-white">Available Care Homes</h1>
-    <p class="text-xs text-white/70">Browse all live listings.</p>
+    <p class="text-xs text-white/70">
+      A curated, confidential marketplace of live opportunities.
+    </p>
   </div>
 
   <a href="{{ url_for('index') }}"
-     class="text-xs border border-white/30 text-white/80 px-3 py-2 rounded hover:bg-white/10 transition">
+     class="text-xs border border-white/25 text-white/80 px-3 py-2 rounded hover:bg-white/10 hover:text-kaijoYellow transition">
     ← Back to home
   </a>
 </div>
 
-<!-- Listing Grid -->
+{# Logged-in buyer, but NOT premium #}
+{% if is_buyer and not is_premium_buyer %}
+  <div class="mb-5 rounded-lg border border-kaijoYellow/70 bg-black/40 px-4 py-3 text-xs">
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+      <div>
+        <p class="font-semibold text-kaijoYellow">You’re on Buyer Basic.</p>
+        <p class="text-white/80 mt-1">
+          Listings are partially blurred in Basic mode. Upgrade to Buyer Premium to see
+          service names, guide prices and unlock full enquiry tools.
+        </p>
+      </div>
+      <div class="flex flex-col sm:items-end gap-2 sm:min-w-[180px]">
+        <a href="{{ url_for('pricing', role='buyer') }}"
+           class="inline-flex items-center justify-center px-4 py-2 rounded bg-kaijoPink text-white text-[11px] font-semibold hover:bg-kaijoYellow hover:text-black transition">
+          View Buyer Premium options
+        </a>
+        <p class="text-[10px] text-white/50">
+          Premium unlocks full marketplace access & enquiry workflows.
+        </p>
+      </div>
+    </div>
+  </div>
+
+{# Logged out - gentle CTA #}
+{% elif not current_user.is_authenticated %}
+  <div class="mb-5 rounded-lg border border-white/15 bg-black/30 px-4 py-3 text-xs text-white">
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+      <div>
+        <p class="font-semibold">Log in or register to see more detail</p>
+        <p class="text-white/80 mt-1">
+          Service names and guide prices are kept confidential. Create a buyer account
+          and upgrade to Buyer Premium to unlock full access.
+        </p>
+      </div>
+      <div class="flex flex-col sm:items-end gap-2 sm:min-w-[220px]">
+        <div class="flex gap-2">
+          <a href="{{ url_for('login') }}"
+             class="px-3 py-1.5 rounded bg-white text-gray-900 text-[11px] font-semibold hover:bg-kaijoYellow hover:text-black transition">
+            Log in
+          </a>
+          <a href="{{ url_for('pricing', role='buyer') }}"
+             class="px-3 py-1.5 rounded border border-white text-[11px] hover:bg-white/10 hover:text-kaijoYellow transition">
+            Buyer options
+          </a>
+        </div>
+        <p class="text-[10px] text-white/50">
+          The marketplace is confidential. We only show full details to registered buyers.
+        </p>
+      </div>
+    </div>
+  </div>
+{% endif %}
+
+{# ------------------------------------------------------------------
+   LISTING GRID
+   ------------------------------------------------------------------ #}
 {% if listings %}
   <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
     {% for l in listings %}
       <a href="{{ url_for('listing_detail', listing_id=l.id) }}"
          class="block rounded-lg
                 bg-white/5 border border-white/10
-                hover:bg-white/10 hover:border-white/20
+                hover:bg-white/10 hover:border-kaijoYellow/70
                 transition shadow-sm backdrop-blur-sm overflow-hidden">
 
         {# Thumbnail / primary photo #}
@@ -29,53 +104,67 @@
         <div class="w-full h-40 bg-black/30 overflow-hidden">
           {% if photos %}
             {% set first_photo = photos[0] %}
-            {% set photo_filename = first_photo.file_name or first_photo.filename or first_photo.image_path or '' %}
+            {% set photo_filename = first_photo.file_name
+                                     or first_photo.filename
+                                     or first_photo.image_path
+                                     or '' %}
             {% if photo_filename %}
               <img
                 src="{{ url_for('static', filename='uploads/' ~ photo_filename) }}"
-                alt="{{ l.title }}"
+                alt="Listing image"
                 class="w-full h-full object-cover"
                 loading="lazy"
               >
             {% else %}
-              <div class="w-full h-full flex items-center justify-center text-[10px] text-white/50">
+              <div class="w-full h-full flex items-center justify-center text-[10px] text-gray-400">
                 No photo available
               </div>
             {% endif %}
           {% else %}
-            <div class="w-full h-full flex items-center justify-center text-[10px] text-white/50">
+            <div class="w-full h-full flex items-center justify-center text-[10px] text-gray-400">
               No photo available
             </div>
           {% endif %}
         </div>
 
         <div class="p-4">
+          {# Code #}
           <p class="text-[11px] font-mono text-white/40 mb-1">
-            {{ l.listing_code }}
+            {{ l.listing_code or "Ref pending" }}
           </p>
 
-          <!-- Confidential title -->
-          <p class="font-semibold text-sm text-white mb-1">
-            {% if is_premium_buyer|default(false) %}
+          {# TITLE – confidential gating #}
+          {% if can_view_sensitive %}
+            <p class="font-semibold text-sm text-white mb-1">
               {{ l.title }}
-            {% else %}
-              <span class="blur-sm select-none">Confidential care home</span>
-              <span class="text-[10px] text-kaijoYellow ml-1">Premium only</span>
-            {% endif %}
+            </p>
+          {% else %}
+            <p class="font-semibold text-sm text-white mb-1">
+              Confidential care home opportunity
+            </p>
+          {% endif %}
+
+          {# Meta #}
+          <p class="text-[11px] text-white/60 mb-1">
+            {{ l.region or "Region confidential" }} •
+            {{ l.care_type or "Care type confidential" }} •
+            {{ l.beds or "?" }} beds
           </p>
 
-          <p class="text-xs text-white/70 mb-1">
-            {{ l.region }} • {{ l.care_type }} • {{ l.beds or "?" }} beds
-          </p>
-
-          <!-- Confidential guide price -->
-          <p class="text-xs text-white/60">
+          {# GUIDE PRICE – blur for non-premium buyers + public #}
+          <p class="text-[11px] text-white/60">
             Guide price:
-            {% if is_premium_buyer|default(false) %}
-              <span class="text-kaijoYellow">{{ l.guide_price_band or "On request" }}</span>
+            {% if can_view_sensitive %}
+              <span class="text-kaijoYellow">
+                {{ l.guide_price_band or "On request" }}
+              </span>
             {% else %}
-              <span class="blur-sm select-none text-kaijoYellow">£X,XXX,XXX</span>
-              <span class="text-[10px] text-kaijoYellow ml-1">Premium only</span>
+              <span class="blur-sm select-none">
+                {{ l.guide_price_band or "£X,XXX,XXX" }}
+              </span>
+              <span class="ml-1 text-[10px] text-kaijoYellow/90">
+                Premium only
+              </span>
             {% endif %}
           </p>
         </div>
@@ -83,6 +172,10 @@
     {% endfor %}
   </div>
 {% else %}
-  <p class="text-sm text-white/70">No listings currently available.</p>
+  <p class="text-sm text-white/75">
+    No live listings are available right now. New opportunities will appear here as sellers
+    choose to go live.
+  </p>
 {% endif %}
+
 {% endblock %}

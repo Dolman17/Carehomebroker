@@ -618,37 +618,6 @@ class Deal(db.Model):
     introduction = db.relationship("Introduction", backref="deal")
 
 
-class PageContent(db.Model):
-    __tablename__ = "page_content"
-
-    id = db.Column(db.Integer, primary_key=True)
-    slug = db.Column(db.String(255), unique=True, nullable=False)
-    content = db.Column(db.Text, nullable=False)
-
-    description = db.Column(db.String(255))
-    updated_at = db.Column(
-        db.DateTime,
-        default=datetime.utcnow,
-        onupdate=datetime.utcnow,
-        nullable=False,
-    )
-    updated_by_id = db.Column(db.Integer, db.ForeignKey("user.id"))
-    updated_by = db.relationship("User")
-
-
-def get_page_content(slug: str, default: str = "") -> str:
-    """
-    Look up copy block by slug, create it with default if missing.
-    """
-    block = PageContent.query.filter_by(slug=slug).first()
-    if block:
-        return block.content
-
-    # Create on first use so admin can edit later
-    block = PageContent(slug=slug, content=default)
-    db.session.add(block)
-    db.session.commit()
-    return block.content
 
 
 # -------------------------------------------------------------------
@@ -1328,15 +1297,6 @@ def inject_valuer_request_count():
 
     return {"valuer_request_count": count}
 
-@app.context_processor
-def inject_page_text_helper():
-    def page_text(slug: str, default: str = "") -> str:
-        return get_page_content(slug, default)
-    return {"page_text": page_text}
-
-
-
-
 @app.template_filter("date_short")
 def date_short(value):
     if not value:
@@ -1959,54 +1919,37 @@ def valuer_request_detail(request_id):
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
-    """
-    Login view:
-    - On GET: render login form
-    - On POST: authenticate and redirect based on role
-    """
-    if request.method == "POST":
-        email = (request.form.get("email") or "").strip().lower()
-        password = request.form.get("password") or ""
+    if current_user.is_authenticated:
+        return redirect(url_for("index"))
 
-        if not email or not password:
-            flash("Please enter both email and password.", "danger")
-            return render_template("auth/login.html")
+    if request.method == "POST":
+        email = request.form.get("email", "").strip().lower()
+        password = request.form.get("password", "")
 
         user = User.query.filter_by(email=email).first()
+        if not user or not user.check_password(password):
+            flash("Invalid email or password.")
+            return redirect(url_for("login"))
 
-        if user is None or not user.check_password(password):
-            flash("Invalid email or password.", "danger")
-            return render_template("auth/login.html")
+        login_user(user)
+        flash("Logged in successfully.")
 
-        if not getattr(user, "is_active", True):
-            flash("Your account is inactive. Please contact support.", "warning")
-            return render_template("auth/login.html")
-
-        # Log the user in
-        login_user(user, remember=True)
-
-        # Honour ?next=... if present
         next_page = request.args.get("next")
         if next_page:
             return redirect(next_page)
 
-        # Role-aware redirect
+        if user.role == "seller":
+            return redirect(url_for("seller_dashboard"))
         if user.role == "buyer":
             return redirect(url_for("buyer_dashboard"))
-        elif user.role == "seller":
-            return redirect(url_for("seller_dashboard"))
-        elif user.role == "valuer":
+        if user.role == "valuer":
             return redirect(url_for("valuer_dashboard"))
-        elif user.role == "admin":
+        if user.role == "admin":
             return redirect(url_for("admin_dashboard"))
-        else:
-            # Fallback: treat as buyer-ish
-            return redirect(url_for("buyer_dashboard"))
 
-    # GET request (or any non-POST fallthrough)
+        return redirect(url_for("index"))
+
     return render_template("auth/login.html")
-
-
 
 
 @app.route("/logout", methods=["POST"])
@@ -2054,7 +1997,7 @@ def seller_dashboard():
     # Seller premium flag (mirrors buyer gating)
     seller_is_premium = is_premium_seller(current_user)
 
-    # Subscription badge
+        # Subscription badge
     active_sub = get_active_subscription(current_user, "seller")
     current_plan_label = None
     if active_sub:
@@ -2067,58 +2010,48 @@ def seller_dashboard():
         profile_incomplete=profile_incomplete,
         current_plan_label=current_plan_label,
         active_sub=active_sub,
-        # optional: expose this if you want in template later
-        # seller_is_premium=seller_is_premium,
     )
-
 
 
 @app.route("/seller/request_introduction/<int:buyer_id>", methods=["POST"])
 @login_required
 @role_required("seller")
 @require_subscription("seller", "premium")
-def seller_request_introduction(buyer_id):
+def seller_request_introduction(buyer_id, listing_id):
     """
     Seller requests an introduction between their listing and a premium buyer.
     This creates a 'pending_seller_request' introduction for admin to approve.
     Admin is notified by email.
-
-    Expects a hidden 'listing_id' field in the POST form.
     """
-    listing_id = request.form.get("listing_id")
-    if not listing_id:
-        flash("Missing listing ID for introduction request.", "danger")
-        return redirect(url_for("seller_dashboard"))
-
     listing = Listing.query.get_or_404(listing_id)
 
     # Ensure listing belongs to this seller
     if listing.seller_id != current_user.id:
-        flash("You can only request introductions for your own listings.", "danger")
-        return redirect(url_for("seller_dashboard"))
+        flash("You can only request introductions for your own listings.")
+        return redirect(url_for("seller_buyers"))
 
-    # Ensure buyer exists and is a buyer
+    # Ensure buyer exists and is premium
     buyer = User.query.get_or_404(buyer_id)
     if buyer.role != "buyer":
-        flash("Selected user is not a buyer.", "danger")
-        return redirect(url_for("seller_dashboard"))
+        flash("Invalid buyer.")
+        return redirect(url_for("seller_buyers"))
 
-    # Check buyer is premium (belt-and-braces check; you already have @require_subscription)
-    if not is_premium_buyer(buyer):
-        flash("You can only request introductions for premium buyers.", "warning")
-        return redirect(url_for("seller_dashboard"))
+    if not has_active_subscription(buyer, "buyer", "premium"):
+        flash("This buyer is not a premium buyer anymore.")
+        return redirect(url_for("seller_buyers"))
 
-    # Ensure no duplicate introduction
+    # Prevent duplicates
     existing = Introduction.query.filter_by(
         buyer_id=buyer.id,
         seller_id=current_user.id,
-        listing_id=listing.id,
+        listing_id=listing.id
     ).first()
 
     if existing:
-        flash("An introduction already exists for this buyer and listing.", "info")
-        return redirect(url_for("seller_dashboard"))
+        flash("An introduction between you and this buyer for this listing already exists.")
+        return redirect(url_for("seller_buyers"))
 
+    # Create pending intro
     intro = Introduction(
         buyer_id=buyer.id,
         seller_id=current_user.id,
@@ -2128,9 +2061,26 @@ def seller_request_introduction(buyer_id):
     db.session.add(intro)
     db.session.commit()
 
-    flash("Introduction request submitted for review.", "success")
-    return redirect(url_for("seller_dashboard"))
+    # ---- Email broker/admin ----
+    to_email = app.config.get("LEADS_NOTIFICATION_EMAIL") or app.config.get("SMTP_DEFAULT_FROM")
+    if to_email:
+        subject = f"New introduction request: {listing.listing_code or listing.id}"
+        html_body = f"""
+            <h2>New introduction request</h2>
+            <p><strong>Listing:</strong> {listing.title} ({listing.listing_code or listing.id})</p>
+            <p><strong>Seller:</strong> {current_user.email}</p>
+            <p><strong>Buyer:</strong> {buyer.email}</p>
+            <p><strong>Status:</strong> pending_seller_request</p>
+            <p>Log in to the admin panel to approve or decline this introduction.</p>
+        """
+        send_email(
+            to_addresses=to_email,
+            subject=subject,
+            html_body=html_body,
+        )
 
+    flash("Introduction request sent to broker for approval.", "success")
+    return redirect(url_for("seller_buyers"))
 
 
 
@@ -3102,36 +3052,6 @@ def buyer_shortlist():
         )
     return render_template("buyer/shortlist.html", listings=listings)
 
-@app.route("/listings/<int:listing_id>/toggle-shortlist", methods=["POST"])
-@login_required
-@role_required("buyer")
-def toggle_shortlist(listing_id):
-    """
-    Add/remove a listing from the buyer's shortlist (stored in session).
-    Expects a POST from listing_detail or listings views.
-    """
-    listing = Listing.query.get_or_404(listing_id)
-
-    # Get current shortlist from session (list of IDs)
-    shortlist = session.get("shortlist", [])
-    try:
-        listing_id_int = int(listing_id)
-    except (TypeError, ValueError):
-        listing_id_int = listing_id
-
-    if listing_id_int in shortlist:
-        shortlist.remove(listing_id_int)
-        flash("Listing removed from your shortlist.", "info")
-    else:
-        shortlist.append(listing_id_int)
-        flash("Listing added to your shortlist.", "success")
-
-    session["shortlist"] = shortlist
-
-    # Go back to where the user came from, or fallback to shortlist page
-    next_url = request.form.get("next") or request.referrer or url_for("buyer_shortlist")
-    return redirect(next_url)
-
 
 @app.route("/valuers/<int:profile_id>")
 def valuer_public_profile(profile_id):
@@ -3155,27 +3075,18 @@ def valuer_public_profile(profile_id):
 @app.route("/my/dashboard")
 @login_required
 def my_dashboard():
-    """
-    Role-aware dashboard router:
-    - buyers -> buyer_dashboard
-    - sellers -> seller_dashboard
-    - valuers -> valuer_dashboard
-    - admins -> admin_dashboard
-    """
-    role = getattr(current_user, "role", None)
-
-    if role == "buyer":
+    """Universal dashboard redirect based on user role."""
+    if current_user.role == "buyer":
         return redirect(url_for("buyer_dashboard"))
-    elif role == "seller":
+    elif current_user.role == "seller":
         return redirect(url_for("seller_dashboard"))
-    elif role == "valuer":
+    elif current_user.role == "valuer":
         return redirect(url_for("valuer_dashboard"))
-    elif role == "admin":
+    elif current_user.role == "admin":
         return redirect(url_for("admin_dashboard"))
-
-    # Fallback: treat as buyer if somehow unknown
-    return redirect(url_for("buyer_dashboard"))
-
+    else:
+        flash("Unknown user role.")
+        return redirect(url_for("index"))
 
 
 # -------------------------------------------------------------------
@@ -3404,7 +3315,7 @@ def admin_archive_listing(listing_id):
     return redirect(url_for("admin_listings"))
 
 
-@app.route("/admin/test-email")
+@app.route("/test-email")
 def test_email():
     ok = send_email(
         to_addresses="YOUR_REAL_ADDRESS@gmail.com",
@@ -3978,23 +3889,6 @@ def admin_subscriptions():
         sub_map=sub_map
     )
 
-@app.route("/admin/enquiries")
-@login_required
-@role_required("admin")
-def admin_enquiries():
-    """
-    Show all enquiries (new/read/archived) for admin oversight.
-    """
-    enquiries = (
-        Enquiry.query
-        .order_by(Enquiry.created_at.desc())
-        .all()
-    )
-
-    return render_template(
-        "admin/enquiries.html",
-        enquiries=enquiries
-    )
 
 
 @app.route("/admin/subscriptions/grant", methods=["POST"])
@@ -4085,40 +3979,6 @@ def admin_clear_subscription(user_id):
     flash(f"Active subscription cleared for {user.email}.", "success")
     return redirect(url_for("admin_subscriptions"))
 
-@app.route("/admin/content/<slug>", methods=["GET", "POST"])
-@login_required
-@role_required("admin")
-def admin_edit_content(slug):
-    """
-    Edit a single content block (page copy) identified by slug.
-    Optional ?next=/some/url to return user back to the page they came from.
-    """
-    from urllib.parse import urlparse
-
-    default = request.args.get("default", "")
-    next_url = request.args.get("next") or url_for("admin_dashboard")
-
-    block = PageContent.query.filter_by(slug=slug).first()
-    if not block:
-        block = PageContent(slug=slug, content=default)
-        db.session.add(block)
-        db.session.commit()
-
-    if request.method == "POST":
-        content = request.form.get("content") or ""
-        block.content = content
-        block.updated_by = current_user
-        db.session.commit()
-
-        flash("Content updated.", "success")
-
-        # Basic safety: only redirect to internal paths
-        parsed = urlparse(next_url)
-        if parsed.netloc:
-            return redirect(url_for("admin_dashboard"))
-        return redirect(next_url)
-
-    return render_template("admin/edit_content.html", block=block, next_url=next_url)
 
 
 

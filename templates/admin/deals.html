@@ -1,45 +1,95 @@
 {% extends "base.html" %}
-{% block title %}Deals & Commission{% endblock %}
+{% block title %}Deals – Admin{% endblock %}
 
 {% block content %}
-<div class="max-w-5xl mx-auto py-8 text-white">
-  <h1 class="text-2xl font-semibold mb-4">Deals & Commission</h1>
+<div class="mb-6 flex items-center justify-between">
+  <div>
+    <h1 class="text-xl font-semibold text-white">Deals</h1>
+    <p class="text-xs text-white/70">
+      Overview of introductions that have progressed into deals.
+    </p>
+  </div>
+  <a href="{{ url_for('admin_dashboard') }}"
+     class="text-xs px-3 py-2 rounded border border-white/20 text-white/80 hover:bg-white/10">
+    ← Back to admin
+  </a>
+</div>
 
-  {% if deals %}
-    <table class="w-full text-xs border-collapse">
-      <thead>
-        <tr class="border-b border-white/20 text-[11px] text-gray-300">
-          <th class="text-left py-2 pr-2">Listing</th>
-          <th class="text-left py-2 pr-2">Agreed price</th>
-          <th class="text-left py-2 pr-2">Commission %</th>
-          <th class="text-left py-2 pr-2">Commission (pence)</th>
-          <th class="text-left py-2 pr-2">Status</th>
+{% if deals %}
+  <div class="overflow-x-auto bg-black/30 border border-white/10 rounded-lg">
+    <table class="min-w-full text-xs text-left text-white/80">
+      <thead class="bg-white/5 text-white/70 uppercase tracking-wide text-[10px]">
+        <tr>
+          <th class="px-3 py-2">ID</th>
+          <th class="px-3 py-2">Listing</th>
+          <th class="px-3 py-2">Buyer</th>
+          <th class="px-3 py-2">Seller</th>
+          <th class="px-3 py-2">Agreed price</th>
+          <th class="px-3 py-2">Commission</th>
+          <th class="px-3 py-2">Status</th>
+          <th class="px-3 py-2"></th>
         </tr>
       </thead>
       <tbody>
-        {% for deal in deals %}
-          <tr class="border-b border-white/10">
-            <td class="py-2 pr-2">
-              {{ deal.introduction.listing.listing_code }} – {{ deal.introduction.listing.title }}
+        {% for d in deals %}
+          <tr class="border-t border-white/10">
+            <td class="px-3 py-2 align-top text-white/60">
+              #{{ d.id }}
             </td>
-            <td class="py-2 pr-2 text-gray-200">
-              {{ deal.agreed_price or "n/a" }}
+            <td class="px-3 py-2 align-top">
+              {{ d.introduction.listing.listing_code or "Ref" }} –
+              {{ d.introduction.listing.title or "Listing" }}
             </td>
-            <td class="py-2 pr-2 text-gray-200">
-              {{ "%.1f"|format(deal.broker_commission_percent or 0.0) }}%
+            <td class="px-3 py-2 align-top text-white/70">
+              {{ d.introduction.buyer.email }}
             </td>
-            <td class="py-2 pr-2 text-gray-200">
-              {{ deal.broker_commission_amount or 0 }}
+            <td class="px-3 py-2 align-top text-white/70">
+              {{ d.introduction.seller.email }}
             </td>
-            <td class="py-2 pr-2 text-gray-100">
-              {{ deal.status }}
+            <td class="px-3 py-2 align-top">
+              {{ d.agreed_price or "n/a" }}
+            </td>
+            <td class="px-3 py-2 align-top">
+              {% if d.broker_commission_amount %}
+                {{ "%.2f" | format(d.broker_commission_amount / 100) }} GBP
+                <span class="text-white/40 text-[10px]">
+                  ({{ d.broker_commission_percent or 0 }}%)
+                </span>
+              {% else %}
+                <span class="text-white/40">Not calculated</span>
+              {% endif %}
+            </td>
+            <td class="px-3 py-2 align-top">
+              <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px]
+                           {% if d.status == 'completed' %}
+                             bg-emerald-500/20 text-emerald-200
+                           {% elif d.status == 'aborted' %}
+                             bg-red-500/20 text-red-200
+                           {% else %}
+                             bg-blue-500/20 text-blue-200
+                           {% endif %}">
+                {{ d.status.replace("_", " ") }}
+              </span>
+            </td>
+            <td class="px-3 py-2 align-top text-right">
+              <a href="{{ url_for('admin_deal_detail', deal_id=d.id) }}"
+                 class="inline-flex items-center px-2 py-1 rounded border border-white/20 text-[11px] text-white/80 hover:bg-white/10">
+                View / edit
+              </a>
+              <a href="{{ url_for('admin_deal_export', deal_id=d.id) }}"
+                 class="inline-flex items-center px-2 py-1 rounded border border-white/20 text-[11px] text-white/80 hover:bg-white/10 ml-1">
+                Export sheet
+              </a>
             </td>
           </tr>
         {% endfor %}
       </tbody>
     </table>
-  {% else %}
-    <p class="text-xs text-gray-400">No deals recorded yet.</p>
-  {% endif %}
-</div>
+  </div>
+{% else %}
+  <p class="text-sm text-white/70">
+    No deals recorded yet. Once an introduction is marked as
+    <span class="font-semibold">offer accepted</span>, a deal will be auto-created.
+  </p>
+{% endif %}
 {% endblock %}

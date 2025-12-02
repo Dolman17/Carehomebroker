@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+{% block title %}{{ profile.company_name or "Valuer" }} – Valuer Profile{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto py-8 text-white space-y-8">
+
+  <!-- Header -->
+  <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <div>
+      <p class="text-[11px] font-mono text-white/50 mb-1">Valuer Framework</p>
+      <h1 class="text-2xl sm:text-3xl font-semibold">
+        {{ profile.company_name or "Valuer" }}
+      </h1>
+      <p class="text-xs text-white/60 mt-1">
+        {{ profile.accreditation or "Accredited professional valuer" }}
+      </p>
+    </div>
+
+    <div class="flex flex-col items-start sm:items-end gap-2">
+      {% if is_premium_valuer %}
+        <span class="inline-flex items-center px-3 py-1 rounded-full text-[11px]
+                     bg-kaijoPink text-white font-semibold border border-white/20">
+          Premium valuer
+        </span>
+      {% endif %}
+      <p class="text-[11px] text-white/50">
+        Listed via Kaijo North Consulting Care Home Broker.
+      </p>
+    </div>
+  </div>
+
+  <!-- Regions & key info -->
+  <div class="grid md:grid-cols-3 gap-5">
+
+    <!-- Left: regions + key tags -->
+    <div class="md:col-span-1 space-y-4">
+      <div class="rounded-lg border border-white/10 bg-black/30 p-4">
+        <h2 class="text-sm font-semibold mb-2">Regions covered</h2>
+        {% if profile.regions %}
+          {% set regions = profile.regions.split(",") %}
+          <div class="flex flex-wrap gap-1.5">
+            {% for r in regions %}
+              {% set r_trim = r.strip() %}
+              {% if r_trim %}
+                <span class="px-2 py-1 rounded-full bg-white/10 text-[11px] text-white/80">
+                  {{ r_trim }}
+                </span>
+              {% endif %}
+            {% endfor %}
+          </div>
+        {% else %}
+          <p class="text-xs text-white/70">UK-wide or not specified.</p>
+        {% endif %}
+      </div>
+
+      <div class="rounded-lg border border-white/10 bg-black/30 p-4 text-xs text-white/70">
+        <h2 class="text-sm font-semibold mb-2">What they typically support</h2>
+        <ul class="list-disc list-inside space-y-1">
+          <li>Formal business valuations</li>
+          <li>Independent market assessments</li>
+          <li>Valuation input for sales and acquisitions</li>
+          <li>Desktop and on-site review options</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- Right: main body -->
+    <div class="md:col-span-2 space-y-4">
+
+      <!-- About -->
+      <div class="rounded-lg border border-white/10 bg-black/30 p-4">
+        <h2 class="text-sm font-semibold mb-2">About this valuer</h2>
+        <p class="text-sm text-white/80">
+          {{ profile.bio or "This valuer has not yet added a public bio. You can still request an introduction via the platform." }}
+        </p>
+      </div>
+
+      <!-- Pricing / terms -->
+      <div class="rounded-lg border border-white/10 bg-black/30 p-4">
+        <h2 class="text-sm font-semibold mb-2">Pricing & terms</h2>
+        <p class="text-sm text-white/80">
+          {{ profile.pricing_notes or "Pricing and scope of work available on request." }}
+        </p>
+      </div>
+
+      <!-- CTA block -->
+      <div class="rounded-lg border border-kaijoYellow/60 bg-black/30 p-4">
+        <h2 class="text-sm font-semibold text-kaijoYellow mb-2">Request a valuation</h2>
+
+        {% if current_user.is_authenticated and current_user.role in ["buyer","seller"] %}
+          <p class="text-xs text-white/80 mb-3">
+            Use your Care Home Broker account to request a valuation or independent view 
+            from this valuer. We do not share your personal details publicly.
+          </p>
+          <a href="{{ url_for('login', next=request.path) }}"
+             class="inline-flex items-center px-4 py-2 rounded bg-kaijoPink text-white text-xs font-semibold hover:bg-kaijoYellow hover:text-black transition">
+            Continue via your account
+          </a>
+        {% else %}
+          <p class="text-xs text-white/80 mb-3">
+            To request a valuation or introduction, log in or register as a buyer or seller.
+            Your details will be handled confidentially via the Kaijo North platform.
+          </p>
+          <div class="flex flex-wrap gap-2">
+            <a href="{{ url_for('login', next=request.path) }}"
+               class="inline-flex items-center px-3 py-1.5 rounded bg-white text-gray-900 text-[11px] font-semibold">
+              Log in
+            </a>
+            <a href="{{ url_for('register_buyer') }}"
+               class="inline-flex items-center px-3 py-1.5 rounded border border-white text-[11px]">
+              Register as buyer
+            </a>
+            <a href="{{ url_for('register_seller') }}"
+               class="inline-flex items-center px-3 py-1.5 rounded border border-white/50 text-[11px]">
+              Register as seller
+            </a>
+          </div>
+        {% endif %}
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Back link -->
+  <div>
+    <a href="{{ url_for('valuers_directory') }}"
+       class="inline-flex items-center text-xs text-white/70 hover:text-kaijoYellow">
+      ← Back to valuer directory
+    </a>
+  </div>
+
+</div>
+{% endblock %}

@@ -1,0 +1,192 @@
+{% extends "base.html" %}
+{% block title %}Matching Buyers – Seller{% endblock %}
+
+{% block content %}
+<div class="max-w-5xl mx-auto">
+
+  <!-- Header -->
+  <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
+    <div>
+      <h1 class="text-xl font-semibold text-white">Matching buyers</h1>
+      <p class="text-xs text-white/70">
+        A view of premium buyers whose acquisition criteria overlap your regions and care types.
+      </p>
+
+      {% if seller_regions or seller_care_types %}
+        <div class="mt-2 flex flex-wrap gap-2 text-[11px]">
+          {% if seller_regions %}
+            <span class="inline-flex items-center px-2 py-1 rounded-full bg-black/30 border border-white/10">
+              <span class="uppercase tracking-[0.12em] text-white/40 mr-1">Regions:</span>
+              <span class="text-white/80">
+                {{ seller_regions | join(', ') }}
+              </span>
+            </span>
+          {% endif %}
+          {% if seller_care_types %}
+            <span class="inline-flex items-center px-2 py-1 rounded-full bg-black/30 border border-white/10">
+              <span class="uppercase tracking-[0.12em] text-white/40 mr-1">Care:</span>
+              <span class="text-white/80">
+                {{ seller_care_types | join(', ') }}
+              </span>
+            </span>
+          {% endif %}
+        </div>
+      {% else %}
+        <p class="mt-2 text-[11px] text-kaijoYellow/90">
+          Add regions and care types to your seller profile or listings to improve match quality.
+        </p>
+      {% endif %}
+    </div>
+
+    <div class="flex flex-col items-end gap-2">
+      <a href="{{ url_for('seller_dashboard') }}"
+         class="text-[11px] border border-white/20 text-white/80 px-3 py-1.5 rounded hover:bg-white/10 transition">
+        ← Back to seller dashboard
+      </a>
+      <a href="{{ url_for('seller_profile') }}"
+         class="text-[11px] text-kaijoYellow hover:text-white underline-offset-2 hover:underline">
+        Update seller profile
+      </a>
+    </div>
+  </div>
+
+  <!-- No matches -->
+  {% if not matches %}
+    <div class="rounded-lg border border-white/10 bg-black/30 p-4 text-xs text-white/75">
+      <p class="font-semibold mb-1">No strong matches yet.</p>
+      <p class="mb-2">
+        Once more premium buyers register and refine their criteria, you’ll see them here based on
+        overlapping regions, care types and deal appetite.
+      </p>
+      <p class="text-white/60">
+        In the meantime, you can continue to create and publish listings from your seller dashboard.
+      </p>
+    </div>
+    {% endblock %}
+    {% return %}
+  {% endif %}
+
+  <!-- Matches grid -->
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+    {% for item in matches %}
+      {% set bp = item.profile %}
+      {% set user = item.user %}
+      <div class="rounded-lg border border-white/10 bg-black/30 p-4 flex flex-col justify-between gap-3">
+        <div class="space-y-2">
+          <div class="flex items-start justify-between gap-2">
+            <div>
+              <p class="text-[11px] font-mono text-white/40">
+                Buyer {{ user.id }}
+              </p>
+              <p class="text-sm font-semibold text-white">
+                {{ bp.business_name or "Unnamed buyer" }}
+              </p>
+              {% if bp.contact_person %}
+                <p class="text-[11px] text-white/60">
+                  Contact: {{ bp.contact_person }}
+                </p>
+              {% endif %}
+            </div>
+            <div class="text-right text-[11px]">
+              <span class="inline-flex items-center px-2 py-0.5 rounded-full border border-kaijoYellow/60 text-kaijoYellow/90">
+                Tier 2 buyer
+              </span>
+              <div class="mt-1 text-white/50">
+                Match score:
+                <span class="text-white">
+                  {{ item.score }}/2
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div class="flex flex-wrap gap-1.5 text-[11px] text-white/75">
+            {% if bp.investment_type %}
+              <span class="inline-flex items-center px-2 py-0.5 rounded-full bg-white/5 border border-white/10">
+                {{ bp.investment_type }}
+              </span>
+            {% endif %}
+            {% if bp.deal_structure %}
+              <span class="inline-flex items-center px-2 py-0.5 rounded-full bg-white/5 border border-white/10">
+                {{ bp.deal_structure }}
+              </span>
+            {% endif %}
+            {% if bp.min_budget or bp.max_budget %}
+              <span class="inline-flex items-center px-2 py-0.5 rounded-full bg-white/5 border border-white/10">
+                Budget: {{ bp.min_budget or "£?" }} – {{ bp.max_budget or "£?" }}
+              </span>
+            {% endif %}
+            {% if bp.transaction_timeline %}
+              <span class="inline-flex items-center px-2 py-0.5 rounded-full bg-white/5 border border-white/10">
+                Timeline: {{ bp.transaction_timeline }}
+              </span>
+            {% endif %}
+          </div>
+
+          {% if bp.preferred_regions or bp.care_types %}
+            <div class="grid grid-cols-2 gap-2 text-[11px] text-white/70">
+              <div>
+                <p class="uppercase tracking-[0.18em] text-white/40 mb-1">
+                  Regions
+                </p>
+                <p>
+                  {{ (bp.preferred_regions or "").replace(",", ", ") or "Not specified" }}
+                </p>
+                {% if item.region_match %}
+                  <p class="mt-1 text-[10px] text-kaijoYellow">
+                    • Overlaps your regions
+                  </p>
+                {% endif %}
+              </div>
+              <div>
+                <p class="uppercase tracking-[0.18em] text-white/40 mb-1">
+                  Care types
+                </p>
+                <p>
+                  {{ (bp.care_types or "").replace(",", ", ") or "Not specified" }}
+                </p>
+                {% if item.care_match %}
+                  <p class="mt-1 text-[10px] text-kaijoYellow">
+                    • Overlaps your care types
+                  </p>
+                {% endif %}
+              </div>
+            </div>
+          {% endif %}
+        </div>
+
+        <!-- Actions -->
+        <div class="pt-2 border-t border-white/10 mt-1">
+
+          {% if current_user.is_authenticated and current_user.role == "seller" %}
+            {% if current_user.seller_profile %}
+              <form method="post"
+                    action="{{ url_for('seller_request_introduction', buyer_id=user.id, listing_id=current_user.listings[0].id) }}">
+                <label class="text-[10px] text-white/50">Choose a listing</label>
+                <select name="listing_id"
+                        class="w-full mt-1 mb-2 text-[11px] bg-black/30 border border-white/10 rounded px-2 py-1">
+                  {% for l in current_user.listings if l.status == 'live' %}
+                    <option value="{{ l.id }}">{{ l.title }} ({{ l.listing_code }})</option>
+                  {% endfor %}
+                </select>
+
+                <button type="submit"
+                        class="px-3 py-1.5 text-[11px] rounded bg-kaijoPink text-white hover:bg-kaijoYellow hover:text-black transition">
+                  Request introduction
+                </button>
+              </form>
+            {% else %}
+              <p class="text-[10px] text-white/50">
+                Complete your seller profile to request introductions.
+              </p>
+            {% endif %}
+          {% endif %}
+
+        </div>
+      </div>
+    {% endfor %}
+
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}Edit content: {{ block.slug }}{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl space-y-4">
+  <h1 class="text-xl font-semibold text-white">Edit content block</h1>
+
+  <p class="text-xs text-white/60">
+    Slug: <span class="font-mono text-kaijoYellow">{{ block.slug }}</span><br>
+    {% if block.description %}
+      <span class="text-white/70">{{ block.description }}</span><br>
+    {% endif %}
+    {% if block.updated_at %}
+      <span class="text-white/40">
+        Last updated {{ block.updated_at.strftime("%d %b %Y %H:%M") }}
+        {% if block.updated_by %} by {{ block.updated_by.email }}{% endif %}
+      </span>
+    {% endif %}
+  </p>
+
+  <form method="POST" class="space-y-3">
+    <textarea name="content"
+              rows="8"
+              class="w-full rounded bg-black/60 border border-white/20 text-xs text-white px-3 py-2 focus:outline-none focus:border-kaijoYellow focus:ring-1 focus:ring-kaijoYellow">{{ block.content }}</textarea>
+
+    <div class="flex items-center justify-between gap-3 text-xs">
+      <a href="{{ next_url }}"
+         class="text-white/60 hover:text-kaijoYellow">
+        ← Back
+      </a>
+
+      <button type="submit"
+              class="px-4 py-1.5 rounded bg-kaijoYellow text-black font-semibold hover:bg-white transition">
+        Save changes
+      </button>
+    </div>
+  </form>
+</div>
+{% endblock %}

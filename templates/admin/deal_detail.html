@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+{% block title %}Deal #{{ deal.id }} – Admin{% endblock %}
+
+{% block content %}
+<div class="mb-6 flex items-center justify-between">
+  <div>
+    <h1 class="text-xl font-semibold text-white">
+      Deal #{{ deal.id }}
+    </h1>
+    <p class="text-xs text-white/70">
+      {{ listing.listing_code or "Ref" }} – {{ listing.title or "Listing" }}
+    </p>
+  </div>
+  <div class="flex gap-2">
+    <a href="{{ url_for('admin_deals') }}"
+       class="text-xs px-3 py-2 rounded border border-white/20 text-white/80 hover:bg-white/10">
+      ← Back to deals
+    </a>
+    <a href="{{ url_for('admin_deal_export', deal_id=deal.id) }}"
+       class="text-xs px-3 py-2 rounded border border-white/20 text-white/80 hover:bg-white/10">
+      Export deal sheet
+    </a>
+  </div>
+</div>
+
+<div class="grid md:grid-cols-3 gap-6">
+
+  <!-- Left: context -->
+  <div class="md:col-span-1 space-y-4">
+    <div class="rounded-lg border border-white/10 bg-black/30 p-4 text-xs">
+      <h2 class="text-sm font-semibold text-white mb-2">Parties</h2>
+      <p class="text-white/70"><span class="text-white/40">Buyer:</span> {{ buyer.email }}</p>
+      <p class="text-white/70"><span class="text-white/40">Seller:</span> {{ seller.email }}</p>
+      <p class="text-white/70 mt-2"><span class="text-white/40">Listing:</span></p>
+      <p class="text-white">{{ listing.listing_code or "Ref" }} – {{ listing.title or "Listing" }}</p>
+      <p class="text-white/60 text-[11px] mt-1">
+        {{ listing.region or "Region" }} • {{ listing.care_type or "Care type" }} • {{ listing.beds or "?" }} beds
+      </p>
+    </div>
+
+    <div class="rounded-lg border border-white/10 bg-black/30 p-4 text-xs">
+      <h2 class="text-sm font-semibold text-white mb-2">Introduction</h2>
+      <p class="text-white/70"><span class="text-white/40">Status:</span> {{ intro.status }}</p>
+      {% if intro.offer_amount %}
+        <p class="text-white/70">
+          <span class="text-white/40">Offer amount:</span> {{ intro.offer_amount }}
+        </p>
+      {% endif %}
+      {% if intro.offer_date %}
+        <p class="text-white/70">
+          <span class="text-white/40">Offer date:</span> {{ intro.offer_date.strftime("%Y-%m-%d") }}
+        </p>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Right: form -->
+  <div class="md:col-span-2">
+    <form method="post"
+          class="rounded-lg border border-white/10 bg-black/30 p-4 text-xs space-y-4">
+      <h2 class="text-sm font-semibold text-white mb-1">Deal details</h2>
+
+      <div class="grid md:grid-cols-2 gap-4">
+        <div>
+          <label class="block text-[11px] text-white/70 mb-1" for="agreed_price">
+            Agreed price (headline)
+          </label>
+          <input type="text"
+                 name="agreed_price"
+                 id="agreed_price"
+                 value="{{ deal.agreed_price or intro.offer_amount or '' }}"
+                 class="w-full rounded border border-white/20 bg-black/40 px-2 py-1.5 text-xs text-white"
+                 placeholder="e.g. £3,500,000">
+        </div>
+
+        <div>
+          <label class="block text-[11px] text-white/70 mb-1" for="commission_percent">
+            Broker commission %
+          </label>
+          <input type="number"
+                 step="0.1"
+                 name="commission_percent"
+                 id="commission_percent"
+                 value="{{ deal.broker_commission_percent or 2.0 }}"
+                 class="w-full rounded border border-white/20 bg-black/40 px-2 py-1.5 text-xs text-white">
+        </div>
+
+        <div>
+          <label class="block text-[11px] text-white/70 mb-1" for="completion_date">
+            Completion date
+          </label>
+          <input type="date"
+                 name="completion_date"
+                 id="completion_date"
+                 value="{{ deal.completion_date.strftime('%Y-%m-%d') if deal.completion_date else '' }}"
+                 class="w-full rounded border border-white/20 bg-black/40 px-2 py-1.5 text-xs text-white">
+        </div>
+
+        <div>
+          <label class="block text-[11px] text-white/70 mb-1" for="status">
+            Deal status
+          </label>
+          <select name="status"
+                  id="status"
+                  class="w-full rounded border border-white/20 bg-black/40 px-2 py-1.5 text-xs text-white">
+            {% for code, label in [
+              ('in_progress','In progress'),
+              ('completed','Completed'),
+              ('aborted','Aborted')
+            ] %}
+              <option value="{{ code }}"
+                      {% if deal.status == code %}selected{% endif %}>
+                {{ label }}
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+
+      <div class="mt-4 flex items-center justify-between">
+        <div class="text-[11px] text-white/70">
+          {% if deal.broker_commission_amount %}
+            Estimated commission:
+            <span class="font-semibold text-kaijoYellow">
+              £{{ "%.2f" | format(deal.broker_commission_amount / 100) }}
+            </span>
+            ({{ deal.broker_commission_percent or 0 }}%)
+          {% else %}
+            <span class="text-white/50">
+              Commission will be calculated when an agreed price is set.
+            </span>
+          {% endif %}
+        </div>
+
+        <button type="submit"
+                class="px-4 py-2 rounded bg-kaijoPink text-white text-[11px] font-semibold hover:bg-kaijoYellow hover:text-black">
+          Save changes
+        </button>
+      </div>
+    </form>
+  </div>
+
+</div>
+{% endblock %}

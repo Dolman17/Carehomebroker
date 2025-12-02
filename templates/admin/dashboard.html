@@ -1,57 +1,276 @@
 {% extends "base.html" %}
-{% block title %}Admin Dashboard{% endblock %}
+{% block title %}Admin – Dashboard{% endblock %}
 
 {% block content %}
 <div class="mb-6">
-  <h1 class="text-xl font-semibold text-kaijoYellow mb-1">Admin Dashboard</h1>
-  <p class="text-xs text-white/70">Platform overview and key metrics</p>
+  <h1 class="text-xl font-semibold text-white">Admin dashboard</h1>
+  <p class="text-xs text-white/70">
+    Central overview of buyers, sellers, valuers, listings and deal flow.
+  </p>
 </div>
 
-<div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+<!-- TOP STATS GRID -->
+<div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
 
-  <div class="bg-white/5 border border-white/10 rounded-lg p-4 backdrop-blur-sm">
-    <p class="text-[11px] text-white/60">Live Listings</p>
-    <p class="text-2xl font-semibold text-white mt-1">{{ listing_counts.live }}</p>
+  <!-- Listings -->
+  <div class="rounded-lg bg-black/30 border border-white/10 p-4">
+    <div class="text-[11px] uppercase tracking-[0.18em] text-white/50 mb-1">
+      Listings
+    </div>
+    <div class="text-2xl font-semibold text-kaijoYellow">
+      {{ listing_counts.live or 0 }}
+    </div>
+    <div class="text-[11px] text-white/60 mt-1">
+      Live • Draft: {{ listing_counts.draft or 0 }} • Under offer: {{ listing_counts.under_offer or 0 }} • Sold: {{ listing_counts.sold or 0 }}
+    </div>
+    <a href="{{ url_for('admin_listings') }}"
+       class="mt-3 inline-flex items-center text-[11px] text-white/70 hover:text-kaijoYellow">
+      Manage listings →
+    </a>
   </div>
 
-  <div class="bg-white/5 border border-white/10 rounded-lg p-4 backdrop-blur-sm">
-    <p class="text-[11px] text-white/60">Draft Listings</p>
-    <p class="text-2xl font-semibold text-white mt-1">{{ listing_counts.draft }}</p>
+  <!-- Users / roles -->
+  <div class="rounded-lg bg-black/30 border border-white/10 p-4">
+    <div class="text-[11px] uppercase tracking-[0.18em] text-white/50 mb-1">
+      Users
+    </div>
+    <div class="text-2xl font-semibold text-white">
+      {{ total_users or 0 }}
+    </div>
+    <div class="text-[11px] text-white/60 mt-1 space-y-0.5">
+      <div>Buyers: {{ buyers_total or 0 }}</div>
+      <div>Sellers: {{ sellers_total or 0 }}</div>
+      <div>Valuers: {{ valuers_total or 0 }}</div>
+      <div>Admins: {{ admins_total or 0 }}</div>
+    </div>
+    <a href="{{ url_for('admin_users') }}"
+       class="mt-3 inline-flex items-center text-[11px] text-white/70 hover:text-kaijoYellow">
+      Manage users →
+    </a>
   </div>
 
-  <div class="bg-white/5 border border-white/10 rounded-lg p-4 backdrop-blur-sm">
-    <p class="text-[11px] text-white/60">Under Offer</p>
-    <p class="text-2xl font-semibold text-white mt-1">{{ listing_counts.under_offer }}</p>
+  <!-- Subscriptions -->
+  <div class="rounded-lg bg-black/30 border border-white/10 p-4">
+    <div class="text-[11px] uppercase tracking-[0.18em] text-white/50 mb-1">
+      Active subscriptions
+    </div>
+    <div class="text-2xl font-semibold text-kaijoPink">
+      {{
+        (subscription_breakdown.buyer.basic
+         + subscription_breakdown.buyer.premium
+         + subscription_breakdown.seller.basic
+         + subscription_breakdown.seller.premium
+         + subscription_breakdown.valuer.basic
+         + subscription_breakdown.valuer.premium) or 0
+      }}
+    </div>
+    <div class="text-[11px] text-white/60 mt-1 space-y-0.5">
+      <div>Buyer – Basic: {{ subscription_breakdown.buyer.basic }} / Premium: {{ subscription_breakdown.buyer.premium }}</div>
+      <div>Seller – Basic: {{ subscription_breakdown.seller.basic }} / Premium: {{ subscription_breakdown.seller.premium }}</div>
+      <div>Valuer – Basic: {{ subscription_breakdown.valuer.basic }} / Premium: {{ subscription_breakdown.valuer.premium }}</div>
+    </div>
+    <a href="{{ url_for('pricing') }}"
+       class="mt-3 inline-flex items-center text-[11px] text-white/70 hover:text-kaijoYellow">
+      View pricing →
+    </a>
   </div>
 
-  <div class="bg-white/5 border border-white/10 rounded-lg p-4 backdrop-blur-sm">
-    <p class="text-[11px] text-white/60">Sold Listings</p>
-    <p class="text-2xl font-semibold text-white mt-1">{{ listing_counts.sold }}</p>
+  <!-- Pipeline / deals -->
+  <div class="rounded-lg bg-black/30 border border-white/10 p-4">
+    <div class="text-[11px] uppercase tracking-[0.18em] text-white/50 mb-1">
+      Pipeline & deals
+    </div>
+    <div class="text-2xl font-semibold text-white">
+      {{ deals_in_progress or 0 }}
+    </div>
+    <div class="text-[11px] text-white/60 mt-1 space-y-0.5">
+      <div>In progress: {{ deals_in_progress or 0 }}</div>
+      <div>Completed: {{ deals_completed or 0 }}</div>
+      <div>Valuations open: {{ valuation_open or 0 }} / {{ valuation_total or 0 }}</div>
+    </div>
+    <div class="mt-3 flex flex-wrap gap-2 text-[11px]">
+      <a href="{{ url_for('admin_deals') }}"
+         class="inline-flex items-center px-2 py-1 rounded border border-white/20 text-white/70 hover:bg-white/10 hover:text-kaijoYellow">
+        Deals
+      </a>
+      <a href="{{ url_for('admin_valuation_requests') }}"
+         class="inline-flex items-center px-2 py-1 rounded border border-white/20 text-white/70 hover:bg-white/10 hover:text-kaijoYellow">
+        Valuations
+      </a>
+    </div>
   </div>
+</div>
 
-  <div class="bg-white/5 border border-white/10 rounded-lg p-4 backdrop-blur-sm">
-    <p class="text-[11px] text-white/60">Users</p>
-    <p class="text-2xl font-semibold text-white mt-1">{{ user_count }}</p>
-  </div>
+<!-- SECOND ROW: ROLE GRIDS -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
 
-  <div class="bg-white/5 border border-white/10 rounded-lg p-4 backdrop-blur-sm">
-    <p class="text-[11px] text-white/60">Total Enquiries</p>
-    <p class="text-2xl font-semibold text-white mt-1">{{ enquiry_count }}</p>
-  </div>
-
-  <div class="bg-white/5 border border-white/10 rounded-lg p-4 backdrop-blur-sm flex flex-col justify-between">
-  <div>
-    <p class="text-[11px] text-white/60">User Management</p>
-    <p class="text-xs text-white/70 mt-1">
-      View users and impersonate accounts for troubleshooting.
+  <!-- Buyers card -->
+  <div class="rounded-lg bg-black/40 border border-white/10 p-4">
+    <div class="flex items-center justify-between mb-2">
+      <h2 class="text-sm font-semibold text-white">Buyers</h2>
+      <a href="{{ url_for('admin_buyers') }}"
+         class="text-[11px] text-white/60 hover:text-kaijoYellow">
+        View all →
+      </a>
+    </div>
+    <p class="text-[11px] text-white/70 mb-3">
+      Profiles and appetite for acquisitions. Premium buyers can browse and enquire.
     </p>
+    <div class="text-[11px] text-white/70 space-y-0.5">
+      <div>Total: {{ buyers_total or 0 }}</div>
+      <div>Premium: {{ subscription_breakdown.buyer.premium or 0 }}</div>
+      <div>Basic: {{ subscription_breakdown.buyer.basic or 0 }}</div>
+    </div>
   </div>
-  <a href="{{ url_for('admin_users') }}"
-     class="mt-3 inline-flex items-center justify-start text-[11px] text-kaijoYellow hover:text-kaijoPink transition">
-    Manage users →
-  </a>
+
+  <!-- Sellers card -->
+  <div class="rounded-lg bg-black/40 border border-white/10 p-4">
+    <div class="flex items-center justify-between mb-2">
+      <h2 class="text-sm font-semibold text-white">Sellers</h2>
+      <a href="{{ url_for('admin_sellers') }}"
+         class="text-[11px] text-white/60 hover:text-kaijoYellow">
+        View all →
+      </a>
+    </div>
+    <p class="text-[11px] text-white/70 mb-3">
+      Operator / owner profiles and business-level metrics behind listings.
+    </p>
+    <div class="text-[11px] text-white/70 space-y-0.5">
+      <div>Total: {{ sellers_total or 0 }}</div>
+      <div>Premium: {{ subscription_breakdown.seller.premium or 0 }}</div>
+      <div>Basic: {{ subscription_breakdown.seller.basic or 0 }}</div>
+    </div>
+  </div>
+
+  <!-- Valuers card -->
+  <div class="rounded-lg bg-black/40 border border-white/10 p-4">
+    <div class="flex items-center justify-between mb-2">
+      <h2 class="text-sm font-semibold text-white">Valuer framework</h2>
+      <a href="{{ url_for('admin_valuers') }}"
+         class="text-[11px] text-white/60 hover:text-kaijoYellow">
+        View all →
+      </a>
+    </div>
+    <p class="text-[11px] text-white/70 mb-3">
+      Valuers in your framework with coverage, accreditation and pricing notes.
+    </p>
+    <div class="text-[11px] text-white/70 space-y-0.5">
+      <div>Total: {{ valuers_total or 0 }}</div>
+      <div>Premium: {{ subscription_breakdown.valuer.premium or 0 }}</div>
+      <div>Basic: {{ subscription_breakdown.valuer.basic or 0 }}</div>
+    </div>
+  </div>
+
 </div>
 
+<!-- ACTIVITY ROW -->
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+
+  <!-- Recent listings -->
+  <div class="rounded-lg bg-black/30 border border-white/10 p-4">
+    <div class="flex items-center justify-between mb-2">
+      <h2 class="text-sm font-semibold text-white">Newest listings</h2>
+      <a href="{{ url_for('admin_listings') }}"
+         class="text-[11px] text-white/60 hover:text-kaijoYellow">
+        All listings →
+      </a>
+    </div>
+    <ul class="divide-y divide-white/5 text-[11px]">
+      {% for l in recent_listings %}
+        <li class="py-2">
+          <div class="flex items-center justify-between">
+            <div class="text-white">
+              {{ l.listing_code or "Ref" }} – {{ l.title }}
+            </div>
+            <div class="text-white/40">
+              {{ l.created_at.strftime("%d %b") if l.created_at else "" }}
+            </div>
+          </div>
+          <div class="text-white/60">
+            {{ l.region or "Region" }} • {{ l.care_type or "Care type" }} • {{ l.beds or "?" }} beds
+          </div>
+          <div class="text-white/50">
+            Status: {{ l.status }}
+          </div>
+        </li>
+      {% else %}
+        <li class="py-2 text-white/60">No listings yet.</li>
+      {% endfor %}
+    </ul>
+  </div>
+
+  <!-- Recent valuation requests -->
+  <div class="rounded-lg bg-black/30 border border-white/10 p-4">
+    <div class="flex items-center justify-between mb-2">
+      <h2 class="text-sm font-semibold text-white">Recent valuation requests</h2>
+      <a href="{{ url_for('admin_valuation_requests') }}"
+         class="text-[11px] text-white/60 hover:text-kaijoYellow">
+        All requests →
+      </a>
+    </div>
+    <ul class="divide-y divide-white/5 text-[11px]">
+      {% for r in recent_valuations %}
+        <li class="py-2">
+          <div class="flex items-center justify-between">
+            <div class="text-white">
+              {% if r.listing %}
+                {{ r.listing.listing_code or "Ref" }} – {{ r.listing.title }}
+              {% else %}
+                Listing missing
+              {% endif %}
+            </div>
+            <div class="text-white/40">
+              {{ r.created_at.strftime("%d %b") if r.created_at else "" }}
+            </div>
+          </div>
+          <div class="text-white/60">
+            Status: {{ r.status }} • Seller: {{ r.seller.email if r.seller else "Unknown" }}
+          </div>
+        </li>
+      {% else %}
+        <li class="py-2 text-white/60">No valuation requests yet.</li>
+      {% endfor %}
+    </ul>
+  </div>
+
+  <!-- Recent deals -->
+  <div class="rounded-lg bg-black/30 border border-white/10 p-4">
+    <div class="flex items-center justify-between mb-2">
+      <h2 class="text-sm font-semibold text-white">Recent deals</h2>
+      <a href="{{ url_for('admin_deals') }}"
+         class="text-[11px] text-white/60 hover:text-kaijoYellow">
+        All deals →
+      </a>
+    </div>
+    <ul class="divide-y divide-white/5 text-[11px]">
+      {% for d in recent_deals %}
+        <li class="py-2">
+          <div class="flex items-center justify-between">
+            <div class="text-white">
+              {% if d.introduction and d.introduction.listing %}
+                {{ d.introduction.listing.listing_code or "Ref" }} – {{ d.introduction.listing.title }}
+              {% else %}
+                Deal #{{ d.id }}
+              {% endif %}
+            </div>
+            <div class="text-white/40">
+              {{ d.status }}
+            </div>
+          </div>
+          <div class="text-white/60">
+            Commission: 
+            {% if d.broker_commission_amount %}
+              £{{ "%.2f"|format(d.broker_commission_amount / 100) }}
+            {% else %}
+              {{ d.broker_commission_percent or 0 }}%
+            {% endif %}
+          </div>
+        </li>
+      {% else %}
+        <li class="py-2 text-white/60">No deals recorded yet.</li>
+      {% endfor %}
+    </ul>
+  </div>
 
 </div>
 {% endblock %}

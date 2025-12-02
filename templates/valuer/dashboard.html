@@ -4,7 +4,8 @@
 {% block content %}
 <div class="max-w-5xl mx-auto py-8 text-white">
 
-  <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
+  <!-- HEADER -->
+  <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
     <div>
       <h1 class="text-2xl font-semibold mb-1">Valuer dashboard</h1>
       <p class="text-xs text-white/70">
@@ -18,6 +19,122 @@
     </a>
   </div>
 
+  <!-- OPEN REQUESTS BANNER -->
+  {% if open_requests_count and open_requests_count > 0 %}
+    <div class="mb-4 rounded-lg border border-kaijoYellow/60 bg-black/30 px-4 py-3 text-xs text-kaijoYellow">
+      <span class="font-semibold">{{ open_requests_count }}</span>
+      open valuation request{% if open_requests_count != 1 %}s{% endif %} awaiting your attention.
+      <a href="{{ url_for('valuer_requests') }}" class="underline">
+        View requests →
+      </a>
+    </div>
+  {% endif %}
+
+  <!-- PLAN RIBBON / BILLING -->
+  {% if current_plan_label %}
+    <div class="mb-4 flex flex-wrap items-center justify-between gap-3 text-xs">
+      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/5 border border-white/15 text-white/80">
+        <span class="text-[10px] uppercase tracking-[0.2em] text-white/50">Your plan</span>
+        <span class="font-semibold text-kaijoYellow">{{ current_plan_label }}</span>
+      </div>
+
+      <form method="POST" action="{{ url_for('billing_portal') }}">
+        <button type="submit"
+                class="px-3 py-1.5 rounded border border-white/25 text-white/80 text-[11px] hover:bg-white/10 hover:text-kaijoYellow transition">
+          Manage billing
+        </button>
+      </form>
+    </div>
+  {% else %}
+    <div class="mb-4 text-[11px] text-white/60">
+      You don’t have an active subscription yet.
+      <a href="{{ url_for('pricing', role='valuer') }}" class="underline hover:text-kaijoYellow">
+        Choose a plan
+      </a>
+    </div>
+  {% endif %}
+
+  <!-- MY PLAN CARD STRIP -->
+  <div class="mb-6 grid md:grid-cols-[2fr,1fr] gap-4">
+
+    <!-- Valuer plan summary -->
+    <div class="rounded-lg border border-white/10 bg-black/30 px-4 py-3 text-xs sm:text-sm">
+      <div class="flex items-center justify-between gap-2">
+        <div>
+          <p class="text-[11px] uppercase tracking-[0.2em] text-white/50">
+            Valuer plan
+          </p>
+          {% if subscription %}
+            <p class="text-sm font-semibold text-kaijoYellow">
+              Valuer {{ subscription.tier|capitalize }}
+            </p>
+            <p class="text-[11px] text-white/60 mt-1">
+              Renews:
+              {% if subscription.renews_at %}
+                {{ subscription.renews_at|date_short }}
+              {% else %}
+                <span class="text-white/40">Rolling / not set</span>
+              {% endif %}
+            </p>
+          {% else %}
+            <p class="text-sm font-semibold text-white">
+              Free / register-only valuer
+            </p>
+            <p class="text-[11px] text-white/60 mt-1">
+              Your details can be added to the framework. Premium plans can later
+              unlock priority placement and more visibility.
+            </p>
+          {% endif %}
+        </div>
+
+        {% if subscription and subscription.tier == "premium" %}
+          <span class="inline-flex items-center rounded-full border border-emerald-400/60 px-3 py-1 text-[11px] text-emerald-200 bg-emerald-500/10">
+            ● Active
+          </span>
+        {% else %}
+          <span class="inline-flex items-center rounded-full border border-white/20 px-3 py-1 text-[11px] text-white/70 bg-white/5">
+            Limited access
+          </span>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Upgrade / status card -->
+    <div class="rounded-lg border border-white/10 bg-black/40 px-4 py-3 text-[11px] sm:text-xs flex flex-col justify-between">
+      {% if not subscription or subscription.tier != "premium" %}
+        <div>
+          <p class="font-semibold text-kaijoYellow mb-1">
+            Grow your valuer presence
+          </p>
+          <p class="text-white/70 mb-2">
+            In future, Valuer Premium can surface you higher in the framework and
+            highlight you on relevant listings.
+          </p>
+        </div>
+        <form method="post" action="{{ url_for('billing_checkout') }}">
+          <input type="hidden" name="role" value="valuer">
+          <input type="hidden" name="tier" value="premium">
+          <button type="submit"
+                  class="w-full px-3 py-2 rounded bg-kaijoPink text-white font-semibold hover:bg-kaijoYellow hover:text-black transition">
+            Upgrade to Valuer Premium
+          </button>
+        </form>
+      {% else %}
+        <div>
+          <p class="font-semibold text-emerald-300 mb-1">
+            You’re on Valuer Premium
+          </p>
+          <p class="text-white/70">
+            You’ll appear prominently in the valuer framework and can be highlighted
+            on relevant opportunities.
+          </p>
+        </div>
+      {% endif %}
+    </div>
+
+  </div>
+
+  <!-- MAIN GRID: PROFILE STATUS + FUTURE REQUESTS -->
   <div class="grid md:grid-cols-3 gap-4">
 
     <!-- Profile status -->

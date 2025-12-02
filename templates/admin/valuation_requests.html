@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% block title %}Admin – Valuation requests{% endblock %}
+
+{% block content %}
+<div class="mb-6 flex items-center justify-between gap-3">
+  <div>
+    <h1 class="text-xl font-semibold text-white">Valuation requests</h1>
+    <p class="text-xs text-white/70">
+      All valuation requests raised by sellers, with assigned valuer and status.
+    </p>
+  </div>
+  <a href="{{ url_for('admin_dashboard') }}"
+     class="text-xs border border-white/20 text-white/70 px-3 py-1.5 rounded hover:bg-white/10">
+    ← Back to admin
+  </a>
+</div>
+
+<div class="bg-black/30 border border-white/10 rounded-lg overflow-hidden">
+  <table class="min-w-full text-left text-xs">
+    <thead class="bg-white/5 text-white/70 uppercase tracking-[0.15em] text-[10px]">
+      <tr>
+        <th class="px-4 py-2">Listing</th>
+        <th class="px-4 py-2">Seller</th>
+        <th class="px-4 py-2">Valuer</th>
+        <th class="px-4 py-2">Status</th>
+        <th class="px-4 py-2">Notes</th>
+        <th class="px-4 py-2 text-right">Requested</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for r in requests %}
+      <tr class="border-t border-white/5 hover:bg-white/5">
+        <td class="px-4 py-2 align-top">
+          {% if r.listing %}
+            <div class="text-xs text-white">
+              {{ r.listing.listing_code or "Ref" }} – {{ r.listing.title }}
+            </div>
+            <div class="text-[11px] text-white/60">
+              {{ r.listing.region or "Region" }} • {{ r.listing.care_type or "Care type" }}
+            </div>
+          {% else %}
+            <span class="text-[11px] text-white/40">Listing missing</span>
+          {% endif %}
+        </td>
+        <td class="px-4 py-2 align-top text-[11px] text-white/80">
+          {{ r.seller.email if r.seller else "Unknown" }}
+        </td>
+        <td class="px-4 py-2 align-top text-[11px] text-white/80">
+          {% if r.valuer %}
+            {{ r.valuer.email }}
+          {% else %}
+            <span class="text-white/40">Unassigned</span>
+          {% endif %}
+        </td>
+        <td class="px-4 py-2 align-top text-[11px]">
+          <span class="inline-flex items-center px-2 py-0.5 rounded-full bg-white/5 border border-white/20 text-white/80">
+            {{ r.status }}
+          </span>
+        </td>
+        <td class="px-4 py-2 align-top text-[11px] text-white/70 max-w-xs">
+          {% if r.notes %}
+            {{ r.notes[:120] }}{% if r.notes|length > 120 %}…{% endif %}
+          {% else %}
+            <span class="text-white/40">–</span>
+          {% endif %}
+        </td>
+        <td class="px-4 py-2 align-top text-right text-[11px] text-white/60">
+          {{ r.created_at.strftime("%d %b %Y %H:%M") if r.created_at else "–" }}
+        </td>
+      </tr>
+    {% else %}
+      <tr>
+        <td colspan="6" class="px-4 py-4 text-center text-[11px] text-white/60">
+          No valuation requests yet.
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

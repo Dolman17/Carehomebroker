@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}All Enquiries{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+  <h1 class="text-xl font-semibold text-white">All enquiries</h1>
+
+  <div class="rounded-lg border border-white/10 bg-black/40 text-white text-xs p-4">
+    {% if enquiries %}
+      <table class="w-full text-left text-xs">
+        <thead class="text-white/60 border-b border-white/10">
+          <tr>
+            <th class="py-2">ID</th>
+            <th class="py-2">Listing</th>
+            <th class="py-2">Buyer</th>
+            <th class="py-2">Message</th>
+            <th class="py-2">Status</th>
+            <th class="py-2">Date</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for e in enquiries %}
+            <tr class="border-b border-white/10">
+              <td class="py-2">{{ e.id }}</td>
+              <td class="py-2">
+                <a href="{{ url_for('listing_detail', listing_id=e.listing.id) }}"
+                   class="text-kaijoYellow hover:text-white">
+                  {{ e.listing.title or "Untitled" }}
+                </a>
+              </td>
+              <td class="py-2">
+                {{ e.buyer.email }}
+              </td>
+              <td class="py-2 max-w-xs truncate">
+                {{ e.message }}
+              </td>
+              <td class="py-2">{{ e.status|capitalize }}</td>
+              <td class="py-2">
+                {{ e.created_at.strftime("%d %b %Y") }}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <p class="text-white/60 text-xs">No enquiries recorded yet.</p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

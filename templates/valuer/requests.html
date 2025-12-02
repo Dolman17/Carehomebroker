@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+{% block title %}Valuation requests – Care Home Broker{% endblock %}
+
+{% block content %}
+<div class="max-w-5xl mx-auto py-6 text-white space-y-6">
+
+  <!-- Header -->
+  <div class="flex items-center justify-between gap-3">
+    <div>
+      <p class="text-[11px] uppercase tracking-[0.2em] text-white/50 mb-1">
+        Valuer dashboard
+      </p>
+      <h1 class="text-xl sm:text-2xl font-semibold">
+        Valuation requests
+      </h1>
+      <p class="text-xs text-white/60 mt-1">
+        Requests from sellers to review and price individual care homes.
+      </p>
+    </div>
+    <a href="{{ url_for('valuer_dashboard') }}"
+       class="text-[11px] px-3 py-1.5 rounded border border-white/20 text-white/70 hover:bg-white/10">
+      ← Back to dashboard
+    </a>
+  </div>
+
+  {% if not requests %}
+    <div class="rounded-lg border border-white/10 bg-black/30 p-4 text-xs text-white/80">
+      <p class="font-semibold mb-1 text-white">No valuation requests yet</p>
+      <p>
+        When sellers request valuations through your profile, they will appear here
+        with the listing reference, seller details, and current status.
+      </p>
+    </div>
+  {% else %}
+    <div class="rounded-lg border border-white/10 bg-black/30 overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="min-w-full text-xs">
+          <thead class="bg-black/40 border-b border-white/10 text-white/60">
+            <tr>
+              <th class="px-4 py-2 text-left font-medium">Listing</th>
+              <th class="px-4 py-2 text-left font-medium">Seller</th>
+              <th class="px-4 py-2 text-left font-medium">Status</th>
+              <th class="px-4 py-2 text-left font-medium">Requested</th>
+              <th class="px-4 py-2 text-right font-medium">Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for vr in requests %}
+              <tr class="border-t border-white/10 hover:bg-white/5">
+                <td class="px-4 py-2 align-top">
+                  <div class="font-mono text-[11px] text-white/50">
+                    {{ vr.listing.listing_code or "Ref" }}
+                  </div>
+                  <div class="text-sm">
+                    {{ vr.listing.title }}
+                  </div>
+                  {% if vr.listing.region or vr.listing.care_type %}
+                    <div class="text-[11px] text-white/60 mt-0.5">
+                      {{ vr.listing.region or "Region tbc" }} •
+                      {{ vr.listing.care_type or "Care type tbc" }}
+                    </div>
+                  {% endif %}
+                </td>
+                <td class="px-4 py-2 align-top text-xs text-white/70">
+                  {{ vr.seller.email }}
+                </td>
+                <td class="px-4 py-2 align-top">
+                  {% set s = vr.status or "pending" %}
+                  {% if s == "pending" %}
+                    <span class="inline-flex px-2 py-0.5 rounded-full text-[11px] bg-yellow-500/15 text-yellow-300 border border-yellow-400/50">
+                      Pending
+                    </span>
+                  {% elif s == "accepted" %}
+                    <span class="inline-flex px-2 py-0.5 rounded-full text-[11px] bg-blue-500/15 text-blue-300 border border-blue-400/50">
+                      Accepted
+                    </span>
+                  {% elif s == "completed" %}
+                    <span class="inline-flex px-2 py-0.5 rounded-full text-[11px] bg-emerald-500/15 text-emerald-300 border border-emerald-400/50">
+                      Completed
+                    </span>
+                  {% elif s == "declined" %}
+                    <span class="inline-flex px-2 py-0.5 rounded-full text-[11px] bg-red-500/15 text-red-300 border border-red-400/50">
+                      Declined
+                    </span>
+                  {% else %}
+                    <span class="inline-flex px-2 py-0.5 rounded-full text-[11px] bg-white/10 text-white/70 border border-white/20">
+                      {{ s }}
+                    </span>
+                  {% endif %}
+                </td>
+                <td class="px-4 py-2 align-top text-[11px] text-white/60 whitespace-nowrap">
+                  {{ vr.created_at.strftime("%d %b %Y") if vr.created_at else "" }}
+                </td>
+                <td class="px-4 py-2 align-top text-right">
+                  <a href="{{ url_for('valuer_request_detail', request_id=vr.id) }}"
+                     class="inline-flex px-3 py-1.5 rounded border border-white/20 text-[11px] text-white/80 hover:bg-white/10">
+                    View
+                  </a>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  {% endif %}
+
+</div>
+{% endblock %}

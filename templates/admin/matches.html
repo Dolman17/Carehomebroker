@@ -1,0 +1,184 @@
+{% extends "base.html" %}
+{% block title %}Admin – Buyer Matches{% endblock %}
+
+{% block content %}
+<div class="space-y-6 text-white">
+
+  <!-- Header -->
+  <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+    <div>
+      <h1 class="text-xl sm:text-2xl font-semibold">Buyer Matches</h1>
+      <p class="text-xs text-white/70">
+        See which buyers are best aligned to current live listings, so you can broker introductions efficiently.
+      </p>
+    </div>
+    <a href="{{ url_for('admin_dashboard') }}"
+       class="inline-flex items-center justify-center text-xs px-3 py-2 rounded border border-white/20 text-white/80 hover:bg-white/10 hover:text-kaijoYellow transition">
+      ← Back to admin dashboard
+    </a>
+  </div>
+
+  {% if not rows %}
+    <p class="text-xs text-white/70">
+      No buyers found yet. Once buyers register, they’ll appear here with suggested matches.
+    </p>
+  {% else %}
+
+    <div class="space-y-4">
+      {% for row in rows %}
+        {% set buyer = row.buyer %}
+        {% set profile = row.profile %}
+        {% set is_premium = row.is_premium %}
+        {% set matches = row.matches %}
+
+        <div class="rounded-lg border border-white/10 bg-black/30 p-4">
+
+          <!-- Buyer header -->
+          <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3">
+            <div>
+              <p class="text-[11px] text-white/50 uppercase tracking-[0.16em] mb-1">
+                Buyer
+              </p>
+              <p class="text-sm font-semibold">
+                {{ profile.business_name or "Unnamed buyer" }}
+              </p>
+              <p class="text-[11px] text-white/60">
+                {{ buyer.email }}
+              </p>
+            </div>
+
+            <div class="flex flex-wrap gap-2 items-center justify-start sm:justify-end text-[10px]">
+
+              {% if is_premium %}
+                <span class="inline-flex items-center px-2 py-1 rounded-full bg-kaijoYellow/20 text-kaijoYellow border border-kaijoYellow/60">
+                  Premium buyer
+                </span>
+              {% else %}
+                <span class="inline-flex items-center px-2 py-1 rounded-full bg-white/10 text-white/70 border border-white/20">
+                  Register-only
+                </span>
+              {% endif %}
+
+              {% if profile and profile.is_complete() %}
+                <span class="inline-flex items-center px-2 py-1 rounded-full bg-emerald-500/20 text-emerald-200 border border-emerald-400/60">
+                  Profile complete
+                </span>
+              {% else %}
+                <span class="inline-flex items-center px-2 py-1 rounded-full bg-kaijoPink/20 text-kaijoPink border border-kaijoPink/60">
+                  Profile needs work
+                </span>
+              {% endif %}
+
+              <a href="mailto:{{ buyer.email }}"
+                 class="inline-flex items-center px-2 py-1 rounded border border-white/30 text-white/80 hover:bg-white/10 hover:text-kaijoYellow transition">
+                Email buyer
+              </a>
+            </div>
+          </div>
+
+          <!-- Profile snapshot -->
+          <div class="grid md:grid-cols-3 gap-3 text-[11px] text-white/70 mb-3">
+            <div>
+              <p class="text-white/40 mb-1">Regions</p>
+              <p>
+                {% if profile and profile.preferred_regions %}
+                  {{ profile.preferred_regions }}
+                {% else %}
+                  <span class="text-white/40">Not set</span>
+                {% endif %}
+              </p>
+            </div>
+            <div>
+              <p class="text-white/40 mb-1">Care types</p>
+              <p>
+                {% if profile and profile.care_types %}
+                  {{ profile.care_types }}
+                {% else %}
+                  <span class="text-white/40">Not set</span>
+                {% endif %}
+              </p>
+            </div>
+            <div>
+              <p class="text-white/40 mb-1">Budget</p>
+              <p>
+                {% if profile and (profile.min_budget or profile.max_budget) %}
+                  {{ profile.min_budget or "£?" }} – {{ profile.max_budget or "£?" }}
+                {% else %}
+                  <span class="text-white/40">Not set</span>
+                {% endif %}
+              </p>
+            </div>
+          </div>
+
+          <!-- Matches list -->
+          <div>
+            <p class="text-[11px] text-white/60 mb-2">
+              Top matches for this buyer:
+            </p>
+
+            {% if matches %}
+              <div class="space-y-2">
+                {% for listing, score, reasons in matches %}
+                  <div class="border border-white/10 rounded-md px-3 py-2 text-[11px] bg-black/40">
+                    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
+                      <div>
+                        <p class="font-mono text-white/50">
+                          {{ listing.listing_code or "Ref" }}
+                        </p>
+                        <p class="text-white/90 text-xs">
+                          {{ listing.title }}
+                        </p>
+                        <p class="text-white/60">
+                          {{ listing.region or "Region" }} •
+                          {{ listing.care_type or "Care type" }} •
+                          {{ listing.beds or "?" }} beds
+                        </p>
+                      </div>
+                      <div class="text-right">
+                        <p class="text-[11px] text-kaijoYellow font-semibold">
+                          Match score: {{ score }}
+                        </p>
+                        <p class="text-[10px] text-white/50">
+                          Guide: {{ listing.guide_price_band or "On request" }}
+                        </p>
+                      </div>
+                    </div>
+
+                    {% if reasons %}
+                      <p class="mt-1 text-[10px] text-white/60">
+                        {% for r in reasons %}
+                          <span class="inline-block px-1.5 py-0.5 rounded-full bg-white/5 border border-white/15 mr-1 mb-1">
+                            {{ r }}
+                          </span>
+                        {% endfor %}
+                      </p>
+                    {% endif %}
+
+                    <div class="mt-2 flex flex-wrap gap-2">
+                      <a href="{{ url_for('listing_detail', listing_id=listing.id) }}"
+                         class="inline-flex items-center px-2.5 py-1 rounded border border-white/30 text-white/80 hover:bg-white/10 hover:text-kaijoYellow transition">
+                        View listing
+                      </a>
+                      <a href="mailto:{{ buyer.email }}"
+                         class="inline-flex items-center px-2.5 py-1 rounded border border-kaijoYellow/60 text-kaijoYellow hover:bg-kaijoYellow hover:text-black transition">
+                        Nudge buyer about this
+                      </a>
+                    </div>
+                  </div>
+                {% endfor %}
+              </div>
+            {% else %}
+              <p class="text-[11px] text-white/60">
+                No strong matches found yet for this buyer based on current live listings.
+              </p>
+            {% endif %}
+          </div>
+
+        </div>
+      {% endfor %}
+    </div>
+
+  {% endif %}
+
+</div>
+{% endblock %}

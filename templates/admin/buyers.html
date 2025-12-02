@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% block title %}Admin – Buyers{% endblock %}
+
+{% block content %}
+<div class="mb-6 flex items-center justify-between gap-3">
+  <div>
+    <h1 class="text-xl font-semibold text-white">Buyer directory</h1>
+    <p class="text-xs text-white/70">
+      All registered buyers, with profile and subscription status.
+    </p>
+  </div>
+  <a href="{{ url_for('admin_dashboard') }}"
+     class="text-xs border border-white/20 text-white/70 px-3 py-1.5 rounded hover:bg-white/10">
+    ← Back to admin
+  </a>
+</div>
+
+<div class="bg-black/30 border border-white/10 rounded-lg overflow-hidden">
+  <table class="min-w-full text-left text-xs">
+    <thead class="bg-white/5 text-white/70 uppercase tracking-[0.15em] text-[10px]">
+      <tr>
+        <th class="px-4 py-2">Buyer</th>
+        <th class="px-4 py-2">Business</th>
+        <th class="px-4 py-2">Regions</th>
+        <th class="px-4 py-2">Care types</th>
+        <th class="px-4 py-2">Budget</th>
+        <th class="px-4 py-2">Timeline</th>
+        <th class="px-4 py-2">Tier</th>
+        <th class="px-4 py-2 text-right">Joined</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for u in buyers %}
+      {% set p = u.buyer_profile %}
+      <tr class="border-t border-white/5 hover:bg-white/5">
+        <td class="px-4 py-2 align-top">
+          <div class="text-white text-xs">{{ u.email }}</div>
+          {% if p and p.contact_person %}
+            <div class="text-[11px] text-white/60">{{ p.contact_person }}</div>
+          {% endif %}
+        </td>
+        <td class="px-4 py-2 align-top">
+          {% if p and p.business_name %}
+            <div class="text-xs text-white">{{ p.business_name }}</div>
+          {% else %}
+            <span class="text-[11px] text-white/40">No profile yet</span>
+          {% endif %}
+        </td>
+        <td class="px-4 py-2 align-top text-[11px] text-white/70">
+          {% if p and p.preferred_regions %}
+            {{ p.preferred_regions }}
+          {% else %}
+            <span class="text-white/40">–</span>
+          {% endif %}
+        </td>
+        <td class="px-4 py-2 align-top text-[11px] text-white/70">
+          {% if p and p.care_types %}
+            {{ p.care_types }}
+          {% else %}
+            <span class="text-white/40">–</span>
+          {% endif %}
+        </td>
+        <td class="px-4 py-2 align-top text-[11px] text-white/70">
+          {% if p and (p.min_budget or p.max_budget) %}
+            {{ p.min_budget or "?" }} – {{ p.max_budget or "?" }}
+          {% else %}
+            <span class="text-white/40">–</span>
+          {% endif %}
+        </td>
+        <td class="px-4 py-2 align-top text-[11px] text-white/70">
+          {% if p and p.transaction_timeline %}
+            {{ p.transaction_timeline }}
+          {% else %}
+            <span class="text-white/40">–</span>
+          {% endif %}
+        </td>
+        <td class="px-4 py-2 align-top text-[11px]">
+          {% if u.id in premium_ids %}
+            <span class="inline-flex items-center px-2 py-0.5 rounded-full bg-kaijoPink/20 border border-kaijoPink/60 text-kaijoPink">
+              Buyer Premium
+            </span>
+          {% elif u.id in basic_ids %}
+            <span class="inline-flex items-center px-2 py-0.5 rounded-full bg-white/5 border border-white/20 text-white/70">
+              Buyer Basic
+            </span>
+          {% else %}
+            <span class="text-white/40">No active sub</span>
+          {% endif %}
+        </td>
+        <td class="px-4 py-2 align-top text-right text-[11px] text-white/60">
+          {{ u.created_at.strftime("%d %b %Y") if u.created_at else "–" }}
+        </td>
+      </tr>
+    {% else %}
+      <tr>
+        <td colspan="8" class="px-4 py-4 text-center text-[11px] text-white/60">
+          No buyers found.
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

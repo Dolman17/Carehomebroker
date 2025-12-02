@@ -1,0 +1,146 @@
+{% extends "base.html" %}
+{% block title %}Valuation request – {{ vr.listing.listing_code or "Ref" }}{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto py-6 text-white space-y-6">
+
+  <!-- Header -->
+  <div class="flex items-center justify-between gap-3">
+    <div>
+      <p class="text-[11px] uppercase tracking-[0.2em] text-white/50 mb-1">
+        Valuation request
+      </p>
+      <h1 class="text-xl sm:text-2xl font-semibold">
+        {{ vr.listing.title }}
+      </h1>
+      <p class="text-xs text-white/60 mt-1">
+        {{ vr.listing.listing_code or "Ref" }} •
+        {{ vr.listing.region or "Region tbc" }} •
+        {{ vr.listing.care_type or "Care type tbc" }}
+      </p>
+    </div>
+    <a href="{{ url_for('valuer_requests') }}"
+       class="text-[11px] px-3 py-1.5 rounded border border-white/20 text-white/70 hover:bg-white/10">
+      ← Back to requests
+    </a>
+  </div>
+
+  <!-- Status + seller info -->
+  <div class="grid gap-4 md:grid-cols-3">
+    <div class="md:col-span-2 rounded-lg border border-white/10 bg-black/30 p-4 text-sm space-y-3">
+      <div class="flex items-center justify-between gap-3">
+        <div>
+          <p class="text-[11px] text-white/50 uppercase tracking-[0.16em] mb-1">
+            Current status
+          </p>
+          {% set s = vr.status or "pending" %}
+          {% if s == "pending" %}
+            <span class="inline-flex px-2.5 py-1 rounded-full text-[11px] bg-yellow-500/15 text-yellow-300 border border-yellow-400/50">
+              Pending
+            </span>
+          {% elif s == "accepted" %}
+            <span class="inline-flex px-2.5 py-1 rounded-full text-[11px] bg-blue-500/15 text-blue-300 border border-blue-400/50">
+              Accepted
+            </span>
+          {% elif s == "completed" %}
+            <span class="inline-flex px-2.5 py-1 rounded-full text-[11px] bg-emerald-500/15 text-emerald-300 border border-emerald-400/50">
+              Completed
+            </span>
+          {% elif s == "declined" %}
+            <span class="inline-flex px-2.5 py-1 rounded-full text-[11px] bg-red-500/15 text-red-300 border border-red-400/50">
+              Declined
+            </span>
+          {% else %}
+            <span class="inline-flex px-2.5 py-1 rounded-full text-[11px] bg-white/10 text-white/70 border border-white/20">
+              {{ s }}
+            </span>
+          {% endif %}
+        </div>
+        <div class="text-[11px] text-white/60 text-right">
+          Requested {{ vr.created_at.strftime("%d %b %Y") if vr.created_at else "" }}
+        </div>
+      </div>
+
+      <form method="post" class="flex flex-col sm:flex-row items-start sm:items-center gap-3 pt-2 border-t border-white/10 mt-3">
+        <div class="flex flex-col text-xs">
+          <label for="status" class="mb-1 font-medium text-white/80">
+            Update status
+          </label>
+          <select id="status" name="status"
+                  class="rounded border border-white/20 bg-black/40 px-3 py-1.5 text-xs text-white">
+            {% for st in allowed_statuses %}
+              <option value="{{ st }}" {% if vr.status == st %}selected{% endif %}>
+                {{ st|capitalize }}
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+        <button type="submit"
+                class="mt-2 sm:mt-6 sm:ml-3 px-4 py-1.5 rounded bg-kaijoPink text-white text-[11px] font-semibold hover:bg-kaijoYellow hover:text-black transition">
+          Save
+        </button>
+      </form>
+    </div>
+
+    <div class="rounded-lg border border-white/10 bg-white/5 p-4 text-xs space-y-2">
+      <p class="text-[11px] uppercase tracking-[0.16em] text-white/50">
+        Seller
+      </p>
+      <p class="text-sm font-semibold text-white">
+        {{ vr.seller.email }}
+      </p>
+      {% if vr.listing.seller and vr.listing.seller.listings|length > 1 %}
+        <p class="text-[11px] text-white/60 mt-1">
+          Also has {{ vr.listing.seller.listings|length - 1 }} other listing(s).
+        </p>
+      {% endif %}
+      <p class="text-[11px] text-white/50 mt-2">
+        For security, contact details are handled off-platform (email / phone shared outside this system).
+      </p>
+    </div>
+  </div>
+
+  <!-- Seller brief -->
+  <div class="rounded-lg border border-white/10 bg-black/30 p-4 text-sm">
+    <h2 class="text-sm font-semibold mb-2">Seller brief</h2>
+    {% if vr.notes %}
+      <p class="text-xs text-white/80 whitespace-pre-line">
+        {{ vr.notes }}
+      </p>
+    {% else %}
+      <p class="text-xs text-white/60">
+        No additional notes were provided by the seller for this valuation request.
+      </p>
+    {% endif %}
+  </div>
+
+  <!-- Listing context -->
+  <div class="rounded-lg border border-white/10 bg-black/30 p-4 text-sm">
+    <h2 class="text-sm font-semibold mb-2">Listing snapshot</h2>
+    <div class="grid gap-y-2 text-xs text-white/80">
+      <p>
+        <span class="text-white/50">Beds:</span>
+        {{ vr.listing.beds or "n/a" }}
+      </p>
+      <p>
+        <span class="text-white/50">Occupancy:</span>
+        {{ vr.listing.occupancy_percent or "n/a" }}%
+      </p>
+      <p>
+        <span class="text-white/50">Guide price band:</span>
+        {{ vr.listing.guide_price_band or "On request" }}
+      </p>
+      <p>
+        <span class="text-white/50">Tenure:</span>
+        {{ vr.listing.tenure or "Not disclosed" }}
+      </p>
+      {% if vr.listing.short_description %}
+        <p class="mt-2 text-white/60">
+          {{ vr.listing.short_description }}
+        </p>
+      {% endif %}
+    </div>
+  </div>
+
+</div>
+{% endblock %}

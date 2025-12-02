@@ -1,0 +1,172 @@
+{% extends "base.html" %}
+{% block title %}Introduction #{{ introduction.id }} – Admin{% endblock %}
+
+{% block content %}
+<div class="max-w-5xl mx-auto text-white">
+  <div class="flex items-center justify-between mb-4">
+    <div>
+      <p class="text-[11px] text-white/50 mb-1">
+        Introduction #{{ introduction.id }}
+      </p>
+      <h1 class="text-xl font-semibold">
+        {{ introduction.listing.listing_code or "Ref " ~ introduction.listing.id }} –
+        {{ introduction.listing.title }}
+      </h1>
+      <p class="text-[11px] text-white/60 mt-1">
+        {{ introduction.listing.region or "Region" }} •
+        {{ introduction.listing.care_type or "Care type" }} •
+        {{ introduction.listing.beds or "?" }} beds
+      </p>
+    </div>
+
+    <a href="{{ url_for('admin_introductions') }}"
+       class="text-[11px] border border-white/30 text-white/80 px-3 py-1.5 rounded hover:bg-white/10">
+      ← Back to pipeline
+    </a>
+  </div>
+
+  <!-- Status / metadata -->
+  <div class="grid md:grid-cols-3 gap-4 mb-6">
+    <div class="md:col-span-2 bg-white/5 border border-white/10 rounded-lg p-4 text-xs">
+      <h2 class="text-sm font-semibold mb-2">Pipeline status</h2>
+
+      <form method="post"
+            action="{{ url_for('admin_update_introduction_status', intro_id=introduction.id) }}"
+            class="flex items-center gap-2 flex-wrap">
+        <select name="status"
+                class="bg-black/40 border border-white/20 rounded px-3 py-1.5 text-xs text-white/90">
+          {% for key, label in statuses %}
+            <option value="{{ key }}" {% if key == introduction.status %}selected{% endif %}>
+              {{ label }}
+            </option>
+          {% endfor %}
+        </select>
+        <button type="submit"
+                class="px-3 py-1.5 rounded bg-kaijoPink text-[11px] font-semibold hover:bg-kaijoYellow hover:text-black transition">
+          Update status
+        </button>
+        <p class="text-[10px] text-white/50 mt-1">
+          Created {{ introduction.created_at.strftime("%d %b %Y %H:%M") }} ·
+          Updated {{ introduction.updated_at.strftime("%d %b %Y %H:%M") if introduction.updated_at else "n/a" }}
+        </p>
+      </form>
+    </div>
+
+    <div class="bg-white/5 border border-white/10 rounded-lg p-4 text-xs">
+      <h2 class="text-sm font-semibold mb-2">Deal</h2>
+      {% if deal %}
+        <p class="text-[11px] text-white/80">
+          Agreed price:
+          <span class="font-semibold">
+            {{ deal.agreed_price or "TBC" }}
+          </span>
+        </p>
+        <p class="text-[11px] text-white/80">
+          Commission:
+          {% if deal.broker_commission_percent %}
+            {{ deal.broker_commission_percent }}%
+          {% else %}
+            –
+          {% endif %}
+        </p>
+        {% if deal.broker_commission_amount %}
+          <p class="text-[11px] text-white/80">
+            Commission value:
+            £{{ "%.2f"|format(deal.broker_commission_amount / 100) }}
+          </p>
+        {% endif %}
+        <p class="text-[11px] text-white/80">
+          Status: {{ deal.status|capitalize }}
+        </p>
+      {% else %}
+        <p class="text-[11px] text-white/70">
+          No deal details recorded yet.
+        </p>
+      {% endif %}
+
+      <a href="{{ url_for('admin_introduction_deal', intro_id=introduction.id) }}"
+         class="mt-3 inline-flex items-center px-3 py-1.5 rounded bg-kaijoPink text-[11px] font-semibold hover:bg-kaijoYellow hover:text-black transition">
+        {% if deal %}Edit deal{% else %}Create deal sheet{% endif %}
+      </a>
+    </div>
+  </div>
+
+  <!-- Parties -->
+    <div class="grid md:grid-cols-2 gap-4 mb-6">
+    <div class="bg-white/5 border border-white/10 rounded-lg p-4 text-xs">
+      <h2 class="text-sm font-semibold mb-2">Buyer</h2>
+      <p class="text-[11px] text-white/80">
+        {{ introduction.buyer.email }}
+      </p>
+      {% if introduction.buyer.buyer_profile %}
+        <p class="text-[11px] text-white/80 mt-1">
+          {{ introduction.buyer.buyer_profile.business_name or "" }}
+        </p>
+        {% if introduction.buyer.buyer_profile.preferred_regions %}
+          <p class="text-[11px] text-white/60 mt-1">
+            Regions: {{ introduction.buyer.buyer_profile.preferred_regions }}
+          </p>
+        {% endif %}
+        {% if introduction.buyer.buyer_profile.care_types %}
+          <p class="text-[11px] text-white/60">
+            Care types: {{ introduction.buyer.buyer_profile.care_types }}
+          </p>
+        {% endif %}
+      {% endif %}
+    </div>
+
+    <div class="bg-white/5 border border-white/10 rounded-lg p-4 text-xs">
+      <h2 class="text-sm font-semibold mb-2">Seller</h2>
+      <p class="text-[11px] text-white/80">
+        {{ introduction.seller.email }}
+      </p>
+      {% if introduction.seller.seller_profile %}
+        <p class="text-[11px] text-white/80 mt-1">
+          {{ introduction.seller.seller_profile.business_name or "" }}
+        </p>
+        {% if introduction.seller.seller_profile.regions %}
+          <p class="text-[11px] text-white/60 mt-1">
+            Regions: {{ introduction.seller.seller_profile.regions }}
+          </p>
+        {% endif %}
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Status history -->
+  <div class="bg-white/5 border border-white/10 rounded-lg p-4 text-xs mb-10">
+    <h2 class="text-sm font-semibold mb-3">Status history</h2>
+
+    {% set history = introduction.status_history|sort(attribute='changed_at', reverse=True) %}
+    {% if history %}
+      <ul class="space-y-2">
+        {% for h in history %}
+          <li class="flex items-start justify-between gap-3">
+            <div>
+              <p class="text-[11px] text-white/85">
+                {{ _label_for_intro_status(h.old_status or 'initiated') }}
+                →
+                {{ _label_for_intro_status(h.new_status or 'initiated') }}
+              </p>
+              {% if h.changed_by %}
+                <p class="text-[10px] text-white/50">
+                  By {{ h.changed_by.email }}
+                </p>
+              {% endif %}
+            </div>
+            <p class="text-[10px] text-white/40 text-right whitespace-nowrap">
+              {{ h.changed_at.strftime("%d %b %Y %H:%M") }}
+            </p>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="text-[11px] text-white/50">
+        No status changes recorded yet.
+      </p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
+
+

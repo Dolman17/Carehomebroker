@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+{% block title %}Request a valuation – Care Home Broker{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto py-6 text-white space-y-6">
+
+  <!-- Header -->
+  <div class="flex items-center justify-between gap-3 mb-2">
+    <div>
+      <p class="text-[11px] uppercase tracking-[0.2em] text-white/50 mb-1">
+        Valuation request
+      </p>
+      <h1 class="text-xl sm:text-2xl font-semibold">
+        Request a valuation from
+        <span class="text-kaijoYellow">
+          {{ profile.company_name or valuer.email }}
+        </span>
+      </h1>
+      {% if profile.accreditation %}
+        <p class="text-xs text-white/70 mt-1">
+          {{ profile.accreditation }}
+        </p>
+      {% endif %}
+    </div>
+
+    <a href="{{ url_for('valuers_directory') }}"
+       class="text-[11px] px-3 py-1.5 rounded border border-white/20 text-white/70 hover:bg-white/10">
+      ← Back to valuers
+    </a>
+  </div>
+
+  <!-- Valuer summary card -->
+  <div class="rounded-lg border border-white/10 bg-black/30 p-4 text-sm">
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+      <div>
+        <p class="font-semibold">
+          {{ profile.company_name or "Valuer" }}
+        </p>
+        {% if profile.regions %}
+          <p class="text-[11px] text-white/60 mt-0.5">
+            Regions: {{ profile.regions }}
+          </p>
+        {% endif %}
+      </div>
+      {% if profile.pricing_notes %}
+        <p class="text-[11px] text-white/60 sm:text-right">
+          {{ profile.pricing_notes }}
+        </p>
+      {% endif %}
+    </div>
+  </div>
+
+  {% if not seller_listings %}
+    <!-- No listings yet -->
+    <div class="rounded-lg border border-kaijoYellow/60 bg-black/20 p-4 text-xs text-white/80">
+      <p class="font-semibold mb-1 text-kaijoYellow">You don’t have any listings yet</p>
+      <p class="mb-2">
+        To request a valuation, first create a listing for the care home you’d like valued.
+      </p>
+      <a href="{{ url_for('seller_new_listing') }}"
+         class="inline-flex items-center px-3 py-1.5 rounded bg-kaijoPink text-white text-[11px] hover:bg-kaijoYellow hover:text-black transition">
+        Create a listing
+      </a>
+    </div>
+  {% else %}
+
+    <!-- Form -->
+    <form method="post"
+          class="rounded-lg border border-white/10 bg-white/5 p-5 space-y-4 text-sm">
+
+      <!-- Listing selection -->
+      <div>
+        <label for="listing_id" class="block text-xs font-medium mb-1">
+          Which listing is this valuation for? *
+        </label>
+        <select id="listing_id" name="listing_id" required
+                class="w-full rounded border border-white/20 bg-black/30 px-3 py-2 text-xs text-white">
+          <option value="">Select a listing…</option>
+          {% for l in seller_listings %}
+            <option value="{{ l.id }}">
+              {{ l.listing_code or "Ref" }} – {{ l.title }}{% if l.region %} ({{ l.region }}){% endif %}
+            </option>
+          {% endfor %}
+        </select>
+        <p class="text-[10px] text-white/60 mt-1">
+          If you have multiple homes, choose the one you’d like this valuer to focus on.
+        </p>
+      </div>
+
+      <!-- Notes -->
+      <div>
+        <label for="notes" class="block text-xs font-medium mb-1">
+          Brief for the valuer (optional)
+        </label>
+        <textarea id="notes" name="notes" rows="4"
+                  class="w-full rounded border border-white/20 bg-black/30 px-3 py-2 text-xs text-white"
+                  placeholder="Context, timing, key issues, reasons for valuation…"></textarea>
+        <p class="text-[10px] text-white/60 mt-1">
+          This is shared with the valuer only – not published on your listing.
+        </p>
+      </div>
+
+      <!-- Actions -->
+      <div class="flex items-center justify-between gap-3 pt-2">
+        <a href="{{ url_for('seller_dashboard') }}"
+           class="text-[11px] text-white/70 hover:text-kaijoYellow">
+          Cancel and go back
+        </a>
+        <button type="submit"
+                class="px-4 py-2 rounded bg-kaijoPink text-white text-xs font-semibold hover:bg-kaijoYellow hover:text-black transition">
+          Send valuation request
+        </button>
+
+        <form method="post" action="{{ url_for('valuer_accept_request', req_id=r.id) }}" class="inline">
+        <button class="px-2 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700">
+        Accept
+        </button>
+          </form>
+
+        <form method="post" action="{{ url_for('valuer_decline_request', req_id=r.id) }}" class="inline ml-1">
+        <button class="px-2 py-1 bg-red-600 text-white text-xs rounded hover:bg-red-700">
+        Decline
+        </button>
+        </form>
+
+        <form method="post" action="{{ url_for('valuer_complete_request', req_id=r.id) }}" class="inline ml-1">
+        <button class="px-2 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700">
+        Complete
+        </button>
+      </form>
+
+      </div>
+    </form>
+
+  {% endif %}
+
+</div>
+{% endblock %}

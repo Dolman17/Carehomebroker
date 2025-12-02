@@ -1,68 +1,85 @@
 {% extends "base.html" %}
-{% block title %}Valuer Directory{% endblock %}
+{% block title %}Valuer Directory – Care Home Broker{% endblock %}
 
 {% block content %}
-<div class="mb-6">
-  <h1 class="text-2xl font-semibold text-white">Valuer Directory</h1>
-  <p class="text-sm text-white/70">
-    Accredited valuers available for business assessments, financial reviews and sale valuations.
-  </p>
-</div>
+<div class="max-w-5xl mx-auto space-y-8 text-white">
 
-{% if valuers %}
-  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-
-    {% for v in valuers %}
-      <a href="{{ url_for('valuer_detail', valuer_id=v.id) }}"
-         class="block rounded-lg bg-white/5 border border-white/10 p-4 backdrop-blur-sm hover:bg-white/10 transition shadow-sm">
-
-        <!-- HEADER -->
-        <div class="mb-2">
-          <p class="text-xs text-white/50">{{ v.accreditation or "Accreditation not listed" }}</p>
-          <h2 class="text-lg font-semibold text-white">{{ v.company_name or "Unnamed Valuer" }}</h2>
-        </div>
-
-        <!-- REGIONS AS CHIPS -->
-        {% set region_list = (v.regions.split(',') if v.regions else []) %}
-        {% if region_list %}
-          <div class="flex flex-wrap gap-1 mb-3">
-            {% for r in region_list %}
-              <span class="text-[11px] px-2 py-1 rounded bg-kaijoPurple/40 border border-kaijoPurple/60 text-white/80">
-                {{ r.strip() }}
-              </span>
-            {% endfor %}
-          </div>
-        {% endif %}
-
-        <!-- BIO SNIPPET -->
-        <p class="text-xs text-white/70 mb-3">
-          {{ (v.bio or "No biography provided.")[:160] }}{% if v.bio and v.bio|length > 160 %}…{% endif %}
-        </p>
-
-        <!-- PRICING SNIPPET -->
-        {% if v.pricing_notes %}
-          <p class="text-[11px] text-white/60 italic mb-3">
-            {{ v.pricing_notes[:120] }}{% if v.pricing_notes|length > 120 %}…{% endif %}
-          </p>
-        {% endif %}
-
-        <!-- CONTACT INFO -->
-        <div class="mt-4 text-xs">
-          <p class="text-white/50">Contact</p>
-
-          {% if can_view_contact %}
-            <p class="text-white">{{ v.user.email }}</p>
-          {% else %}
-            <p class="text-white/30 blur-sm select-none">email@example.com</p>
-            <p class="text-[10px] text-kaijoYellow mt-1">Login as Seller or Premium Buyer</p>
-          {% endif %}
-        </div>
-      </a>
-    {% endfor %}
-
+  <!-- HEADER -->
+  <div>
+    <p class="text-[11px] font-mono text-white/50 mb-1">Approved valuers</p>
+    <h1 class="text-2xl font-semibold">Valuer Framework</h1>
+    <p class="text-sm text-white/70 mt-2 max-w-2xl">
+      Accredited valuers available for formal valuations, independent assessments, 
+      desktop reviews and advisory input for buyers and sellers.
+      Listings below are created by professionals who have registered with Kaijo North.
+    </p>
   </div>
-{% else %}
-  <p class="text-white/70 text-sm">No valuers available yet.</p>
-{% endif %}
 
+  <!-- VALUER LIST -->
+  {% if valuers %}
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
+
+      {% for v in valuers %}
+        <div class="rounded-lg border border-white/10 bg-black/30 p-5 backdrop-blur-sm shadow-lg">
+
+          <!-- Header: name + premium badge -->
+          <div class="flex items-center justify-between mb-3">
+            <div>
+              <h2 class="text-lg font-semibold text-kaijoYellow">
+                {{ v.company_name or "Valuer" }}
+              </h2>
+              <p class="text-[11px] text-white/60">
+                {{ v.accreditation or "Accredited Professional" }}
+              </p>
+            </div>
+
+            {% if v.user_id in valuer_sub_ids %}
+              <span class="px-2 py-1 rounded-full text-[10px] bg-kaijoPink text-white font-semibold border border-white/10">
+                Premium
+              </span>
+            {% endif %}
+          </div>
+
+          <!-- Regions -->
+          <div class="mb-3">
+            <p class="text-[11px] text-white/60 uppercase tracking-wide">Regions covered</p>
+            <p class="text-sm text-white/80">
+              {{ v.regions or "UK-wide" }}
+            </p>
+          </div>
+
+          <!-- Bio -->
+          <div class="mb-3">
+            <p class="text-[11px] text-white/60 uppercase tracking-wide">About</p>
+            <p class="text-sm text-white/80">
+              {{ v.bio or "This valuer has not provided a description yet." }}
+            </p>
+          </div>
+
+          <!-- Pricing notes -->
+          <div class="mb-4">
+            <p class="text-[11px] text-white/60 uppercase tracking-wide">Pricing notes</p>
+            <p class="text-sm text-white/80">
+              {{ v.pricing_notes or "Available on request" }}
+            </p>
+          </div>
+
+          <!-- CTA -->
+          <div class="flex justify-end">
+            <a href="{{ url_for('login') }}"
+               class="px-3 py-1.5 rounded bg-kaijoPink text-white text-xs hover:bg-kaijoYellow hover:text-black transition">
+              Request valuation
+            </a>
+          </div>
+
+        </div>
+      {% endfor %}
+
+    </div>
+
+  {% else %}
+    <p class="text-white/70">No valuers are currently listed.</p>
+  {% endif %}
+
+</div>
 {% endblock %}
