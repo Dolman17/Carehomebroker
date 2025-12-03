@@ -3,14 +3,30 @@
 
 {% block content %}
 
+{% set can_edit_copy = current_user.is_authenticated and current_user.role in ['admin', 'valuer'] %}
+
 <div class="max-w-5xl mx-auto py-10 text-white">
 
   <!-- PAGE INTRO -->
-  <h1 class="text-2xl font-semibold mb-2">Plans & Pricing</h1>
+  {% set slug = "pricing_intro_heading" %}
+  <h1 class="text-2xl font-semibold mb-2">
+    {{ page_text(slug, "Plans & Pricing") }}
+    {% if can_edit_copy %}
+      <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
+         class="ml-2 text-[10px] text-kaijoYellow underline">Edit</a>
+    {% endif %}
+  </h1>
+
+  {% set slug = "pricing_intro_body" %}
   <p class="text-sm text-white/70 max-w-2xl mb-6">
-    The Care Home Broker platform is built for three groups:
-    buyers, sellers, and valuers. Start by choosing your role, then pick
-    the access level that fits how active you want to be in the marketplace.
+    {{ page_text(
+      slug,
+      "The Care Home Broker platform is built for three groups: buyers, sellers, and valuers. Start by choosing your role, then pick the access level that fits how active you want to be in the marketplace."
+    ) }}
+    {% if can_edit_copy %}
+      <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
+         class="ml-2 text-[10px] text-kaijoYellow underline">Edit</a>
+    {% endif %}
   </p>
 
   {% set role = (selected_role or '') %}
@@ -20,11 +36,21 @@
 
   <!-- STEP INDICATOR -->
   <div class="flex items-center gap-2 text-[11px] uppercase tracking-[0.18em] text-white/60 mb-6">
+    {% set slug = "pricing_step1_label" %}
     <span class="px-2 py-0.5 rounded-full bg-white/10 border border-white/20 text-white">
-      Step 1 – Choose role
+      {{ page_text(slug, "Step 1 – Choose role") }}
+      {% if can_edit_copy %}
+        <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
+           class="ml-1 text-[9px] text-kaijoYellow underline">Edit</a>
+      {% endif %}
     </span>
+    {% set slug = "pricing_step2_hint" %}
     <span class="px-2 py-0.5 rounded-full bg-black/20 border border-white/10 text-white/70">
-      Step 2 – Choose tier
+      {{ page_text(slug, "Step 2 – Choose tier") }}
+      {% if can_edit_copy %}
+        <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
+           class="ml-1 text-[9px] text-kaijoYellow underline">Edit</a>
+      {% endif %}
     </span>
   </div>
 
@@ -39,37 +65,89 @@
                     {% else %}
                       border border-white/10 bg-black/30 backdrop-blur-sm
                     {% endif %}">
-      <h2 class="text-md font-semibold text-kaijoYellow mb-1">Buyer / Investor</h2>
+      {% set slug = "pricing_role_buyer_title" %}
+      <h2 class="text-md font-semibold text-kaijoYellow mb-1">
+        {{ page_text(slug, "Buyer / Investor") }}
+        {% if can_edit_copy %}
+          <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
+             class="ml-2 text-[10px] text-kaijoYellow underline">Edit</a>
+        {% endif %}
+      </h2>
+
+      {% set slug = "pricing_role_buyer_desc" %}
       <p class="text-sm text-white/75 mb-4">
-        For operators, groups and investors looking to acquire care homes.
+        {{ page_text(
+          slug,
+          "For operators, groups and investors looking to acquire care homes."
+        ) }}
+        {% if can_edit_copy %}
+          <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
+             class="ml-2 text-[10px] text-kaijoYellow underline">Edit</a>
+        {% endif %}
       </p>
 
       <ul class="text-xs text-white/65 space-y-1 mb-4">
-        <li>Define your buying criteria (region, size, price band).</li>
-        <li>Receive curated opportunities that fit your profile.</li>
-        <li>Shortlist, track and follow up on leads.</li>
+        {% set slug = "pricing_role_buyer_bullet_1" %}
+        <li>
+          {{ page_text(slug, "Define your buying criteria (region, size, price band).") }}
+          {% if can_edit_copy %}
+            <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
+               class="ml-1 text-[9px] text-kaijoYellow underline">Edit</a>
+          {% endif %}
+        </li>
+        {% set slug = "pricing_role_buyer_bullet_2" %}
+        <li>
+          {{ page_text(slug, "Receive curated opportunities that fit your profile.") }}
+          {% if can_edit_copy %}
+            <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
+               class="ml-1 text-[9px] text-kaijoYellow underline">Edit</a>
+          {% endif %}
+        </li>
+        {% set slug = "pricing_role_buyer_bullet_3" %}
+        <li>
+          {{ page_text(slug, "Shortlist, track and follow up on leads.") }}
+          {% if can_edit_copy %}
+            <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
+               class="ml-1 text-[9px] text-kaijoYellow underline">Edit</a>
+          {% endif %}
+        </li>
       </ul>
 
       <div class="mt-auto space-y-2 text-[11px]">
-        <p class="text-white/55">Choose your access level:</p>
+        {% set slug = "pricing_role_buyer_access_label" %}
+        <p class="text-white/55">
+          {{ page_text(slug, "Choose your access level:") }}
+          {% if can_edit_copy %}
+            <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
+               class="ml-1 text-[9px] text-kaijoYellow underline">Edit</a>
+          {% endif %}
+        </p>
 
         <!-- BUYER BASIC (TIER 1) -->
+        {% set slug = "pricing_role_buyer_tier1" %}
         <form method="POST" action="{{ url_for('billing_checkout') }}">
           <input type="hidden" name="role" value="buyer">
           <input type="hidden" name="tier" value="basic">
           <button type="submit"
                   class="w-full inline-flex items-center justify-center px-3 py-1.5 rounded border border-white/30 text-white/85 hover:bg-white/10 hover:text-kaijoYellow transition">
-            Tier 1 – Register only
+            {{ page_text(slug, "Tier 1 – Register only") }}
+            {% if can_edit_copy %}
+              <span class="ml-2 text-[9px] text-kaijoYellow underline">Edit</span>
+            {% endif %}
           </button>
         </form>
 
         <!-- BUYER PREMIUM (TIER 2) -->
+        {% set slug = "pricing_role_buyer_tier2" %}
         <form method="POST" action="{{ url_for('billing_checkout') }}">
           <input type="hidden" name="role" value="buyer">
           <input type="hidden" name="tier" value="premium">
           <button type="submit"
                   class="w-full inline-flex items-center justify-center px-3 py-1.5 rounded bg-kaijoPink text-white hover:bg-kaijoYellow hover:text-black font-semibold transition">
-            Tier 2 – Full marketplace
+            {{ page_text(slug, "Tier 2 – Full marketplace") }}
+            {% if can_edit_copy %}
+              <span class="ml-2 text-[9px] text-black/80 underline">Edit</span>
+            {% endif %}
           </button>
         </form>
       </div>
@@ -83,37 +161,89 @@
                     {% else %}
                       border border-white/10 bg-white/5 backdrop-blur-sm
                     {% endif %}">
-      <h2 class="text-md font-semibold text-kaijoPink mb-1">Seller / Owner</h2>
+      {% set slug = "pricing_role_seller_title" %}
+      <h2 class="text-md font-semibold text-kaijoPink mb-1">
+        {{ page_text(slug, "Seller / Owner") }}
+        {% if can_edit_copy %}
+          <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
+             class="ml-2 text-[10px] text-kaijoYellow underline">Edit</a>
+        {% endif %}
+      </h2>
+
+      {% set slug = "pricing_role_seller_desc" %}
       <p class="text-sm text-white/75 mb-4">
-        For owners who want to quietly explore a sale, without a noisy public process.
+        {{ page_text(
+          slug,
+          "For owners who want to quietly explore a sale, without a noisy public process."
+        ) }}
+        {% if can_edit_copy %}
+          <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
+             class="ml-2 text-[10px] text-kaijoYellow underline">Edit</a>
+        {% endif %}
       </p>
 
       <ul class="text-xs text-white/65 space-y-1 mb-4">
-        <li>Indicate appetite to sell one or more homes.</li>
-        <li>Share headline numbers without full disclosure.</li>
-        <li>Use a structured channel to handle enquiries.</li>
+        {% set slug = "pricing_role_seller_bullet_1" %}
+        <li>
+          {{ page_text(slug, "Indicate appetite to sell one or more homes.") }}
+          {% if can_edit_copy %}
+            <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
+               class="ml-1 text-[9px] text-kaijoYellow underline">Edit</a>
+          {% endif %}
+        </li>
+        {% set slug = "pricing_role_seller_bullet_2" %}
+        <li>
+          {{ page_text(slug, "Share headline numbers without full disclosure.") }}
+          {% if can_edit_copy %}
+            <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
+               class="ml-1 text-[9px] text-kaijoYellow underline">Edit</a>
+          {% endif %}
+        </li>
+        {% set slug = "pricing_role_seller_bullet_3" %}
+        <li>
+          {{ page_text(slug, "Use a structured channel to handle enquiries.") }}
+          {% if can_edit_copy %}
+            <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
+               class="ml-1 text-[9px] text-kaijoYellow underline">Edit</a>
+          {% endif %}
+        </li>
       </ul>
 
       <div class="mt-auto space-y-2 text-[11px]">
-        <p class="text-white/55">Choose your access level:</p>
+        {% set slug = "pricing_role_seller_access_label" %}
+        <p class="text-white/55">
+          {{ page_text(slug, "Choose your access level:") }}
+          {% if can_edit_copy %}
+            <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
+               class="ml-1 text-[9px] text-kaijoYellow underline">Edit</a>
+          {% endif %}
+        </p>
 
         <!-- SELLER BASIC -->
+        {% set slug = "pricing_role_seller_tier1" %}
         <form method="POST" action="{{ url_for('billing_checkout') }}">
           <input type="hidden" name="role" value="seller">
           <input type="hidden" name="tier" value="basic">
           <button type="submit"
                   class="w-full inline-flex items-center justify-center px-3 py-1.5 rounded border border-white/30 text-white/85 hover:bg-white/10 hover:text-kaijoYellow transition">
-            Tier 1 – Register only
+            {{ page_text(slug, "Tier 1 – Register only") }}
+            {% if can_edit_copy %}
+              <span class="ml-2 text-[9px] text-kaijoYellow underline">Edit</span>
+            {% endif %}
           </button>
         </form>
 
         <!-- SELLER PREMIUM -->
+        {% set slug = "pricing_role_seller_tier2" %}
         <form method="POST" action="{{ url_for('billing_checkout') }}">
           <input type="hidden" name="role" value="seller">
           <input type="hidden" name="tier" value="premium">
           <button type="submit"
                   class="w-full inline-flex items-center justify-center px-3 py-1.5 rounded bg-kaijoPink text-white hover:bg-kaijoYellow hover:text-black font-semibold transition">
-            Tier 2 – Full marketplace
+            {{ page_text(slug, "Tier 2 – Full marketplace") }}
+            {% if can_edit_copy %}
+              <span class="ml-2 text-[9px] text-black/80 underline">Edit</span>
+            {% endif %}
           </button>
         </form>
       </div>
@@ -127,37 +257,89 @@
                     {% else %}
                       border border-white/10 bg-white/5 backdrop-blur-sm
                     {% endif %}">
-      <h2 class="text-md font-semibold text-kaijoPurple mb-1">Valuer / Appraiser</h2>
+      {% set slug = "pricing_role_valuer_title" %}
+      <h2 class="text-md font-semibold text-kaijoPurple mb-1">
+        {{ page_text(slug, "Valuer / Appraiser") }}
+        {% if can_edit_copy %}
+          <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
+             class="ml-2 text-[10px] text-kaijoYellow underline">Edit</a>
+        {% endif %}
+      </h2>
+
+      {% set slug = "pricing_role_valuer_desc" %}
       <p class="text-sm text-white/75 mb-4">
-        For valuation professionals who want to be part of a trusted framework.
+        {{ page_text(
+          slug,
+          "For valuation professionals who want to be part of a trusted framework."
+        ) }}
+        {% if can_edit_copy %}
+          <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
+             class="ml-2 text-[10px] text-kaijoYellow underline">Edit</a>
+        {% endif %}
       </p>
 
       <ul class="text-xs text-white/65 space-y-1 mb-4">
-        <li>Appear in the broker’s valuer framework.</li>
-        <li>Be considered when buyers or sellers need a valuation.</li>
-        <li>Align with a specialist social care advisory brand.</li>
+        {% set slug = "pricing_role_valuer_bullet_1" %}
+        <li>
+          {{ page_text(slug, "Appear in the broker’s valuer framework.") }}
+          {% if can_edit_copy %}
+            <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
+               class="ml-1 text-[9px] text-kaijoYellow underline">Edit</a>
+          {% endif %}
+        </li>
+        {% set slug = "pricing_role_valuer_bullet_2" %}
+        <li>
+          {{ page_text(slug, "Be considered when buyers or sellers need a valuation.") }}
+          {% if can_edit_copy %}
+            <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
+               class="ml-1 text-[9px] text-kaijoYellow underline">Edit</a>
+          {% endif %}
+        </li>
+        {% set slug = "pricing_role_valuer_bullet_3" %}
+        <li>
+          {{ page_text(slug, "Align with a specialist social care advisory brand.") }}
+          {% if can_edit_copy %}
+            <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
+               class="ml-1 text-[9px] text-kaijoYellow underline">Edit</a>
+          {% endif %}
+        </li>
       </ul>
 
       <div class="mt-auto space-y-2 text-[11px]">
-        <p class="text-white/55">Choose your access level:</p>
+        {% set slug = "pricing_role_valuer_access_label" %}
+        <p class="text-white/55">
+          {{ page_text(slug, "Choose your access level:") }}
+          {% if can_edit_copy %}
+            <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
+               class="ml-1 text-[9px] text-kaijoYellow underline">Edit</a>
+          {% endif %}
+        </p>
 
         <!-- VALUER BASIC -->
+        {% set slug = "pricing_role_valuer_tier1" %}
         <form method="POST" action="{{ url_for('billing_checkout') }}">
           <input type="hidden" name="role" value="valuer">
           <input type="hidden" name="tier" value="basic">
           <button type="submit"
                   class="w-full inline-flex items-center justify-center px-3 py-1.5 rounded border border-white/30 text-white/85 hover:bg-white/10 hover:text-kaijoYellow transition">
-            Tier 1 – Register only
+            {{ page_text(slug, "Tier 1 – Register only") }}
+            {% if can_edit_copy %}
+              <span class="ml-2 text-[9px] text-kaijoYellow underline">Edit</span>
+            {% endif %}
           </button>
         </form>
 
         <!-- VALUER PREMIUM -->
+        {% set slug = "pricing_role_valuer_tier2" %}
         <form method="POST" action="{{ url_for('billing_checkout') }}">
           <input type="hidden" name="role" value="valuer">
           <input type="hidden" name="tier" value="premium">
           <button type="submit"
                   class="w-full inline-flex items-center justify-center px-3 py-1.5 rounded bg-kaijoPink text-white hover:bg-kaijoYellow hover:text-black font-semibold transition">
-            Tier 2 – Full marketplace
+            {{ page_text(slug, "Tier 2 – Full marketplace") }}
+            {% if can_edit_copy %}
+              <span class="ml-2 text-[9px] text-black/80 underline">Edit</span>
+            {% endif %}
           </button>
         </form>
       </div>
@@ -167,11 +349,21 @@
 
   <!-- STEP 2 LABEL -->
   <div class="flex items-center gap-2 text-[11px] uppercase tracking-[0.18em] text-white/60 mb-4">
+    {% set slug = "pricing_step2_label" %}
     <span class="px-2 py-0.5 rounded-full bg-white/10 border border-white/20 text-white">
-      Step 2 – Choose tier
+      {{ page_text(slug, "Step 2 – Choose tier") }}
+      {% if can_edit_copy %}
+        <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
+           class="ml-1 text-[9px] text-kaijoYellow underline">Edit</a>
+      {% endif %}
     </span>
+    {% set slug = "pricing_step2_sub" %}
     <span class="px-2 py-0.5 rounded-full bg-black/20 border border-white/10 text-white/70">
-      Same structure across buyers, sellers and valuers
+      {{ page_text(slug, "Same structure across buyers, sellers and valuers") }}
+      {% if can_edit_copy %}
+        <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
+           class="ml-1 text-[9px] text-kaijoYellow underline">Edit</a>
+      {% endif %}
     </span>
   </div>
 
@@ -180,82 +372,234 @@
 
     <!-- Tier 1: Register only -->
     <section class="rounded-lg border border-white/10 bg-white/5 backdrop-blur-sm p-6">
-      <h2 class="text-lg font-semibold text-kaijoYellow mb-1">Tier 1 – Register Only</h2>
+      {% set slug = "pricing_tier1_heading" %}
+      <h2 class="text-lg font-semibold text-kaijoYellow mb-1">
+        {{ page_text(slug, "Tier 1 – Register Only") }}
+        {% if can_edit_copy %}
+          <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
+             class="ml-2 text-[10px] text-kaijoYellow underline">Edit</a>
+        {% endif %}
+      </h2>
+
+      {% set slug = "pricing_tier1_desc" %}
       <p class="text-sm text-white/80 mb-4">
-        Be on the radar without committing to full marketplace access yet.
-        Ideal if you’re exploring your options or want the broker to make
-        targeted introductions.
+        {{ page_text(
+          slug,
+          "Be on the radar without committing to full marketplace access yet. Ideal if you’re exploring your options or want the broker to make targeted introductions."
+        ) }}
+        {% if can_edit_copy %}
+          <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
+             class="ml-2 text-[10px] text-kaijoYellow underline">Edit</a>
+        {% endif %}
       </p>
 
       <ul class="text-sm text-white/75 space-y-2 list-disc list-inside mb-4">
-        <li>Profile stored in the private broker database.</li>
-        <li>Basic details captured (e.g. region, size, appetite).</li>
-        <li>Broker can reach out when there’s a relevant match.</li>
-        <li class="text-white/45">
-          <span class="blur-[2px] select-none">Direct access to live listings.</span>
-          <span class="ml-1 text-[10px] text-kaijoYellow/80">Unlocked in Tier 2</span>
+        {% set slug = "pricing_tier1_bullet_1" %}
+        <li>
+          {{ page_text(slug, "Profile stored in the private broker database.") }}
+          {% if can_edit_copy %}
+            <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
+               class="ml-1 text-[9px] text-kaijoYellow underline">Edit</a>
+          {% endif %}
         </li>
+        {% set slug = "pricing_tier1_bullet_2" %}
+        <li>
+          {{ page_text(slug, "Basic details captured (e.g. region, size, appetite).") }}
+          {% if can_edit_copy %}
+            <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
+               class="ml-1 text-[9px] text-kaijoYellow underline">Edit</a>
+          {% endif %}
+        </li>
+        {% set slug = "pricing_tier1_bullet_3" %}
+        <li>
+          {{ page_text(slug, "Broker can reach out when there’s a relevant match.") }}
+          {% if can_edit_copy %}
+            <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
+               class="ml-1 text-[9px] text-kaijoYellow underline">Edit</a>
+          {% endif %}
+        </li>
+        {% set slug = "pricing_tier1_bullet_4" %}
         <li class="text-white/45">
-          <span class="blur-[2px] select-none">Full buyer/seller directory view.</span>
+          <span class="blur-[2px] select-none">
+            {{ page_text(slug, "Direct access to live listings.") }}
+          </span>
           <span class="ml-1 text-[10px] text-kaijoYellow/80">Unlocked in Tier 2</span>
+          {% if can_edit_copy %}
+            <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
+               class="ml-1 text-[9px] text-kaijoYellow underline">Edit text</a>
+          {% endif %}
+        </li>
+        {% set slug = "pricing_tier1_bullet_5" %}
+        <li class="text-white/45">
+          <span class="blur-[2px] select-none">
+            {{ page_text(slug, "Full buyer/seller directory view.") }}
+          </span>
+          <span class="ml-1 text-[10px] text-kaijoYellow/80">Unlocked in Tier 2</span>
+          {% if can_edit_copy %}
+            <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
+               class="ml-1 text-[9px] text-kaijoYellow underline">Edit text</a>
+          {% endif %}
         </li>
       </ul>
 
-      <p class="text-xl font-semibold text-white mb-1">£0 / month</p>
-      <p class="text-[11px] text-white/60 mb-3">No commitment, join the pipeline.</p>
+      {% set slug = "pricing_tier1_price" %}
+      <p class="text-xl font-semibold text-white mb-1">
+        {{ page_text(slug, "£0 / month") }}
+        {% if can_edit_copy %}
+          <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
+             class="ml-2 text-[10px] text-kaijoYellow underline">Edit</a>
+        {% endif %}
+      </p>
+
+      {% set slug = "pricing_tier1_price_caption" %}
+      <p class="text-[11px] text-white/60 mb-3">
+        {{ page_text(slug, "No commitment, join the pipeline.") }}
+        {% if can_edit_copy %}
+          <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
+             class="ml-2 text-[9px] text-kaijoYellow underline">Edit</a>
+        {% endif %}
+      </p>
 
       {% if role in ['buyer', 'seller', 'valuer'] %}
+        {% set slug = "pricing_tier1_cta" %}
         <form method="POST" action="{{ url_for('billing_checkout') }}" class="mt-1">
           <input type="hidden" name="role" value="{{ role }}">
           <input type="hidden" name="tier" value="basic">
           <button type="submit"
                   class="inline-flex items-center justify-center px-4 py-2 rounded border border-white/40 text-xs text-white hover:bg-white/10 hover:text-kaijoYellow transition">
-            Continue with Tier 1 as {{ role|title }}
+            {{ page_text(slug, "Continue with Tier 1 as") }} {{ role|title }}
+            {% if can_edit_copy %}
+              <span class="ml-2 text-[9px] text-kaijoYellow underline">Edit</span>
+            {% endif %}
           </button>
         </form>
       {% else %}
+        {% set slug = "pricing_tier1_role_hint" %}
         <p class="text-[11px] text-white/55 mt-2">
-          Choose Buyer, Seller or Valuer above to activate this option.
+          {{ page_text(slug, "Choose Buyer, Seller or Valuer above to activate this option.") }}
+          {% if can_edit_copy %}
+            <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
+               class="ml-2 text-[9px] text-kaijoYellow underline">Edit</a>
+          {% endif %}
         </p>
       {% endif %}
     </section>
 
     <!-- Tier 2: Full marketplace -->
     <section class="rounded-lg border border-kaijoPink/70 bg-black/40 backdrop-blur-sm p-6 relative overflow-hidden">
+      {% set slug = "pricing_tier2_badge" %}
       <div class="absolute top-0 right-0 px-3 py-1 text-[10px] uppercase tracking-[0.22em]
                   bg-kaijoPink text-white/90 rounded-bl-lg">
-        Recommended
+        {{ page_text(slug, "Recommended") }}
+        {% if can_edit_copy %}
+          <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
+             class="ml-1 text-[9px] text-white underline">Edit</a>
+        {% endif %}
       </div>
 
-      <h2 class="text-lg font-semibold text-kaijoPink mb-1">Tier 2 – Full Marketplace Access</h2>
+      {% set slug = "pricing_tier2_heading" %}
+      <h2 class="text-lg font-semibold text-kaijoPink mb-1">
+        {{ page_text(slug, "Tier 2 – Full Marketplace Access") }}
+        {% if can_edit_copy %}
+          <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
+             class="ml-2 text-[10px] text-kaijoYellow underline">Edit</a>
+        {% endif %}
+      </h2>
+
+      {% set slug = "pricing_tier2_desc" %}
       <p class="text-sm text-white/80 mb-4">
-        Unlock the full private marketplace: view opportunities, signal your appetite,
-        and connect directly through structured workflows.
+        {{ page_text(
+          slug,
+          "Unlock the full private marketplace: view opportunities, signal your appetite, and connect directly through structured workflows."
+        ) }}
+        {% if can_edit_copy %}
+          <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
+             class="ml-2 text-[10px] text-kaijoYellow underline">Edit</a>
+        {% endif %}
       </p>
 
       <ul class="text-sm text-white/80 space-y-2 list-disc list-inside mb-4">
-        <li>All Tier 1 profile and broker database features.</li>
-        <li>View confidential listings behind the NDA gate.</li>
-        <li>View relevant buyers/sellers aligned to your criteria.</li>
-        <li>Send and receive enquiries directly through the platform.</li>
-        <li>Track interest, shortlist, and progress deals in one place.</li>
+        {% set slug = "pricing_tier2_bullet_1" %}
+        <li>
+          {{ page_text(slug, "All Tier 1 profile and broker database features.") }}
+          {% if can_edit_copy %}
+            <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
+               class="ml-1 text-[9px] text-kaijoYellow underline">Edit</a>
+          {% endif %}
+        </li>
+        {% set slug = "pricing_tier2_bullet_2" %}
+        <li>
+          {{ page_text(slug, "View confidential listings behind the NDA gate.") }}
+          {% if can_edit_copy %}
+            <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
+               class="ml-1 text-[9px] text-kaijoYellow underline">Edit</a>
+          {% endif %}
+        </li>
+        {% set slug = "pricing_tier2_bullet_3" %}
+        <li>
+          {{ page_text(slug, "View relevant buyers/sellers aligned to your criteria.") }}
+          {% if can_edit_copy %}
+            <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
+               class="ml-1 text-[9px] text-kaijoYellow underline">Edit</a>
+          {% endif %}
+        </li>
+        {% set slug = "pricing_tier2_bullet_4" %}
+        <li>
+          {{ page_text(slug, "Send and receive enquiries directly through the platform.") }}
+          {% if can_edit_copy %}
+            <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
+               class="ml-1 text-[9px] text-kaijoYellow underline">Edit</a>
+          {% endif %}
+        </li>
+        {% set slug = "pricing_tier2_bullet_5" %}
+        <li>
+          {{ page_text(slug, "Track interest, shortlist, and progress deals in one place.") }}
+          {% if can_edit_copy %}
+            <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
+               class="ml-1 text-[9px] text-kaijoYellow underline">Edit</a>
+          {% endif %}
+        </li>
       </ul>
 
-      <p class="text-xl font-semibold text-white mb-1">£49 / month</p>
-      <p class="text-[11px] text-white/60 mb-3">Per organisation, per role. No long-term lock-in.</p>
+      {% set slug = "pricing_tier2_price" %}
+      <p class="text-xl font-semibold text-white mb-1">
+        {{ page_text(slug, "£49 / month") }}
+        {% if can_edit_copy %}
+          <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
+             class="ml-2 text-[10px] text-kaijoYellow underline">Edit</a>
+        {% endif %}
+      </p>
+
+      {% set slug = "pricing_tier2_price_caption" %}
+      <p class="text-[11px] text-white/60 mb-3">
+        {{ page_text(slug, "Per organisation, per role. No long-term lock-in.") }}
+        {% if can_edit_copy %}
+          <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
+             class="ml-2 text-[9px] text-kaijoYellow underline">Edit</a>
+        {% endif %}
+      </p>
 
       {% if role in ['buyer', 'seller', 'valuer'] %}
+        {% set slug = "pricing_tier2_cta" %}
         <form method="POST" action="{{ url_for('billing_checkout') }}" class="mt-1">
           <input type="hidden" name="role" value="{{ role }}">
           <input type="hidden" name="tier" value="premium">
           <button type="submit"
                   class="inline-flex items-center justify-center px-4 py-2 rounded bg-kaijoPink text-xs text-white hover:bg-kaijoYellow hover:text-black font-semibold transition">
-            Upgrade to Tier 2 as {{ role|title }}
+            {{ page_text(slug, "Upgrade to Tier 2 as") }} {{ role|title }}
+            {% if can_edit_copy %}
+              <span class="ml-2 text-[9px] text-black/80 underline">Edit</span>
+            {% endif %}
           </button>
         </form>
       {% else %}
+        {% set slug = "pricing_tier2_role_hint" %}
         <p class="text-[11px] text-white/55 mt-2">
-          Choose Buyer, Seller or Valuer above to see Tier 2 options for your role.
+          {{ page_text(slug, "Choose Buyer, Seller or Valuer above to see Tier 2 options for your role.") }}
+          {% if can_edit_copy %}
+            <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
+               class="ml-2 text-[9px] text-kaijoYellow underline">Edit</a>
+          {% endif %}
         </p>
       {% endif %}
     </section>
@@ -264,50 +608,102 @@
 
   <!-- FAQ / ACCORDION -->
   <section class="mb-10">
-    <h2 class="text-lg font-semibold mb-3">Frequently asked questions</h2>
+    {% set slug = "pricing_faq_heading" %}
+    <h2 class="text-lg font-semibold mb-3">
+      {{ page_text(slug, "Frequently asked questions") }}
+      {% if can_edit_copy %}
+        <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
+           class="ml-2 text-[10px] text-kaijoYellow underline">Edit</a>
+      {% endif %}
+    </h2>
+
     <div class="space-y-2 text-sm">
 
       <details class="rounded-lg border border-white/10 bg-black/30 backdrop-blur-sm px-4 py-3">
+        {% set slug = "pricing_faq_q1" %}
         <summary class="cursor-pointer text-white/90 font-medium">
-          How is confidentiality handled?
+          {{ page_text(slug, "How is confidentiality handled?") }}
+          {% if can_edit_copy %}
+            <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
+               class="ml-2 text-[9px] text-kaijoYellow underline">Edit</a>
+          {% endif %}
         </summary>
+        {% set slug = "pricing_faq_a1" %}
         <p class="mt-2 text-white/75 text-xs">
-          Listings are kept off public marketplaces. Buyers only see headline,
-          non-identifying information until NDAs are in place and the broker
-          agrees it’s appropriate to share more detail.
+          {{ page_text(
+            slug,
+            "Listings are kept off public marketplaces. Buyers only see headline, non-identifying information until NDAs are in place and the broker agrees it’s appropriate to share more detail."
+          ) }}
+          {% if can_edit_copy %}
+            <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
+               class="ml-2 text-[9px] text-kaijoYellow underline">Edit</a>
+          {% endif %}
         </p>
       </details>
 
       <details class="rounded-lg border border-white/10 bg-black/30 backdrop-blur-sm px-4 py-3">
+        {% set slug = "pricing_faq_q2" %}
         <summary class="cursor-pointer text-white/90 font-medium">
-          Do I have to upgrade to Tier 2 to get value?
+          {{ page_text(slug, "Do I have to upgrade to Tier 2 to get value?") }}
+          {% if can_edit_copy %}
+            <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
+               class="ml-2 text-[9px] text-kaijoYellow underline">Edit</a>
+          {% endif %}
         </summary>
+        {% set slug = "pricing_faq_a2" %}
         <p class="mt-2 text-white/75 text-xs">
-          Not necessarily. Tier 1 is useful if you simply want to be on the radar
-          and let the broker contact you when something clearly fits. 
-          Tier 2 is for organisations that want to actively browse, compare and engage.
+          {{ page_text(
+            slug,
+            "Not necessarily. Tier 1 is useful if you simply want to be on the radar and let the broker contact you when something clearly fits. Tier 2 is for organisations that want to actively browse, compare and engage."
+          ) }}
+          {% if can_edit_copy %}
+            <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
+               class="ml-2 text-[9px] text-kaijoYellow underline">Edit</a>
+          {% endif %}
         </p>
       </details>
 
       <details class="rounded-lg border border-white/10 bg-black/30 backdrop-blur-sm px-4 py-3">
+        {% set slug = "pricing_faq_q3" %}
         <summary class="cursor-pointer text-white/90 font-medium">
-          How does the broker get paid on a successful deal?
+          {{ page_text(slug, "How does the broker get paid on a successful deal?") }}
+          {% if can_edit_copy %}
+            <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
+               class="ml-2 text-[9px] text-kaijoYellow underline">Edit</a>
+          {% endif %}
         </summary>
+        {% set slug = "pricing_faq_a3" %}
         <p class="mt-2 text-white/75 text-xs">
-          Alongside any subscription, an agreed success fee or percentage of the
-          transaction value is payable if an introduction from the platform leads to
-          a completed deal. This is agreed directly with Kaijo North Consulting.
+          {{ page_text(
+            slug,
+            "Alongside any subscription, an agreed success fee or percentage of the transaction value is payable if an introduction from the platform leads to a completed deal. This is agreed directly with Kaijo North Consulting."
+          ) }}
+          {% if can_edit_copy %}
+            <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
+               class="ml-2 text-[9px] text-kaijoYellow underline">Edit</a>
+          {% endif %}
         </p>
       </details>
 
       <details class="rounded-lg border border-white/10 bg-black/30 backdrop-blur-sm px-4 py-3">
+        {% set slug = "pricing_faq_q4" %}
         <summary class="cursor-pointer text-white/90 font-medium">
-          Can valuers join without taking on full marketplace access?
+          {{ page_text(slug, "Can valuers join without taking on full marketplace access?") }}
+          {% if can_edit_copy %}
+            <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
+               class="ml-2 text-[9px] text-kaijoYellow underline">Edit</a>
+          {% endif %}
         </summary>
+        {% set slug = "pricing_faq_a4" %}
         <p class="mt-2 text-white/75 text-xs">
-          Yes. Many valuers start on Tier 1 to get listed in the framework, then
-          move to Tier 2 if they want deeper data visibility or closer collaboration
-          on deal flow.
+          {{ page_text(
+            slug,
+            "Yes. Many valuers start on Tier 1 to get listed in the framework, then move to Tier 2 if they want deeper data visibility or closer collaboration on deal flow."
+          ) }}
+          {% if can_edit_copy %}
+            <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
+               class="ml-2 text-[9px] text-kaijoYellow underline">Edit</a>
+          {% endif %}
         </p>
       </details>
 
@@ -317,14 +713,35 @@
   <!-- BOTTOM CTA STRIP -->
   <section class="rounded-xl border border-white/15 bg-gradient-to-r from-kaijoPurple/60 via-black/60 to-kaijoYellow/40 px-5 py-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
     <div>
-      <p class="text-sm font-semibold text-white">Not sure which option fits best?</p>
+      {% set slug = "pricing_bottom_cta_heading" %}
+      <p class="text-sm font-semibold text-white">
+        {{ page_text(slug, "Not sure which option fits best?") }}
+        {% if can_edit_copy %}
+          <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
+             class="ml-2 text-[10px] text-kaijoYellow underline">Edit</a>
+        {% endif %}
+      </p>
+
+      {% set slug = "pricing_bottom_cta_body" %}
       <p class="text-xs text-white/80">
-        Share your situation and appetite, and we’ll recommend a simple starting point.
+        {{ page_text(
+          slug,
+          "Share your situation and appetite, and we’ll recommend a simple starting point."
+        ) }}
+        {% if can_edit_copy %}
+          <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
+             class="ml-2 text-[9px] text-kaijoYellow underline">Edit</a>
+        {% endif %}
       </p>
     </div>
+
+    {% set slug = "pricing_bottom_cta_button" %}
     <a href="mailto:hello@kaijonorth.com?subject=Care%20Home%20Broker%20pricing%20question"
        class="inline-flex items-center justify-center px-4 py-2 rounded bg-black/70 border border-white/30 text-xs text-white hover:bg-white hover:text-black font-semibold transition">
-      Email the broker
+      {{ page_text(slug, "Email the broker") }}
+      {% if can_edit_copy %}
+        <span class="ml-2 text-[9px] text-white underline">Edit</span>
+      {% endif %}
     </a>
   </section>
 
