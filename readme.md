@@ -17,6 +17,14 @@ Seller accounts
 
 Admin dashboard
 
+Verified-email registration
+
+Expiring, single-use password reset links
+
+Persistent login throttling
+
+Idle and absolute session limits for administrators
+
 Login/Logout with Flask-Login
 
 ## Seller portal
@@ -104,8 +112,12 @@ cp .env.example .env
 At minimum set:
 
 SECRET_KEY=change-this
+PUBLIC_BASE_URL=http://localhost:5000
 
-The application now fails closed in production if `SECRET_KEY` is missing.
+The application now fails closed in production if `SECRET_KEY` or
+`PUBLIC_BASE_URL` is missing. Railway's `RAILWAY_PUBLIC_DOMAIN` is accepted as
+the public URL automatically. Configure working SMTP credentials so email
+verification and password resets can be delivered.
 
 5. Create the database from the committed migration
 
@@ -201,6 +213,7 @@ optional at runtime so local development remains simple, but the applicable
 company and data-protection details should be completed before public launch.
 
 SECRET_KEY=your-secret
+PUBLIC_BASE_URL=https://ownerlane.uk
 DATABASE_URL=sqlite:///care_broker.db
 DIGEST_TASK_TOKEN=your-token
 

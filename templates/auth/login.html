@@ -14,6 +14,14 @@
              placeholder="you@example.com">
     </div>
 
+    <div class="flex items-center justify-between gap-3 text-[11px] text-white/65">
+      <label class="flex items-center gap-2">
+        <input type="checkbox" name="remember" value="1" class="rounded border-white/20 bg-black/40 text-ownerMint">
+        Keep me signed in
+      </label>
+      <a href="{{ url_for('forgot_password') }}" class="text-ownerMint hover:underline">Forgot password?</a>
+    </div>
+
     <div>
       <label class="block text-xs text-white/70 mb-1">Password</label>
       <input type="password" name="password" required
@@ -34,6 +42,7 @@
       or
       <a href="{{ url_for('register_seller') }}" class="text-ownerMint hover:underline">register as seller</a>.
     </p>
+    <p><a href="{{ url_for('resend_verification') }}" class="text-white/60 hover:text-ownerMint hover:underline">Resend verification email</a></p>
   </div>
 </div>
 {% endblock %}

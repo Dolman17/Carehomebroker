@@ -28,7 +28,11 @@ def seeded_app(monkeypatch):
 
         users = {}
         for role in ("admin", "seller", "buyer", "valuer"):
-            user = application.User(email=f"{role}@example.test", role=role)
+            user = application.User(
+                email=f"{role}@example.test",
+                role=role,
+                email_verified_at=application.utcnow(),
+            )
             user.set_password("Testing123!")
             application.db.session.add(user)
             users[role] = user

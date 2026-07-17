@@ -10,6 +10,7 @@ This is a product-readiness review of the current application, not a security ce
 |---|---|---:|---|
 | Marketplace discovery | Public live listings, confidentiality gating, keyword/region/sector/price filters, price sorting, list and map views, pagination | 8/10 | More sector-specific filters and search analytics |
 | Buyer workflow | Detailed profile, rules-based matches, persistent shortlist, saved searches, enquiries, dashboard, subscriptions | 7/10 | Automated alert delivery and buyer verification |
+| Authentication | Verified-email registration, expiring one-time password resets, persistent login throttling and stricter admin sessions | 8/10 | Optional admin MFA and security-event audit views |
 | Seller workflow | Profile, listing creation/editing, photos, status changes, enquiries, buyer matches, introductions and valuation requests | 7/10 | Listing analytics, document room and offer workflow |
 | Confidentiality | Blurred restricted data, premium access rules, NDAs and private seller documents | 8/10 | Staged disclosure permissions and audit trail |
 | Matching | Profile-driven ranking with fit reasons and seller-side buyer matches | 6/10 | Normalised sector criteria and explainable weighting controls |
@@ -34,6 +35,10 @@ This is a product-readiness review of the current application, not a security ce
 - Migrated legacy care listings into compatible normalized sectors without dropping the old fields.
 - Added exact minor-unit guide price, revenue and EBITDA values with currency support.
 - Added marketplace price filtering and low/high price sorting.
+- Added email verification for every new buyer, seller and valuer account.
+- Added signed, expiring and single-use password-reset links with account-safe request responses.
+- Added persistent failed-login throttling without storing raw email or IP identities.
+- Added session rotation, opt-in remember-me and idle/absolute limits for admin sessions.
 
 Saved-search matches are included in the existing protected weekly digest task. Immediate event-triggered alerts remain a later notification-centre enhancement.
 
@@ -42,7 +47,7 @@ Saved-search matches are included in the existing protected weekly digest task. 
 ### P0 — launch confidence and conversion
 
 1. **Normalised sector model — delivered.** First-class sectors, configurable attributes and compatibility migration are now in place.
-2. **Authentication hardening.** Add verified email, password reset, login throttling and optional MFA for admins.
+2. **Authentication hardening — core delivered.** Verified email, password reset, login throttling and stronger admin sessions are in place; optional admin MFA remains a later enhancement.
 3. **Notification centre and saved-search delivery.** Create persisted notifications, deduplicate matching-listing alerts and send digest or immediate email according to buyer preference.
 4. **Money data migration — delivered.** Listings now store price, revenue and EBITDA in integer minor units plus currency, with legacy display fallbacks.
 5. **Activity and audit log.** Record sensitive access, status changes, admin actions and document downloads.
@@ -66,4 +71,4 @@ Saved-search matches are included in the existing protected weekly digest task. 
 
 ## Suggested next build
 
-Build authentication hardening next: verified email, secure password-reset links, login throttling and stronger admin sessions. Follow it with the persisted notification centre so saved searches and marketplace events can be delivered reliably without relying only on the weekly digest task.
+Build the persisted notification centre next so saved searches, introductions and marketplace events can be delivered reliably without relying only on the weekly digest task. Pair it with the activity and audit log so users and administrators can see security-sensitive events and notification delivery history.

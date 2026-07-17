@@ -3,10 +3,12 @@ import re
 import uuid
 import smtplib
 import math
+import hashlib
+import hmac
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from urllib.parse import urljoin, urlparse
 from email.message import EmailMessage
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 import stripe
 
 from flask import (
@@ -23,6 +25,7 @@ from flask import (
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from flask_wtf.csrf import CSRFProtect
+from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 from flask_login import (
     LoginManager,
     login_user,
@@ -60,6 +63,7 @@ app.config["SESSION_COOKIE_SECURE"] = is_production
 app.config["REMEMBER_COOKIE_HTTPONLY"] = True
 app.config["REMEMBER_COOKIE_SAMESITE"] = "Lax"
 app.config["REMEMBER_COOKIE_SECURE"] = is_production
+app.config["REMEMBER_COOKIE_DURATION"] = timedelta(days=30)
 app.config["MAX_CONTENT_LENGTH"] = int(
     os.getenv("MAX_CONTENT_LENGTH", str(16 * 1024 * 1024))
 )
@@ -75,6 +79,15 @@ app.config["LEGAL_CONTACT_EMAIL"] = os.getenv(
 app.config["LEGAL_LAST_UPDATED"] = os.getenv(
     "LEGAL_LAST_UPDATED", "17 July 2026"
 )
+railway_public_domain = os.getenv("RAILWAY_PUBLIC_DOMAIN")
+public_base_url = os.getenv("PUBLIC_BASE_URL") or (
+    f"https://{railway_public_domain}" if railway_public_domain else ""
+)
+app.config["PUBLIC_BASE_URL"] = public_base_url.rstrip("/")
+if is_production and not app.config["PUBLIC_BASE_URL"]:
+    raise RuntimeError(
+        "PUBLIC_BASE_URL must be configured in production for secure authentication links."
+    )
 
 # -------------------------------------------------------------------
 # Database (SQLite fallback, pg8000 for Railway/Postgres)
@@ -98,6 +111,7 @@ csrf = CSRFProtect(app)
 
 login_manager = LoginManager(app)
 login_manager.login_view = "login"
+login_manager.session_protection = "strong"
 
 # Task token & email config
 app.config["DIGEST_TASK_TOKEN"] = os.getenv("DIGEST_TASK_TOKEN")
@@ -115,6 +129,27 @@ app.config["SMTP_DEFAULT_FROM"] = os.getenv(
 app.config["LEADS_NOTIFICATION_EMAIL"] = os.getenv(
     "LEADS_NOTIFICATION_EMAIL",
     app.config.get("SMTP_USERNAME"),
+)
+
+# Authentication security controls
+app.config["EMAIL_VERIFICATION_MAX_AGE"] = int(
+    os.getenv("EMAIL_VERIFICATION_MAX_AGE", str(24 * 60 * 60))
+)
+app.config["PASSWORD_RESET_MAX_AGE"] = int(
+    os.getenv("PASSWORD_RESET_MAX_AGE", str(60 * 60))
+)
+app.config["LOGIN_FAILURE_LIMIT"] = int(os.getenv("LOGIN_FAILURE_LIMIT", "5"))
+app.config["LOGIN_FAILURE_WINDOW"] = int(
+    os.getenv("LOGIN_FAILURE_WINDOW", str(15 * 60))
+)
+app.config["LOGIN_LOCKOUT_SECONDS"] = int(
+    os.getenv("LOGIN_LOCKOUT_SECONDS", str(15 * 60))
+)
+app.config["AUTH_EMAIL_LIMIT"] = int(os.getenv("AUTH_EMAIL_LIMIT", "3"))
+app.config["AUTH_EMAIL_WINDOW"] = int(os.getenv("AUTH_EMAIL_WINDOW", str(15 * 60)))
+app.config["ADMIN_IDLE_TIMEOUT"] = int(os.getenv("ADMIN_IDLE_TIMEOUT", str(30 * 60)))
+app.config["ADMIN_ABSOLUTE_TIMEOUT"] = int(
+    os.getenv("ADMIN_ABSOLUTE_TIMEOUT", str(8 * 60 * 60))
 )
 
 # Stripe config
@@ -308,6 +343,10 @@ class User(db.Model):
     password_hash = db.Column(db.String(255), nullable=False)
     role = db.Column(db.String(20), nullable=False)  # 'seller','buyer','admin','valuer'
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    email_verified_at = db.Column(db.DateTime)
+    password_changed_at = db.Column(db.DateTime, default=datetime.utcnow)
+    last_login_at = db.Column(db.DateTime)
+    security_stamp = db.Column(db.Integer, nullable=False, default=0)
 
     # Flask-Login methods
     def is_authenticated(self):
@@ -328,6 +367,21 @@ class User(db.Model):
 
     def check_password(self, password: str) -> bool:
         return check_password_hash(self.password_hash, password)
+
+    @property
+    def email_is_verified(self):
+        return self.email_verified_at is not None
+
+
+class LoginAttempt(db.Model):
+    __tablename__ = "login_attempt"
+
+    id = db.Column(db.Integer, primary_key=True)
+    key_hash = db.Column(db.String(64), unique=True, nullable=False, index=True)
+    failed_count = db.Column(db.Integer, nullable=False, default=0)
+    first_failed_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    blocked_until = db.Column(db.DateTime)
+    updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
 
 
 class Listing(db.Model):
@@ -1796,6 +1850,15 @@ def send_introduction_status_email(intro: Introduction):
 
 # -------- Password strength validation --------
 PASSWORD_MIN_LENGTH = 10
+DUMMY_PASSWORD_HASH = generate_password_hash("Ownerlane-Dummy-Password-Only")
+
+
+def valid_email_address(email: str) -> bool:
+    return bool(
+        email
+        and len(email) <= 254
+        and re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email)
+    )
 
 
 def validate_password_strength(password: str):
@@ -1819,6 +1882,178 @@ def validate_password_strength(password: str):
         return False, "Password must contain at least one symbol (e.g. !, ?, #, @)."
 
     return True, ""
+
+
+def utcnow():
+    """Return a naive UTC timestamp for the application's existing DB columns."""
+    return datetime.now(UTC).replace(tzinfo=None)
+
+
+def _auth_serializer():
+    return URLSafeTimedSerializer(app.config["SECRET_KEY"])
+
+
+def auth_external_url(endpoint: str, **values) -> str:
+    path = url_for(endpoint, **values)
+    if app.config["PUBLIC_BASE_URL"]:
+        return f"{app.config['PUBLIC_BASE_URL']}{path}"
+    return url_for(endpoint, _external=True, **values)
+
+
+def generate_auth_token(user: User, purpose: str) -> str:
+    return _auth_serializer().dumps(
+        {"uid": user.id, "stamp": user.security_stamp or 0},
+        salt=f"ownerlane-{purpose}",
+    )
+
+
+def load_auth_token(token: str, purpose: str, max_age: int):
+    try:
+        data = _auth_serializer().loads(
+            token,
+            salt=f"ownerlane-{purpose}",
+            max_age=max_age,
+        )
+    except (BadSignature, SignatureExpired):
+        return None
+    user = db.session.get(User, data.get("uid"))
+    if not user or (user.security_stamp or 0) != data.get("stamp"):
+        return None
+    return user
+
+
+def send_verification_email(user: User) -> bool:
+    token = generate_auth_token(user, "verify-email")
+    link = auth_external_url("verify_email", token=token)
+    return send_email(
+        user.email,
+        "Verify your Ownerlane email",
+        f"""
+        <p>Welcome to Ownerlane.</p>
+        <p>Confirm your email address to activate your account:</p>
+        <p><a href="{link}">Verify my email</a></p>
+        <p>This link expires in 24 hours. If you did not create this account, you can ignore this email.</p>
+        """,
+    )
+
+
+def send_password_reset_email(user: User) -> bool:
+    token = generate_auth_token(user, "password-reset")
+    link = auth_external_url("reset_password", token=token)
+    return send_email(
+        user.email,
+        "Reset your Ownerlane password",
+        f"""
+        <p>We received a request to reset your Ownerlane password.</p>
+        <p><a href="{link}">Choose a new password</a></p>
+        <p>This link expires in one hour and stops working after your password changes. If you did not request it, no action is required.</p>
+        """,
+    )
+
+
+def _auth_attempt_key(identity: str, purpose: str) -> str:
+    scoped_identity = (
+        f"{purpose}|{identity.strip().lower()}|{request.remote_addr or 'unknown'}"
+    )
+    return hmac.new(
+        app.config["SECRET_KEY"].encode(),
+        scoped_identity.encode(),
+        hashlib.sha256,
+    ).hexdigest()
+
+
+def _login_attempt_key(email: str) -> str:
+    return _auth_attempt_key(email, "login")
+
+
+def login_is_blocked(email: str) -> bool:
+    attempt = LoginAttempt.query.filter_by(key_hash=_login_attempt_key(email)).first()
+    return bool(attempt and attempt.blocked_until and attempt.blocked_until > utcnow())
+
+
+def record_login_failure(email: str) -> bool:
+    now = utcnow()
+    attempt = LoginAttempt.query.filter_by(key_hash=_login_attempt_key(email)).first()
+    window = timedelta(seconds=app.config["LOGIN_FAILURE_WINDOW"])
+    if not attempt:
+        attempt = LoginAttempt(
+            key_hash=_login_attempt_key(email),
+            failed_count=0,
+            first_failed_at=now,
+        )
+        db.session.add(attempt)
+    elif now - attempt.first_failed_at > window:
+        attempt.failed_count = 0
+        attempt.first_failed_at = now
+        attempt.blocked_until = None
+
+    attempt.failed_count += 1
+    attempt.updated_at = now
+    if attempt.failed_count >= app.config["LOGIN_FAILURE_LIMIT"]:
+        attempt.blocked_until = now + timedelta(
+            seconds=app.config["LOGIN_LOCKOUT_SECONDS"]
+        )
+    db.session.commit()
+    return bool(attempt.blocked_until and attempt.blocked_until > now)
+
+
+def clear_login_failures(email: str):
+    LoginAttempt.query.filter_by(key_hash=_login_attempt_key(email)).delete()
+    db.session.commit()
+
+
+def auth_email_request_allowed(email: str, purpose: str) -> bool:
+    """Limit reset/verification email generation without revealing account state."""
+    now = utcnow()
+    key_hash = _auth_attempt_key(email, purpose)
+    attempt = LoginAttempt.query.filter_by(key_hash=key_hash).first()
+    window = timedelta(seconds=app.config["AUTH_EMAIL_WINDOW"])
+    if attempt and attempt.blocked_until and attempt.blocked_until > now:
+        return False
+    if not attempt:
+        attempt = LoginAttempt(
+            key_hash=key_hash,
+            failed_count=0,
+            first_failed_at=now,
+        )
+        db.session.add(attempt)
+    elif now - attempt.first_failed_at > window:
+        attempt.failed_count = 0
+        attempt.first_failed_at = now
+        attempt.blocked_until = None
+
+    attempt.failed_count += 1
+    attempt.updated_at = now
+    allowed = attempt.failed_count <= app.config["AUTH_EMAIL_LIMIT"]
+    if not allowed:
+        attempt.blocked_until = now + window
+    db.session.commit()
+    return allowed
+
+
+@app.before_request
+def enforce_admin_session_limits():
+    if not current_user.is_authenticated:
+        return None
+    if current_user.role != "admin" and not session.get("impersonator_id"):
+        return None
+
+    now = int(utcnow().timestamp())
+    started = session.get("admin_session_started", now)
+    last_seen = session.get("admin_last_activity", now)
+    expired = (
+        now - last_seen > app.config["ADMIN_IDLE_TIMEOUT"]
+        or now - started > app.config["ADMIN_ABSOLUTE_TIMEOUT"]
+    )
+    if expired:
+        logout_user()
+        session.clear()
+        flash("Your admin session expired. Please log in again.", "warning")
+        return redirect(url_for("login", next=request.path))
+
+    session["admin_session_started"] = started
+    session["admin_last_activity"] = now
+    return None
 
 
 # -------- Admin seeding helpers --------
@@ -1850,6 +2085,7 @@ def seed_admin_user(email: str | None = None, password: str | None = None):
         email=email,
         password_hash=generate_password_hash(password),
         role="admin",
+        email_verified_at=utcnow(),
     )
     db.session.add(admin)
     db.session.commit()
@@ -2470,8 +2706,8 @@ def register_buyer():
         email = (request.form.get("email") or "").strip().lower()
         password = request.form.get("password") or ""
 
-        if not email:
-            flash("Email is required.")
+        if not valid_email_address(email):
+            flash("Enter a valid email address.")
             return redirect(request.url)
 
         ok, msg = validate_password_strength(password)
@@ -2488,10 +2724,12 @@ def register_buyer():
             email=email,
             password_hash=generate_password_hash(password),
             role="buyer",
+            email_verified_at=None,
         )
         db.session.add(user)
         db.session.commit()
-        flash("Buyer account created. You can now log in.")
+        send_verification_email(user)
+        flash("Buyer account created. Check your email to verify it before logging in.")
         return redirect(url_for("login"))
 
     return render_template("auth/register_buyer.html")
@@ -2503,8 +2741,8 @@ def register_seller():
         email = (request.form.get("email") or "").strip().lower()
         password = request.form.get("password") or ""
 
-        if not email:
-            flash("Email is required.")
+        if not valid_email_address(email):
+            flash("Enter a valid email address.")
             return redirect(request.url)
 
         ok, msg = validate_password_strength(password)
@@ -2521,10 +2759,12 @@ def register_seller():
             email=email,
             password_hash=generate_password_hash(password),
             role="seller",
+            email_verified_at=None,
         )
         db.session.add(user)
         db.session.commit()
-        flash("Seller account created. You can now log in.")
+        send_verification_email(user)
+        flash("Seller account created. Check your email to verify it before logging in.")
         return redirect(url_for("login"))
 
     return render_template("auth/register_seller.html")
@@ -2550,8 +2790,8 @@ def register_valuer():
         bio = (request.form.get("bio") or "").strip()
         selected_regions = request.form.getlist("regions")
 
-        if not email:
-            flash("Email is required.")
+        if not valid_email_address(email):
+            flash("Enter a valid email address.")
             return redirect(request.url)
 
         ok, msg = validate_password_strength(password)
@@ -2569,6 +2809,7 @@ def register_valuer():
             email=email,
             password_hash=generate_password_hash(password),
             role="valuer",
+            email_verified_at=None,
         )
         db.session.add(user)
         db.session.flush()  # get user.id
@@ -2585,7 +2826,8 @@ def register_valuer():
         db.session.add(profile)
         db.session.commit()
 
-        flash("Valuer account created. You can now log in.")
+        send_verification_email(user)
+        flash("Valuer account created. Check your email to verify it before logging in.")
         return redirect(url_for("login"))
 
     # GET
@@ -2652,6 +2894,94 @@ def valuer_request_detail(request_id):
         allowed_statuses=allowed_statuses,
     )
 
+
+@app.route("/verify-email/<token>")
+def verify_email(token):
+    user = load_auth_token(
+        token,
+        "verify-email",
+        app.config["EMAIL_VERIFICATION_MAX_AGE"],
+    )
+    if not user:
+        flash("That verification link is invalid or has expired.", "warning")
+        return redirect(url_for("resend_verification"))
+    if not user.email_verified_at:
+        user.email_verified_at = utcnow()
+        db.session.commit()
+    flash("Email verified. You can now log in.", "success")
+    return redirect(url_for("login"))
+
+
+@app.route("/verify-email/resend", methods=["GET", "POST"])
+def resend_verification():
+    if request.method == "POST":
+        email = (request.form.get("email") or "").strip().lower()
+        allowed = bool(email) and auth_email_request_allowed(email, "verify-email")
+        user = User.query.filter_by(email=email).first() if email else None
+        if allowed and user and not user.email_verified_at:
+            send_verification_email(user)
+        flash(
+            "If an unverified account exists for that email, a new verification link has been sent.",
+            "info",
+        )
+        return redirect(url_for("login"))
+    return render_template("auth/resend_verification.html")
+
+
+@app.route("/forgot-password", methods=["GET", "POST"])
+def forgot_password():
+    if request.method == "POST":
+        email = (request.form.get("email") or "").strip().lower()
+        allowed = bool(email) and auth_email_request_allowed(email, "password-reset")
+        user = User.query.filter_by(email=email).first() if email else None
+        if allowed and user:
+            send_password_reset_email(user)
+        flash(
+            "If an account exists for that email, a password-reset link has been sent.",
+            "info",
+        )
+        return redirect(url_for("login"))
+    return render_template("auth/forgot_password.html")
+
+
+@app.route("/reset-password/<token>", methods=["GET", "POST"])
+def reset_password(token):
+    user = load_auth_token(
+        token,
+        "password-reset",
+        app.config["PASSWORD_RESET_MAX_AGE"],
+    )
+    if not user:
+        flash("That password-reset link is invalid or has expired.", "warning")
+        return redirect(url_for("forgot_password"))
+
+    if request.method == "POST":
+        password = request.form.get("password") or ""
+        confirmation = request.form.get("password_confirmation") or ""
+        if password != confirmation:
+            flash("The passwords do not match.", "danger")
+            return render_template("auth/reset_password.html", token=token)
+        ok, message = validate_password_strength(password)
+        if not ok:
+            flash(message, "danger")
+            return render_template("auth/reset_password.html", token=token)
+
+        user.set_password(password)
+        user.password_changed_at = utcnow()
+        user.security_stamp = (user.security_stamp or 0) + 1
+        db.session.commit()
+        logout_user()
+        session.clear()
+        send_email(
+            user.email,
+            "Your Ownerlane password was changed",
+            "<p>Your Ownerlane password has been changed. If this was not you, contact Ownerlane immediately.</p>",
+        )
+        flash("Password changed. Log in with your new password.", "success")
+        return redirect(url_for("login"))
+
+    return render_template("auth/reset_password.html", token=token)
+
 @app.route("/login", methods=["GET", "POST"])
 def login():
     """
@@ -2667,21 +2997,54 @@ def login():
             flash("Please enter both email and password.", "danger")
             return render_template("auth/login.html")
 
+        if login_is_blocked(email):
+            lockout_minutes = max(
+                1, math.ceil(app.config["LOGIN_LOCKOUT_SECONDS"] / 60)
+            )
+            flash(
+                f"Too many login attempts. Try again in {lockout_minutes} minutes or reset your password.",
+                "danger",
+            )
+            return render_template("auth/login.html"), 429
+
         user = User.query.filter_by(email=email).first()
 
-        if user is None or not user.check_password(password):
+        password_is_valid = (
+            user.check_password(password)
+            if user is not None
+            else check_password_hash(DUMMY_PASSWORD_HASH, password)
+        )
+        if user is None or not password_is_valid:
             flash("Invalid email or password.", "danger")
-            return render_template("auth/login.html")
+            blocked = record_login_failure(email)
+            return render_template("auth/login.html"), (429 if blocked else 200)
 
         if not getattr(user, "is_active", True):
             flash("Your account is inactive. Please contact support.", "warning")
             return render_template("auth/login.html")
 
-        # Log the user in
-        login_user(user, remember=True)
+        if not user.email_verified_at:
+            clear_login_failures(email)
+            flash(
+                "Verify your email before logging in. You can request a new link below.",
+                "warning",
+            )
+            return render_template("auth/login.html"), 403
+
+        clear_login_failures(email)
+        next_page = request.args.get("next")
+        remember = bool(request.form.get("remember")) and user.role != "admin"
+        session.clear()
+        login_user(user, remember=remember, fresh=True)
+        user.last_login_at = utcnow()
+        if user.role == "admin":
+            now = int(utcnow().timestamp())
+            session["admin_session_started"] = now
+            session["admin_last_activity"] = now
+            session.permanent = False
+        db.session.commit()
 
         # Honour ?next=... if present
-        next_page = request.args.get("next")
         if is_safe_redirect_target(next_page):
             return redirect(next_page)
 
