@@ -1,0 +1,35 @@
+{% extends "legal/base.html" %}
+{% block legal_title %}Terms of use{% endblock %}
+{% block legal_content %}
+<p>These terms govern access to the public Ownerlane website and general platform features. Paid access, introductions and brokerage services may also be subject to the <a href="{{ url_for('marketplace_terms') }}">Marketplace terms</a>, an order summary or a separate written agreement.</p>
+
+<h2>1. Acceptance and eligibility</h2>
+<p>By using Ownerlane, you agree to these terms. The service is intended for business and professional use by people aged 18 or over. If you act for an organisation, you confirm that you are authorised to bind or represent it.</p>
+
+<h2>2. Accounts</h2>
+<p>You must provide accurate information, protect your credentials and notify us promptly of suspected unauthorised use. You are responsible for activity through your account unless caused by our breach. We may request verification and may restrict an account where information is inaccurate, security is at risk or these terms are breached.</p>
+
+<h2>3. Information, not professional advice</h2>
+<p>Listings, match scores, guide prices, valuations and other platform content are for preliminary information. They are not legal, tax, accounting, investment, regulatory or financial advice and are not a recommendation to complete a transaction. Users must conduct their own due diligence and take appropriate professional advice.</p>
+
+<h2>4. Intellectual property</h2>
+<p>Ownerlane and its licensors own the platform, design, software, brand and editorial content. We grant users a limited, revocable, non-transferable right to use the service for its intended business purpose. You must not copy, scrape, reverse engineer, resell or commercially exploit the service except where law expressly permits.</p>
+
+<h2>5. User content</h2>
+<p>You retain ownership of content you submit. You grant us a non-exclusive licence to host, reproduce, format and disclose it as reasonably necessary to operate the marketplace and the visibility settings you select. You confirm that your content is accurate in all material respects and that you have the rights and permissions needed to provide it.</p>
+
+<h2>6. Availability and changes</h2>
+<p>We aim to provide a reliable service but do not promise uninterrupted or error-free availability. We may maintain, improve, suspend or change features. We will use reasonable efforts to avoid material disruption and to communicate material changes affecting paid users.</p>
+
+<h2>7. Responsibility</h2>
+<p>Nothing in these terms excludes or limits liability where doing so would be unlawful, including liability for death or personal injury caused by negligence, fraud or fraudulent misrepresentation. Subject to that, each party remains responsible for losses that are a reasonably foreseeable result of its breach. Any additional limits applying to a paid business service will be set out in the Marketplace terms or relevant written agreement.</p>
+
+<h2>8. Suspension and termination</h2>
+<p>You may stop using the service at any time, subject to outstanding payment, confidentiality or transaction obligations. We may suspend or close access for material breach, unlawful activity, security risk, non-payment or misuse, normally with notice where reasonably practicable.</p>
+
+<h2>9. General</h2>
+<p>If a provision is unenforceable, the remaining provisions continue. Delay in enforcing a right is not a waiver. These terms do not create a partnership, employment or agency relationship. English law governs these terms and the courts of England and Wales have jurisdiction, subject to any mandatory rights that apply.</p>
+
+<h2>10. Contact</h2>
+<p>Questions can be sent to <a href="mailto:{{ legal_contact_email }}">{{ legal_contact_email }}</a>.</p>
+{% endblock %}

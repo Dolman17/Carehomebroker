@@ -141,10 +141,42 @@
   </main>
 
   <!-- FOOTER -->
-  <footer class="border-t border-white/10 bg-black/20 mt-10">
-    <div class="max-w-6xl mx-auto px-4 py-4 text-[11px] sm:text-xs text-white/60 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-      <span>© 2026 Ownerlane</span>
-      <span class="text-white/40">Where businesses find their next owner.</span>
+  <footer class="border-t border-white/10 bg-ownerInk/80 mt-10">
+    <div class="max-w-6xl mx-auto px-4 py-10">
+      <div class="grid gap-8 border-b border-white/10 pb-8 sm:grid-cols-2 lg:grid-cols-[1.4fr_1fr_1fr]">
+        <div>
+          <img src="{{ url_for('static', filename='img/ownerlane-logo.svg') }}" alt="Ownerlane" class="h-8 w-auto">
+          <p class="mt-4 max-w-sm text-xs leading-6 text-white/50">A modern, confidential marketplace where established businesses find their next owner.</p>
+          <a href="mailto:{{ legal_contact_email }}" class="mt-3 inline-block text-xs text-ownerMint hover:text-white">{{ legal_contact_email }}</a>
+        </div>
+        <div>
+          <p class="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/35">Marketplace</p>
+          <nav class="mt-4 grid gap-2.5 text-xs text-white/60" aria-label="Marketplace footer navigation">
+            <a href="{{ url_for('listings') }}" class="hover:text-ownerMint">Business opportunities</a>
+            <a href="{{ url_for('pricing') }}" class="hover:text-ownerMint">Plans & pricing</a>
+            <a href="{{ url_for('register_buyer') }}" class="hover:text-ownerMint">Join as a buyer</a>
+            <a href="{{ url_for('register_seller') }}" class="hover:text-ownerMint">Join as a seller</a>
+            <a href="{{ url_for('register_valuer') }}" class="hover:text-ownerMint">Join as an adviser</a>
+          </nav>
+        </div>
+        <div>
+          <p class="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/35">Legal & support</p>
+          <nav class="mt-4 grid grid-cols-2 gap-x-4 gap-y-2.5 text-xs text-white/60 sm:grid-cols-1" aria-label="Legal footer navigation">
+            <a href="{{ url_for('privacy_notice') }}" class="hover:text-ownerMint">Privacy notice</a>
+            <a href="{{ url_for('cookie_notice') }}" class="hover:text-ownerMint">Cookie notice</a>
+            <a href="{{ url_for('terms_of_use') }}" class="hover:text-ownerMint">Terms of use</a>
+            <a href="{{ url_for('marketplace_terms') }}" class="hover:text-ownerMint">Marketplace terms</a>
+            <a href="{{ url_for('acceptable_use') }}" class="hover:text-ownerMint">Acceptable use</a>
+            <a href="{{ url_for('legal_notice') }}" class="hover:text-ownerMint">Legal notice</a>
+            <a href="{{ url_for('accessibility_statement') }}" class="hover:text-ownerMint">Accessibility</a>
+            <a href="{{ url_for('complaints_procedure') }}" class="hover:text-ownerMint">Complaints</a>
+          </nav>
+        </div>
+      </div>
+      <div class="pt-5 text-[10px] text-white/35 sm:flex sm:items-center sm:justify-between">
+        <span>© 2026 {{ legal_entity_name }}. All rights reserved.</span>
+        <span class="mt-2 block sm:mt-0">Where businesses find their next owner.</span>
+      </div>
     </div>
   </footer>
 

@@ -1,0 +1,30 @@
+{% extends "legal/base.html" %}
+{% block legal_title %}Legal notice{% endblock %}
+{% block legal_content %}
+<h2>Website operator</h2>
+<p>This website and marketplace are operated under the Ownerlane name by <strong>{{ legal_entity_name }}</strong>.</p>
+<ul>
+  {% if legal_company_number %}<li>Company number: {{ legal_company_number }}</li>{% endif %}
+  {% if legal_registered_address %}<li>Registered office and geographic address: {{ legal_registered_address }}</li>{% endif %}
+  {% if legal_ico_number %}<li>ICO registration number: {{ legal_ico_number }}</li>{% endif %}
+  <li>Email: <a href="mailto:{{ legal_contact_email }}">{{ legal_contact_email }}</a></li>
+</ul>
+{% if not legal_company_number or not legal_registered_address %}
+  <p class="rounded-xl border border-ownerCoral/30 bg-ownerCoral/10 p-4 text-xs text-white/75"><strong>Pre-launch information:</strong> the legal company number and registered geographic address must be configured before the service is made publicly available.</p>
+{% endif %}
+
+<h2>Service description</h2>
+<p>Ownerlane provides an online business sale and acquisition marketplace, subscription access, matching tools and broker-managed workflow features. The availability and scope of brokerage or advisory services depend on the relevant written engagement.</p>
+
+<h2>No transaction or professional guarantee</h2>
+<p>Marketplace information may be supplied by users and has not necessarily been independently verified. Ownerlane does not guarantee that a listing will sell, that a buyer will complete, that funding is available or that a valuation or guide price will be achieved. Users should obtain legal, financial, tax, property, regulatory and other specialist advice appropriate to the transaction.</p>
+
+<h2>Copyright and trade marks</h2>
+<p>Unless stated otherwise, the website content, platform design and Ownerlane branding are owned by or licensed to {{ legal_entity_name }}. Third-party names and marks remain the property of their respective owners. No licence is granted beyond the limited use permitted by the Terms of use.</p>
+
+<h2>Links and external services</h2>
+<p>Links to external websites and services are provided for convenience. Ownerlane does not control their content, availability, security or privacy practices. Users should review the terms and notices of the destination service.</p>
+
+<h2>Regulatory status</h2>
+<p>Ownerlane does not provide regulated financial, legal or tax advice through the marketplace unless a specific regulated service and provider are expressly identified in writing. Nothing on the website constitutes an offer of securities or an invitation to engage in regulated investment activity.</p>
+{% endblock %}

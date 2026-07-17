@@ -53,8 +53,26 @@ secret_key = os.getenv("SECRET_KEY")
 if is_production and not secret_key:
     raise RuntimeError("SECRET_KEY must be configured in production.")
 app.config["SECRET_KEY"] = secret_key or "development-only-secret-key"
+app.config["SESSION_COOKIE_HTTPONLY"] = True
+app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+app.config["SESSION_COOKIE_SECURE"] = is_production
+app.config["REMEMBER_COOKIE_HTTPONLY"] = True
+app.config["REMEMBER_COOKIE_SAMESITE"] = "Lax"
+app.config["REMEMBER_COOKIE_SECURE"] = is_production
 app.config["MAX_CONTENT_LENGTH"] = int(
     os.getenv("MAX_CONTENT_LENGTH", str(16 * 1024 * 1024))
+)
+
+# Public legal identity. Configure the optional registration fields before launch.
+app.config["LEGAL_ENTITY_NAME"] = os.getenv("LEGAL_ENTITY_NAME", "Ownerlane")
+app.config["LEGAL_COMPANY_NUMBER"] = os.getenv("LEGAL_COMPANY_NUMBER")
+app.config["LEGAL_REGISTERED_ADDRESS"] = os.getenv("LEGAL_REGISTERED_ADDRESS")
+app.config["LEGAL_ICO_NUMBER"] = os.getenv("LEGAL_ICO_NUMBER")
+app.config["LEGAL_CONTACT_EMAIL"] = os.getenv(
+    "LEGAL_CONTACT_EMAIL", "hello@ownerlane.uk"
+)
+app.config["LEGAL_LAST_UPDATED"] = os.getenv(
+    "LEGAL_LAST_UPDATED", "17 July 2026"
 )
 
 # -------------------------------------------------------------------
@@ -1575,6 +1593,18 @@ def inject_page_text_helper():
     return {"page_text": page_text}
 
 
+@app.context_processor
+def inject_legal_details():
+    return {
+        "legal_entity_name": app.config["LEGAL_ENTITY_NAME"],
+        "legal_company_number": app.config["LEGAL_COMPANY_NUMBER"],
+        "legal_registered_address": app.config["LEGAL_REGISTERED_ADDRESS"],
+        "legal_ico_number": app.config["LEGAL_ICO_NUMBER"],
+        "legal_contact_email": app.config["LEGAL_CONTACT_EMAIL"],
+        "legal_last_updated": app.config["LEGAL_LAST_UPDATED"],
+    }
+
+
 
 
 @app.template_filter("date_short")
@@ -1611,6 +1641,46 @@ def index():
         listings=listings,
         is_premium_buyer=is_premium_buyer
     )
+
+
+@app.route("/privacy")
+def privacy_notice():
+    return render_template("legal/privacy.html")
+
+
+@app.route("/cookies")
+def cookie_notice():
+    return render_template("legal/cookies.html")
+
+
+@app.route("/terms")
+def terms_of_use():
+    return render_template("legal/terms.html")
+
+
+@app.route("/marketplace-terms")
+def marketplace_terms():
+    return render_template("legal/marketplace_terms.html")
+
+
+@app.route("/acceptable-use")
+def acceptable_use():
+    return render_template("legal/acceptable_use.html")
+
+
+@app.route("/legal-notice")
+def legal_notice():
+    return render_template("legal/legal_notice.html")
+
+
+@app.route("/accessibility")
+def accessibility_statement():
+    return render_template("legal/accessibility.html")
+
+
+@app.route("/complaints")
+def complaints_procedure():
+    return render_template("legal/complaints.html")
 
 
 

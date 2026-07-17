@@ -111,7 +111,7 @@ def test_csrf_rejects_state_change_without_token(client, seeded_app):
     assert response.status_code == 400
 
 
-def test_route_set_is_not_renamed(seeded_app):
+def test_core_route_set_is_preserved_with_legal_pages(seeded_app):
     route_rules = list(seeded_app.app.url_map.iter_rules())
     rules = {rule.rule for rule in route_rules}
     assert "/buyer/dashboard" in rules
@@ -119,4 +119,4 @@ def test_route_set_is_not_renamed(seeded_app):
     assert "/valuer/dashboard" in rules
     assert "/admin" in rules
     assert "/my/dashboard" in rules
-    assert len(route_rules) == 72
+    assert len(route_rules) == 80

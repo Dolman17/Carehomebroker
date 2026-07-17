@@ -1,0 +1,28 @@
+{% extends "legal/base.html" %}
+{% block legal_title %}Accessibility statement{% endblock %}
+{% block legal_content %}
+<h2>Our commitment</h2>
+<p>Ownerlane aims to make the website and marketplace usable by as many people as reasonably possible, including people who use keyboards, screen readers, magnification, voice input or other assistive technology.</p>
+
+<h2>Measures we take</h2>
+<ul>
+  <li>responsive layouts that work across common screen sizes;</li>
+  <li>semantic headings, labels and navigation landmarks;</li>
+  <li>keyboard-operable links, buttons, forms and disclosure controls;</li>
+  <li>visible text alternatives for meaningful brand images;</li>
+  <li>colour contrast and focus states designed for readability;</li>
+  <li>plain-language content and consistent navigation.</li>
+</ul>
+
+<h2>Conformance status</h2>
+<p>The service is being developed with the Web Content Accessibility Guidelines (WCAG) 2.2 level AA in mind, but it has not yet completed an independent accessibility audit. We therefore do not claim full conformance at this stage.</p>
+
+<h2>Known limitations</h2>
+<p>Some complex dashboards, maps, uploaded documents, third-party checkout pages and user-provided content may not be fully accessible. Some older forms may also need further improvements to error summaries, field instructions or keyboard focus treatment. We are reviewing these areas as the service develops.</p>
+
+<h2>Alternative formats and feedback</h2>
+<p>If you cannot access information or need it in another format, email <a href="mailto:{{ legal_contact_email }}?subject=Accessibility%20request">{{ legal_contact_email }}</a>. Please tell us the page, the problem, the format you need and any assistive technology involved. We aim to acknowledge accessibility reports within five working days.</p>
+
+<h2>Enforcement</h2>
+<p>We encourage you to contact us first so we can address the problem. Your statutory rights under applicable equality law are not affected by this statement.</p>
+{% endblock %}

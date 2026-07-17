@@ -1,0 +1,34 @@
+{% extends "legal/base.html" %}
+{% block legal_title %}Marketplace terms{% endblock %}
+{% block legal_content %}
+<p>These terms supplement the <a href="{{ url_for('terms_of_use') }}">Terms of use</a> for registered buyers, sellers, valuers and advisers. If a signed brokerage, introduction or engagement agreement conflicts with these terms, that agreement takes priority for its subject matter.</p>
+
+<h2>1. Ownerlane’s role</h2>
+<p>Ownerlane provides marketplace technology and may support introductions. Unless expressly agreed in writing, Ownerlane is not the buyer, seller, valuer, lender or professional adviser and is not a party to a transaction between users.</p>
+
+<h2>2. Listings and mandates</h2>
+<p>Sellers must ensure listing information is current, not misleading and lawfully disclosed. Buyers must keep mandates, funding position and acquisition criteria accurate. Ownerlane may moderate, anonymise, reject or remove content to protect confidentiality, quality and platform integrity but does not independently verify every statement.</p>
+
+<h2>3. Confidentiality</h2>
+<p>You must use non-public information only to assess or progress the relevant opportunity, disclose it only to authorised representatives who need it for that purpose, and protect it with appropriate care. Platform access does not replace a separate NDA. Where a separate NDA applies, its terms prevail.</p>
+<p>You must not contact staff, customers, suppliers, regulators, landlords or other stakeholders of an opportunity without the seller’s or broker’s prior approval.</p>
+
+<h2>4. Enquiries and introductions</h2>
+<p>Submitting interest does not guarantee an introduction, exclusivity or access to further information. Ownerlane or the seller may assess profile completeness, strategic fit, funding readiness and confidentiality risk before progressing an enquiry. Users must not misrepresent their identity, authority, funding or intentions.</p>
+
+<h2>5. Subscriptions and fees</h2>
+<p>Available features, price, billing interval and renewal information are shown when a plan is selected and at checkout. Stripe processes subscription payments. Users can manage supported billing changes through the billing portal or by contacting us.</p>
+<p>Marketplace subscriptions do not include transaction expenses or professional-adviser fees. A success fee, introduction fee or commission applies only where shown in the relevant pricing information or agreed separately in writing. Unless mandatory law provides otherwise, business subscriptions do not include a statutory cooling-off period.</p>
+
+<h2>6. Due diligence and transactions</h2>
+<p>Each party is responsible for its own investigation, valuation, funding, approvals and professional advice. No listing status, match result, valuation request or introduction is a warranty about a business, person or proposed transaction. A transaction is not binding until the relevant parties enter appropriate definitive agreements.</p>
+
+<h2>7. Advisers and valuers</h2>
+<p>Directory inclusion is not an endorsement or guarantee. Advisers are responsible for their qualifications, regulatory permissions, insurance, conflicts and engagement terms. Users must assess suitability before appointing an adviser.</p>
+
+<h2>8. Access and enforcement</h2>
+<p>We may restrict data, pause a listing, decline an introduction or suspend an account where reasonably necessary for confidentiality, safety, payment, legal compliance or marketplace quality. Serious misuse may be reported to affected parties or authorities where lawful.</p>
+
+<h2>9. Contact and complaints</h2>
+<p>Contact <a href="mailto:{{ legal_contact_email }}">{{ legal_contact_email }}</a> or follow our <a href="{{ url_for('complaints_procedure') }}">complaints procedure</a>.</p>
+{% endblock %}

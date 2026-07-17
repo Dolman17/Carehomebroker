@@ -184,6 +184,22 @@ docker stop <container-id>
 
 .env.example shows everything required:
 
+Before public launch, configure the legal identity used by the footer and legal
+notices:
+
+```env
+LEGAL_ENTITY_NAME=Your Legal Company Name Ltd
+LEGAL_COMPANY_NUMBER=12345678
+LEGAL_REGISTERED_ADDRESS=Your registered geographic address
+LEGAL_ICO_NUMBER=ZA123456
+LEGAL_CONTACT_EMAIL=hello@ownerlane.uk
+LEGAL_LAST_UPDATED=17 July 2026
+```
+
+`LEGAL_COMPANY_NUMBER`, `LEGAL_REGISTERED_ADDRESS`, and `LEGAL_ICO_NUMBER` are
+optional at runtime so local development remains simple, but the applicable
+company and data-protection details should be completed before public launch.
+
 SECRET_KEY=your-secret
 DATABASE_URL=sqlite:///care_broker.db
 DIGEST_TASK_TOKEN=your-token
