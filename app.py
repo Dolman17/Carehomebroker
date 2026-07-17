@@ -149,12 +149,14 @@ app.config["OFFER_DOCS_FOLDER"] = OFFER_DOCS_FOLDER
 # -------------------------------------------------------------------
 
 INTRO_STATUSES = [
+    ("pending_seller_request", "Pending seller request"),
     ("initiated", "Initiated"),
     ("nda_signed", "NDA signed"),
     ("viewing", "Viewing"),
     ("offer_made", "Offer made"),
     ("offer_accepted", "Offer accepted"),
     ("completed", "Completed"),
+    ("declined", "Declined"),
     ("failed", "Failed"),
 ]
 
@@ -196,7 +198,12 @@ class User(db.Model):
 
 class Listing(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    seller_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
+    seller_id = db.Column(
+        db.Integer,
+        db.ForeignKey("user.id"),
+        nullable=False,
+        index=True,
+    )
     listing_code = db.Column(db.String(20), unique=True)
     title = db.Column(db.String(255), nullable=False)
     region = db.Column(db.String(100))
@@ -211,7 +218,7 @@ class Listing(db.Model):
     short_description = db.Column(db.Text)
     is_confidential = db.Column(db.Boolean, default=True)
     status = db.Column(
-        db.String(20), default="draft"
+        db.String(20), default="draft", index=True
     )  # 'draft','live','under_offer','sold','archived'
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
@@ -231,7 +238,12 @@ class Listing(db.Model):
 
 class ListingPhoto(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    listing_id = db.Column(db.Integer, db.ForeignKey("listing.id"), nullable=False)
+    listing_id = db.Column(
+        db.Integer,
+        db.ForeignKey("listing.id"),
+        nullable=False,
+        index=True,
+    )
     filename = db.Column(db.String(255), nullable=False)
     is_cover = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -239,8 +251,18 @@ class ListingPhoto(db.Model):
 
 class Enquiry(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    listing_id = db.Column(db.Integer, db.ForeignKey("listing.id"), nullable=False)
-    buyer_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
+    listing_id = db.Column(
+        db.Integer,
+        db.ForeignKey("listing.id"),
+        nullable=False,
+        index=True,
+    )
+    buyer_id = db.Column(
+        db.Integer,
+        db.ForeignKey("user.id"),
+        nullable=False,
+        index=True,
+    )
     message = db.Column(db.Text, nullable=False)
     nda_accepted = db.Column(db.Boolean, default=False)
     status = db.Column(db.String(20), default="new")  # 'new','read','archived'
@@ -306,7 +328,10 @@ class BuyerProfile(db.Model):
 
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-    user = db.relationship("User", backref="buyer_profile", uselist=False)
+    user = db.relationship(
+        "User",
+        backref=db.backref("buyer_profile", uselist=False),
+    )
 
     def is_complete(self) -> bool:
         """
@@ -340,6 +365,7 @@ class Lead(db.Model):
         db.Integer,
         db.ForeignKey("listing.id"),
         nullable=False,
+        index=True,
     )
     buyer_name = db.Column(db.String(200), nullable=False)
     buyer_email = db.Column(db.String(200), nullable=False)
@@ -374,7 +400,10 @@ class ValuerProfile(db.Model):
 
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-    user = db.relationship("User", backref="valuer_profile", uselist=False)
+    user = db.relationship(
+        "User",
+        backref=db.backref("valuer_profile", uselist=False),
+    )
 
 # -------------------------------------------------------------------
 # Seller Profile Models (Business-Level Seller Information)
@@ -412,14 +441,22 @@ class SellerProfile(db.Model):
         onupdate=datetime.utcnow,
     )
 
-    user = db.relationship("User", backref="seller_profile", uselist=False)
+    user = db.relationship(
+        "User",
+        backref=db.backref("seller_profile", uselist=False),
+    )
 
 
 class SellerProfileDocument(db.Model):
     __tablename__ = "seller_profile_documents"
 
     id = db.Column(db.Integer, primary_key=True)
-    profile_id = db.Column(db.Integer, db.ForeignKey("seller_profiles.id"), nullable=False)
+    profile_id = db.Column(
+        db.Integer,
+        db.ForeignKey("seller_profiles.id"),
+        nullable=False,
+        index=True,
+    )
     filename = db.Column(db.String(255), nullable=False)
     original_filename = db.Column(db.String(255))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -431,7 +468,12 @@ class Subscription(db.Model):
     __tablename__ = "subscriptions"
 
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
+    user_id = db.Column(
+        db.Integer,
+        db.ForeignKey("user.id"),
+        nullable=False,
+        index=True,
+    )
 
     # "basic" or "premium"
     tier = db.Column(db.String(20), nullable=False)
@@ -444,7 +486,7 @@ class Subscription(db.Model):
     is_active = db.Column(db.Boolean, default=True)
 
     # Stripe integration
-    stripe_subscription_id = db.Column(db.String(255))
+    stripe_subscription_id = db.Column(db.String(255), unique=True)
     stripe_customer_id = db.Column(db.String(255))
 
     user = db.relationship("User", backref="subscriptions")
@@ -454,13 +496,18 @@ class Payment(db.Model):
     __tablename__ = "payments"
 
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
+    user_id = db.Column(
+        db.Integer,
+        db.ForeignKey("user.id"),
+        nullable=False,
+        index=True,
+    )
 
     amount = db.Column(db.Integer)  # pence
     currency = db.Column(db.String(10), default="GBP")
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)
 
-    stripe_payment_id = db.Column(db.String(255))
+    stripe_payment_id = db.Column(db.String(255), unique=True)
     description = db.Column(db.String(255))
 
     user = db.relationship("User", backref="payments")
@@ -511,7 +558,12 @@ class Financials(db.Model):
     __tablename__ = "financials"
 
     id = db.Column(db.Integer, primary_key=True)
-    listing_id = db.Column(db.Integer, db.ForeignKey("listing.id"), nullable=False)
+    listing_id = db.Column(
+        db.Integer,
+        db.ForeignKey("listing.id"),
+        unique=True,
+        nullable=False,
+    )
 
     turnover = db.Column(db.String(100))
     ebitda = db.Column(db.String(100))
@@ -523,14 +575,22 @@ class Financials(db.Model):
 
     year_end = db.Column(db.String(50))  # e.g. "YE Mar 2024"
 
-    listing = db.relationship("Listing", backref="financials", uselist=False)
+    listing = db.relationship(
+        "Listing",
+        backref=db.backref("financials", uselist=False),
+    )
 
 
 class BuyerCriteria(db.Model):
     __tablename__ = "buyer_criteria"
 
     id = db.Column(db.Integer, primary_key=True)
-    buyer_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
+    buyer_id = db.Column(
+        db.Integer,
+        db.ForeignKey("user.id"),
+        unique=True,
+        nullable=False,
+    )
 
     regions = db.Column(db.String(255))  # comma-separated
     care_types = db.Column(db.String(255))  # comma-separated
@@ -543,22 +603,49 @@ class BuyerCriteria(db.Model):
     funding_ready = db.Column(db.Boolean, default=False)
     notes = db.Column(db.Text)
 
-    buyer = db.relationship("User", backref="criteria", uselist=False)
+    buyer = db.relationship(
+        "User",
+        backref=db.backref("criteria", uselist=False),
+    )
 
 
 class Introduction(db.Model):
     __tablename__ = "introductions"
+    __table_args__ = (
+        db.UniqueConstraint(
+            "buyer_id",
+            "seller_id",
+            "listing_id",
+            name="uq_introduction_parties_listing",
+        ),
+    )
 
     id = db.Column(db.Integer, primary_key=True)
 
-    buyer_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
-    seller_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
-    listing_id = db.Column(db.Integer, db.ForeignKey("listing.id"), nullable=False)
+    buyer_id = db.Column(
+        db.Integer,
+        db.ForeignKey("user.id"),
+        nullable=False,
+        index=True,
+    )
+    seller_id = db.Column(
+        db.Integer,
+        db.ForeignKey("user.id"),
+        nullable=False,
+        index=True,
+    )
+    listing_id = db.Column(
+        db.Integer,
+        db.ForeignKey("listing.id"),
+        nullable=False,
+        index=True,
+    )
 
     # Deal status pipeline
     status = db.Column(
         db.String(20),
-        default="initiated"
+        default="initiated",
+        index=True,
         # initiated → nda_signed → viewing → offer_made → offer_accepted → completed → failed
     )
 
@@ -583,7 +670,10 @@ class IntroductionStatusHistory(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     introduction_id = db.Column(
-        db.Integer, db.ForeignKey("introductions.id"), nullable=False
+        db.Integer,
+        db.ForeignKey("introductions.id"),
+        nullable=False,
+        index=True,
     )
     old_status = db.Column(db.String(20))
     new_status = db.Column(db.String(20))
@@ -602,13 +692,29 @@ class ValuationRequest(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
 
-    listing_id = db.Column(db.Integer, db.ForeignKey("listing.id"), nullable=False)
-    seller_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
-    valuer_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True)
+    listing_id = db.Column(
+        db.Integer,
+        db.ForeignKey("listing.id"),
+        nullable=False,
+        index=True,
+    )
+    seller_id = db.Column(
+        db.Integer,
+        db.ForeignKey("user.id"),
+        nullable=False,
+        index=True,
+    )
+    valuer_id = db.Column(
+        db.Integer,
+        db.ForeignKey("user.id"),
+        nullable=True,
+        index=True,
+    )
 
     status = db.Column(
         db.String(20),
-        default="pending"
+        default="pending",
+        index=True,
         # pending → accepted → completed → declined
     )
 
@@ -625,7 +731,10 @@ class Deal(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     introduction_id = db.Column(
-        db.Integer, db.ForeignKey("introductions.id"), nullable=False
+        db.Integer,
+        db.ForeignKey("introductions.id"),
+        unique=True,
+        nullable=False,
     )
 
     agreed_price = db.Column(db.String(100))      # e.g. "£3,500,000"
@@ -640,7 +749,10 @@ class Deal(db.Model):
 
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-    introduction = db.relationship("Introduction", backref="deal")
+    introduction = db.relationship(
+        "Introduction",
+        backref=db.backref("deal", uselist=False),
+    )
 
 
 class PageContent(db.Model):
@@ -1362,10 +1474,12 @@ def seed_admin_user(email: str | None = None, password: str | None = None):
     Email/password can be passed in or taken from env:
       ADMIN_EMAIL, ADMIN_PASSWORD
     """
-    email = (
-        email or os.environ.get("ADMIN_EMAIL") or "admin@carebroker.local"
-    ).strip().lower()
-    password = password or os.environ.get("ADMIN_PASSWORD") or "Admin123!"
+    email = (email or os.environ.get("ADMIN_EMAIL") or "").strip().lower()
+    password = password or os.environ.get("ADMIN_PASSWORD") or ""
+    if not email or not password:
+        raise RuntimeError(
+            "ADMIN_EMAIL and ADMIN_PASSWORD must be configured before seeding."
+        )
 
     existing = User.query.filter_by(email=email).first()
     if existing:
@@ -1374,8 +1488,7 @@ def seed_admin_user(email: str | None = None, password: str | None = None):
 
     ok, msg = validate_password_strength(password)
     if not ok:
-        print(f"[seed-admin] Weak admin password: {msg}")
-        print("[seed-admin] WARNING: Using a weak admin password. Change ADMIN_PASSWORD!")
+        raise ValueError(f"ADMIN_PASSWORD is not strong enough: {msg}")
 
     admin = User(
         email=email,

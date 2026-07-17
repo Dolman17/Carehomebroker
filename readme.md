@@ -103,7 +103,26 @@ SECRET_KEY=change-this
 
 The application now fails closed in production if `SECRET_KEY` is missing.
 
-5. Run the app in development mode
+5. Create the database from the committed migration
+
+```bash
+flask --app app.py db upgrade
+```
+
+Do not use `db.create_all()` for application setup. Alembic migrations are the
+source of truth for both SQLite and PostgreSQL.
+
+6. Create the first administrator
+
+```bash
+ADMIN_EMAIL=admin@example.com \
+ADMIN_PASSWORD='choose-a-strong-password' \
+flask --app app.py seed-admin
+```
+
+Both values are required, and weak passwords are rejected.
+
+7. Run the app in development mode
 flask --app app.py run --debug
 
 
@@ -137,6 +156,10 @@ web: python run_prod.py
 
 Push your repository and both platforms will auto-detect Python + install requirements.
 
+Run `flask --app app.py db upgrade` as a release/deployment step before starting
+the web process. `RUN_MIGRATIONS_ON_START=1` is available for a single-instance
+deployment, but a dedicated release step is safer when multiple instances may start.
+
 🔹 Docker Deployment
 Build image
 docker build -t care-broker .
@@ -144,6 +167,7 @@ docker build -t care-broker .
 Run container with mounted uploads
 docker run -p 8000:8000 \
   -v $(pwd)/static/uploads:/app/static/uploads \
+  -v $(pwd)/instance/private_uploads:/app/instance/private_uploads \
   --env-file .env \
   care-broker
 
