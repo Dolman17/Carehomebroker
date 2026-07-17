@@ -1,528 +1,266 @@
 {% extends "base.html" %}
 {% block title %}Ownerlane | Where businesses find their next owner{% endblock %}
 
+{% block extra_head %}
+  <meta property="og:title" content="Ownerlane | Where businesses find their next owner">
+  <meta property="og:description" content="A modern, confidential marketplace for buying and selling established UK businesses.">
+  <meta property="og:type" content="website">
+  <style>
+    .landing-grid {
+      background-image:
+        linear-gradient(rgba(255,255,255,.035) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,.035) 1px, transparent 1px);
+      background-size: 36px 36px;
+    }
+  </style>
+{% endblock %}
+
 {% block content %}
 {% set can_edit_copy = current_user.is_authenticated and current_user.role in ['admin', 'valuer'] %}
+{% set can_see_full = current_user.is_authenticated and current_user.role == 'buyer' and is_premium_buyer %}
 
 <!-- HERO -->
-<section class="rounded-xl border border-white/10 bg-black/20 overflow-hidden mb-10 shadow-[0_0_40px_rgba(0,0,0,0.5)]">
-  <div class="grid md:grid-cols-2">
-    <!-- Left: brand + main message -->
-    <div class="p-6 sm:p-10 flex flex-col justify-between gap-8">
-      <div class="flex items-center gap-3">
-        <img src="{{ url_for('static', filename='img/ownerlane-mark.svg') }}"
-             alt="" class="w-14 h-14 rounded-2xl shadow-lg shadow-black/40">
-        <div class="leading-tight">
-          {% set slug = "home_hero_brand_title" %}
-          <p class="text-sm font-semibold tracking-[0.25em] uppercase">
-            {{ page_text(slug, "OWNERLANE") }}
-            {% if can_edit_copy %}
-              <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
-                 class="ml-2 text-[10px] text-ownerMint underline">Edit</a>
-            {% endif %}
-          </p>
+<section class="landing-grid relative isolate overflow-hidden rounded-[2rem] border border-white/10 bg-ownerInk/55 px-5 py-12 shadow-2xl shadow-black/30 sm:px-10 sm:py-16 lg:px-14 lg:py-20">
+  <div class="absolute -right-24 -top-24 -z-10 h-72 w-72 rounded-full bg-ownerBlue/35 blur-3xl"></div>
+  <div class="absolute -bottom-32 left-1/3 -z-10 h-72 w-72 rounded-full bg-ownerMint/20 blur-3xl"></div>
 
-          {% set slug = "home_hero_brand_subtitle" %}
-          <p class="text-[11px] tracking-[0.22em] uppercase text-white/70">
-            {{ page_text(slug, "Business Marketplace") }}
-            {% if can_edit_copy %}
-              <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
-                 class="ml-2 text-[10px] text-ownerMint underline">Edit</a>
-            {% endif %}
-          </p>
-        </div>
+  <div class="grid items-center gap-12 lg:grid-cols-[1.08fr_.92fr]">
+    <div>
+      <div class="mb-6 inline-flex items-center gap-2 rounded-full border border-ownerMint/30 bg-ownerMint/10 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-ownerMint sm:text-xs">
+        <span class="h-1.5 w-1.5 rounded-full bg-ownerMint"></span>
+        Confidential UK business marketplace
       </div>
 
-      <div>
-        {% set slug = "home_hero_heading" %}
-        <h1 class="text-2xl sm:text-3xl lg:text-4xl font-semibold text-ownerMint mb-3">
-          {{ page_text(slug, "Where businesses find their next owner.") }}
-          {% if can_edit_copy %}
-            <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
-               class="ml-2 text-[10px] text-ownerMint underline">Edit</a>
-          {% endif %}
-        </h1>
+      {% set slug = "landing_hero_heading" %}
+      <h1 class="max-w-3xl text-4xl font-semibold leading-[1.08] tracking-[-0.035em] text-white sm:text-5xl lg:text-6xl">
+        {{ page_text(slug, "Where businesses find their next owner.") }}
+        {% if can_edit_copy %}
+          <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}" class="ml-2 align-middle text-[10px] tracking-normal text-ownerMint underline">Edit</a>
+        {% endif %}
+      </h1>
 
-        {% set slug = "home_hero_body" %}
-        <p class="text-sm sm:text-base text-white/80 max-w-xl">
-          {{ page_text(
-            slug,
-            "A modern, confidential marketplace for owners, operators and investors buying and selling established businesses."
-          ) }}
-          {% if can_edit_copy %}
-            <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
-               class="ml-2 text-[10px] text-ownerMint underline">Edit</a>
-          {% endif %}
-        </p>
+      {% set slug = "landing_hero_body" %}
+      <p class="mt-6 max-w-2xl text-sm leading-7 text-white/70 sm:text-base">
+        {{ page_text(slug, "A modern, discreet marketplace connecting established business owners with serious buyers—without the noise of a public sales process.") }}
+        {% if can_edit_copy %}
+          <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}" class="ml-2 text-[10px] text-ownerMint underline">Edit</a>
+        {% endif %}
+      </p>
+
+      <div class="mt-8 flex flex-col gap-3 sm:flex-row">
+        <a href="{{ url_for('pricing', role='seller') }}" class="inline-flex items-center justify-center rounded-xl bg-ownerCoral px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-ownerCoral/20 transition hover:-translate-y-0.5 hover:bg-ownerMint hover:text-ownerInk">
+          Sell your business
+          <span class="ml-2" aria-hidden="true">→</span>
+        </a>
+        <a href="{{ url_for('listings') }}" class="inline-flex items-center justify-center rounded-xl border border-white/20 bg-white/5 px-5 py-3 text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:border-ownerMint/60 hover:text-ownerMint">
+          Explore opportunities
+        </a>
       </div>
 
-      <div class="flex flex-wrap gap-3 text-xs sm:text-sm">
-        {% set slug = "home_hero_cta_seller" %}
-        <a href="{{ url_for('pricing') }}"
-           class="inline-flex items-center justify-center px-4 py-2 rounded bg-ownerCoral text-white hover:bg-ownerMint hover:text-black transition">
-          {{ page_text(slug, "I want to sell a business") }}
-          {% if can_edit_copy %}
-            <span class="ml-2 text-[10px] text-black/80 underline">Edit</span>
-          {% endif %}
-        </a>
-
-        {% set slug = "home_hero_cta_buyer" %}
-        <a href="{{ url_for('pricing') }}"
-           class="inline-flex items-center justify-center px-4 py-2 rounded border border-white/30 text-white hover:bg-white/10 hover:text-ownerMint transition">
-          {{ page_text(slug, "I want to buy a business") }}
-          {% if can_edit_copy %}
-            <span class="ml-2 text-[10px] text-ownerMint underline">Edit</span>
-          {% endif %}
-        </a>
+      <div class="mt-8 flex flex-wrap gap-x-5 gap-y-2 text-[11px] text-white/55">
+        <span class="inline-flex items-center gap-1.5"><span class="text-ownerMint">✓</span> Confidential by design</span>
+        <span class="inline-flex items-center gap-1.5"><span class="text-ownerMint">✓</span> Vetted participants</span>
+        <span class="inline-flex items-center gap-1.5"><span class="text-ownerMint">✓</span> Structured introductions</span>
       </div>
     </div>
 
-    <!-- Right: tagline stack -->
-    <div class="p-6 sm:p-10 flex items-center bg-gradient-to-br from-black/10 via-black/0 to-black/40">
-      <div class="space-y-2 sm:space-y-3 text-right w-full">
-        {% set slug = "home_hero_tagline_1" %}
-        <p class="text-xl sm:text-2xl lg:text-3xl font-semibold">
-          {{ page_text(slug, "Discover") }} <span class="text-ownerMint">opportunity.</span>
-          {% if can_edit_copy %}
-            <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
-               class="ml-2 text-[10px] text-ownerMint underline">Edit</a>
-          {% endif %}
-        </p>
+    <!-- Marketplace preview -->
+    <div class="relative mx-auto w-full max-w-md lg:mx-0 lg:ml-auto">
+      <div class="absolute -inset-4 rounded-[2rem] bg-gradient-to-br from-ownerBlue/30 to-ownerMint/10 blur-2xl"></div>
+      <div class="relative overflow-hidden rounded-3xl border border-white/15 bg-ownerNavy/90 p-4 shadow-2xl shadow-black/50 backdrop-blur sm:p-5">
+        <div class="mb-5 flex items-center justify-between border-b border-white/10 pb-4">
+          <div>
+            <p class="text-[10px] uppercase tracking-[0.18em] text-white/40">Ownerlane marketplace</p>
+            <p class="mt-1 text-sm font-semibold text-white">Matched opportunities</p>
+          </div>
+          <span class="rounded-full bg-ownerMint/15 px-2.5 py-1 text-[10px] font-semibold text-ownerMint">Private</span>
+        </div>
 
-        {% set slug = "home_hero_tagline_2" %}
-        <p class="text-xl sm:text-2xl lg:text-3xl font-semibold">
-          {{ page_text(slug, "Meet") }} <span class="text-ownerBlue">qualified people.</span>
-          {% if can_edit_copy %}
-            <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
-               class="ml-2 text-[10px] text-ownerMint underline">Edit</a>
-          {% endif %}
-        </p>
+        <div class="space-y-3">
+          <div class="rounded-2xl border border-ownerMint/30 bg-white/[.06] p-4">
+            <div class="flex items-start justify-between gap-3">
+              <div>
+                <p class="text-[10px] font-mono text-white/35">OL-1028</p>
+                <p class="mt-1 text-sm font-semibold">Established services business</p>
+              </div>
+              <span class="rounded-full bg-ownerMint px-2 py-1 text-[9px] font-bold text-ownerInk">94% fit</span>
+            </div>
+            <div class="mt-4 grid grid-cols-2 gap-2 text-[10px] text-white/55">
+              <span class="rounded-lg bg-black/20 px-2.5 py-2">South East</span>
+              <span class="rounded-lg bg-black/20 px-2.5 py-2">£2m–£5m</span>
+            </div>
+          </div>
 
-        {% set slug = "home_hero_tagline_3" %}
-        <p class="text-xl sm:text-2xl lg:text-3xl font-semibold">
-          {{ page_text(slug, "Move") }} <span class="text-ownerCoral">business forward.</span>
-          {% if can_edit_copy %}
-            <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
-               class="ml-2 text-[10px] text-ownerMint underline">Edit</a>
-          {% endif %}
-        </p>
+          <div class="rounded-2xl border border-white/10 bg-white/[.035] p-4">
+            <div class="flex items-start justify-between gap-3">
+              <div>
+                <p class="text-[10px] font-mono text-white/35">OL-1031</p>
+                <p class="mt-1 text-sm font-semibold">Confidential growth company</p>
+              </div>
+              <span class="rounded-full bg-ownerBlue/25 px-2 py-1 text-[9px] font-semibold text-blue-200">New</span>
+            </div>
+            <div class="mt-4 h-1.5 overflow-hidden rounded-full bg-white/10"><div class="h-full w-3/4 rounded-full bg-gradient-to-r from-ownerBlue to-ownerMint"></div></div>
+          </div>
+        </div>
 
-        {% set slug = "home_hero_right_body" %}
-        <p class="text-xs sm:text-sm text-white/60 mt-4">
-          {{ page_text(
-            slug,
-            "Ownerlane brings serious buyers and business owners together through a clear, controlled route to the right conversation."
-          ) }}
-          {% if can_edit_copy %}
-            <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
-               class="ml-2 text-[10px] text-ownerMint underline">Edit</a>
-          {% endif %}
-        </p>
+        <div class="mt-4 flex items-center justify-between rounded-xl bg-black/20 px-3 py-2.5 text-[10px] text-white/45">
+          <span>Identity protected until approval</span>
+          <span class="text-ownerMint">NDA ready</span>
+        </div>
       </div>
     </div>
   </div>
 </section>
 
-<!-- WHAT THIS PLATFORM DOES -->
-<section class="mb-10">
-  <div class="max-w-4xl space-y-3">
-    {% set slug = "home_what_is_heading" %}
-    <h2 class="text-xl font-semibold text-white">
-      {{ page_text(slug, "A better lane to your next deal") }}
-      {% if can_edit_copy %}
-        <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
-           class="ml-2 text-[10px] text-ownerMint underline">Edit</a>
-      {% endif %}
-    </h2>
-
-    {% set slug = "home_what_is_para_1" %}
-    <p class="text-sm text-white/80">
-      {{ page_text(
-        slug,
-        "Ownerlane is a private marketplace for established UK businesses. Owners can explore a sale discreetly, while vetted buyers review relevant opportunities, make enquiries and receive curated matches."
-      ) }}
-      {% if can_edit_copy %}
-        <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
-           class="ml-2 text-[10px] text-ownerMint underline">Edit</a>
-      {% endif %}
-    </p>
-
-    {% set slug = "home_what_is_para_2" %}
-    <p class="text-sm text-white/80">
-      {{ page_text(
-        slug,
-        "It is structured enough to move a deal forward and discreet enough to protect day-to-day operations, people and reputation."
-      ) }}
-      {% if can_edit_copy %}
-        <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
-           class="ml-2 text-[10px] text-ownerMint underline">Edit</a>
-      {% endif %}
-    </p>
+<!-- VALUE STRIP -->
+<section class="grid gap-px overflow-hidden rounded-2xl border border-white/10 bg-white/10 sm:grid-cols-3 mt-6">
+  <div class="bg-ownerInk/75 px-5 py-5">
+    <p class="text-2xl font-semibold text-ownerMint">Private</p>
+    <p class="mt-1 text-xs leading-5 text-white/55">Sensitive details stay protected until the right stage.</p>
+  </div>
+  <div class="bg-ownerInk/75 px-5 py-5">
+    <p class="text-2xl font-semibold text-white">Qualified</p>
+    <p class="mt-1 text-xs leading-5 text-white/55">Profiles and mandates help surface serious counterparties.</p>
+  </div>
+  <div class="bg-ownerInk/75 px-5 py-5">
+    <p class="text-2xl font-semibold text-ownerCoral">Structured</p>
+    <p class="mt-1 text-xs leading-5 text-white/55">Enquiries, introductions and progress are kept in one place.</p>
   </div>
 </section>
 
 <!-- HOW IT WORKS -->
-<section class="mb-10">
-  {% set slug = "home_how_it_works_heading" %}
-  <h2 class="text-lg font-semibold text-white mb-4">
-    {{ page_text(slug, "How it works") }}
-    {% if can_edit_copy %}
-      <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
-         class="ml-2 text-[10px] text-ownerMint underline">Edit</a>
-    {% endif %}
-  </h2>
+<section id="how-it-works" class="py-20 sm:py-24">
+  <div class="mb-10 max-w-2xl">
+    <p class="text-xs font-semibold uppercase tracking-[0.2em] text-ownerMint">A clearer route to a deal</p>
+    {% set slug = "landing_how_heading" %}
+    <h2 class="mt-3 text-3xl font-semibold tracking-[-0.025em] sm:text-4xl">
+      {{ page_text(slug, "From first thought to the right conversation.") }}
+      {% if can_edit_copy %}<a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}" class="ml-2 text-[10px] tracking-normal text-ownerMint underline">Edit</a>{% endif %}
+    </h2>
+    <p class="mt-4 text-sm leading-6 text-white/60">Ownerlane gives both sides a controlled process while keeping the broker at the centre of each introduction.</p>
+  </div>
 
-  <div class="grid md:grid-cols-3 gap-4">
-    <div class="bg-white/5 border border-white/10 rounded-lg p-4 backdrop-blur-sm">
-      {% set slug = "home_hiw_step1_title" %}
-      <div class="text-ownerMint text-sm font-semibold mb-1">
-        {{ page_text(slug, "1. Create your profile") }}
-        {% if can_edit_copy %}
-          <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
-             class="ml-1 text-[10px] text-ownerMint underline">Edit</a>
-        {% endif %}
-      </div>
-
-      {% set slug = "home_hiw_step1_body" %}
-      <p class="text-xs text-white/75">
-        {{ page_text(
-          slug,
-          "Sellers outline their business and appetite to sell. Buyers set preferences for region, sector type, size, and price band."
-        ) }}
-        {% if can_edit_copy %}
-          <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
-             class="ml-1 text-[10px] text-ownerMint underline">Edit</a>
-        {% endif %}
-      </p>
-    </div>
-
-    <div class="bg-white/5 border border-white/10 rounded-lg p-4 backdrop-blur-sm">
-      {% set slug = "home_hiw_step2_title" %}
-      <div class="text-ownerCoral text-sm font-semibold mb-1">
-        {{ page_text(slug, "2. Listings & matching") }}
-        {% if can_edit_copy %}
-          <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
-             class="ml-1 text-[10px] text-ownerMint underline">Edit</a>
-        {% endif %}
-      </div>
-
-      {% set slug = "home_hiw_step2_body" %}
-      <p class="text-xs text-white/75">
-        {{ page_text(
-          slug,
-          "Sellers create confidential listings. Buyers see relevant opportunities in their dashboard, not a noisy public marketplace."
-        ) }}
-        {% if can_edit_copy %}
-          <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
-             class="ml-1 text-[10px] text-ownerMint underline">Edit</a>
-        {% endif %}
-      </p>
-    </div>
-
-    <div class="bg-white/5 border border-white/10 rounded-lg p-4 backdrop-blur-sm">
-      {% set slug = "home_hiw_step3_title" %}
-      <div class="text-ownerBlue text-sm font-semibold mb-1">
-        {{ page_text(slug, "3. Structured enquiries") }}
-        {% if can_edit_copy %}
-          <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
-             class="ml-1 text-[10px] text-ownerMint underline">Edit</a>
-        {% endif %}
-      </div>
-
-      {% set slug = "home_hiw_step3_body" %}
-      <p class="text-xs text-white/75">
-        {{ page_text(
-          slug,
-          "Buyers send enquiries behind an NDA gate. Sellers receive, track and manage responses without sharing sensitive details too early."
-        ) }}
-        {% if can_edit_copy %}
-          <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
-             class="ml-1 text-[10px] text-ownerMint underline">Edit</a>
-        {% endif %}
-      </p>
-    </div>
+  <div class="grid gap-4 md:grid-cols-3">
+    {% set steps = [
+      ('01', 'Build your profile', 'Tell us what you own or what you want to acquire, including region, sector and deal appetite.'),
+      ('02', 'Discover the right fit', 'Review confidential opportunities and tailored matches without exposing sensitive information too early.'),
+      ('03', 'Move forward privately', 'Use structured enquiries, NDA controls and supported introductions to start serious conversations.')
+    ] %}
+    {% for number, title, body in steps %}
+      <article class="group rounded-2xl border border-white/10 bg-white/[.045] p-6 transition hover:-translate-y-1 hover:border-ownerMint/35 hover:bg-white/[.065]">
+        <div class="flex items-center justify-between">
+          <span class="font-mono text-xs text-ownerMint">{{ number }}</span>
+          <span class="text-lg text-white/20 transition group-hover:translate-x-1 group-hover:text-ownerMint" aria-hidden="true">→</span>
+        </div>
+        <h3 class="mt-8 text-lg font-semibold">{{ title }}</h3>
+        <p class="mt-3 text-xs leading-6 text-white/55">{{ body }}</p>
+      </article>
+    {% endfor %}
   </div>
 </section>
 
-<!-- FEATURES FOR SELLERS & BUYERS -->
-<section class="mb-10">
-  <div class="grid md:grid-cols-2 gap-6">
-    <!-- Sellers -->
-    <div class="bg-white/5 border border-white/10 rounded-lg p-5 backdrop-blur-sm">
-      {% set slug = "home_sellers_heading" %}
-      <h3 class="text-md font-semibold text-ownerMint mb-2">
-        {{ page_text(slug, "For Sellers") }}
-        {% if can_edit_copy %}
-          <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
-             class="ml-2 text-[10px] text-ownerMint underline">Edit</a>
-        {% endif %}
-      </h3>
+<!-- BUYER / SELLER PATHS -->
+<section class="grid overflow-hidden rounded-[2rem] border border-white/10 lg:grid-cols-2">
+  <div class="relative bg-ownerCloud p-7 text-ownerInk sm:p-10">
+    <div class="absolute right-0 top-0 h-36 w-36 rounded-bl-full bg-ownerMint/15"></div>
+    <p class="text-xs font-semibold uppercase tracking-[0.18em] text-blue-700">For business owners</p>
+    <h2 class="mt-4 max-w-md text-3xl font-semibold tracking-[-0.025em]">Explore a sale without putting your business on display.</h2>
+    <p class="mt-4 max-w-lg text-sm leading-6 text-slate-600">Create a confidential opportunity, control its status and engage with qualified interest through a structured process.</p>
+    <ul class="mt-7 space-y-3 text-sm text-slate-700">
+      <li class="flex gap-3"><span class="text-blue-600">✓</span> Protect your identity and sensitive figures</li>
+      <li class="flex gap-3"><span class="text-blue-600">✓</span> Manage listings and enquiries in one place</li>
+      <li class="flex gap-3"><span class="text-blue-600">✓</span> Choose when a conversation moves forward</li>
+    </ul>
+    <a href="{{ url_for('pricing', role='seller') }}" class="mt-8 inline-flex items-center rounded-xl bg-ownerInk px-5 py-3 text-sm font-semibold text-white transition hover:bg-ownerBlue">Start as a seller <span class="ml-2">→</span></a>
+  </div>
 
-      {% set slug = "home_sellers_intro" %}
-      <p class="text-xs text-white/75 mb-3">
-        {{ page_text(
-          slug,
-          "A controlled way to explore a sale while protecting your people, operations and reputation."
-        ) }}
-        {% if can_edit_copy %}
-          <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
-             class="ml-2 text-[10px] text-ownerMint underline">Edit</a>
-        {% endif %}
-      </p>
-
-      <ul class="text-xs text-white/80 space-y-2 list-disc list-inside">
-        {% set slug = "home_sellers_bullet_1" %}
-        <li>
-          {{ page_text(slug, "Create confidential listings for one or multiple businesses.") }}
-          {% if can_edit_copy %}
-            <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
-               class="ml-1 text-[10px] text-ownerMint underline">Edit</a>
-          {% endif %}
-        </li>
-
-        {% set slug = "home_sellers_bullet_2" %}
-        <li>
-          {{ page_text(slug, "Upload photos and key commercial headline metrics.") }}
-          {% if can_edit_copy %}
-            <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
-               class="ml-1 text-[10px] text-ownerMint underline">Edit</a>
-          {% endif %}
-        </li>
-
-        {% set slug = "home_sellers_bullet_3" %}
-        <li>
-          {{ page_text(
-            slug,
-            "Decide when a listing is Draft, Live, Under Offer or Sold."
-          ) }}
-          {% if can_edit_copy %}
-            <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
-               class="ml-1 text-[10px] text-ownerMint underline">Edit</a>
-          {% endif %}
-        </li>
-
-        {% set slug = "home_sellers_bullet_4" %}
-        <li>
-          {{ page_text(slug, "Review enquiries in one place with status tracking.") }}
-          {% if can_edit_copy %}
-            <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
-               class="ml-1 text-[10px] text-ownerMint underline">Edit</a>
-          {% endif %}
-        </li>
-
-        {% set slug = "home_sellers_bullet_5" %}
-        <li>
-          {{ page_text(
-            slug,
-            "Request supported introductions when you are ready to move forward."
-          ) }}
-          {% if can_edit_copy %}
-            <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
-               class="ml-1 text-[10px] text-ownerMint underline">Edit</a>
-          {% endif %}
-        </li>
-      </ul>
-
-      {% set slug = "home_sellers_cta" %}
-      <a href="{{ url_for('pricing', role='seller') }}"
-         class="inline-flex items-center justify-center mt-4 px-4 py-2 rounded bg-ownerCoral text-white text-xs hover:bg-ownerMint hover:text-black transition">
-        {{ page_text(slug, "Start as a seller") }}
-        {% if can_edit_copy %}
-          <span class="ml-2 text-[10px] text-black/80 underline">Edit</span>
-        {% endif %}
-      </a>
-    </div>
-
-    <!-- Buyers -->
-    <div class="bg-white/5 border border-white/10 rounded-lg p-5 backdrop-blur-sm">
-      {% set slug = "home_buyers_heading" %}
-      <h3 class="text-md font-semibold text-ownerCoral mb-2">
-        {{ page_text(slug, "For Buyers & Investors") }}
-        {% if can_edit_copy %}
-          <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
-             class="ml-2 text-[10px] text-ownerMint underline">Edit</a>
-        {% endif %}
-      </h3>
-
-      {% set slug = "home_buyers_intro" %}
-      <p class="text-xs text-white/75 mb-3">
-        {{ page_text(
-          slug,
-          "A curated stream of opportunities aligned to your investment profile."
-        ) }}
-        {% if can_edit_copy %}
-          <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
-             class="ml-2 text-[10px] text-ownerMint underline">Edit</a>
-        {% endif %}
-      </p>
-
-      <ul class="text-xs text-white/80 space-y-2 list-disc list-inside">
-        {% set slug = "home_buyers_bullet_1" %}
-        <li>
-          {{ page_text(
-            slug,
-            "Set your preferences for region, sector type, size and guide price band."
-          ) }}
-          {% if can_edit_copy %}
-            <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
-               class="ml-1 text-[10px] text-ownerMint underline">Edit</a>
-          {% endif %}
-        </li>
-
-        {% set slug = "home_buyers_bullet_2" %}
-        <li>
-          {{ page_text(slug, "See a dashboard of live, relevant opportunities.") }}
-          {% if can_edit_copy %}
-            <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
-               class="ml-1 text-[10px] text-ownerMint underline">Edit</a>
-          {% endif %}
-        </li>
-
-        {% set slug = "home_buyers_bullet_3" %}
-        <li>
-          {{ page_text(
-            slug,
-            "Send structured enquiries with context and appetite clearly set out."
-          ) }}
-          {% if can_edit_copy %}
-            <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
-               class="ml-1 text-[10px] text-ownerMint underline">Edit</a>
-          {% endif %}
-        </li>
-
-        {% set slug = "home_buyers_bullet_4" %}
-        <li>
-          {{ page_text(slug, "Track your enquiry history and upcoming follow-ups.") }}
-          {% if can_edit_copy %}
-            <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
-               class="ml-1 text-[10px] text-ownerMint underline">Edit</a>
-          {% endif %}
-        </li>
-
-        {% set slug = "home_buyers_bullet_5" %}
-        <li>
-          {{ page_text(
-            slug,
-            "Focus on commercial fit, quality and long-term potential—not just headline yield."
-          ) }}
-          {% if can_edit_copy %}
-            <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
-               class="ml-1 text-[10px] text-ownerMint underline">Edit</a>
-          {% endif %}
-        </li>
-      </ul>
-
-      {% set slug = "home_buyers_cta" %}
-      <a href="{{ url_for('pricing', role='buyer') }}"
-         class="inline-flex items-center justify-center mt-4 px-4 py-2 rounded border border-white/30 text-white text-xs hover:bg-white/10 hover:text-ownerMint transition">
-        {{ page_text(slug, "Start as a buyer") }}
-        {% if can_edit_copy %}
-          <span class="ml-2 text-[10px] text-ownerMint underline">Edit</span>
-        {% endif %}
-      </a>
-    </div>
+  <div class="relative bg-ownerBlue p-7 sm:p-10">
+    <div class="absolute bottom-0 right-0 h-44 w-44 rounded-tl-full bg-ownerInk/15"></div>
+    <p class="text-xs font-semibold uppercase tracking-[0.18em] text-ownerMint">For buyers & investors</p>
+    <h2 class="mt-4 max-w-md text-3xl font-semibold tracking-[-0.025em]">Find opportunities that fit your mandate.</h2>
+    <p class="mt-4 max-w-lg text-sm leading-6 text-white/70">Set clear acquisition criteria, receive relevant matches and engage when an opportunity meets your strategy.</p>
+    <ul class="mt-7 space-y-3 text-sm text-white/80">
+      <li class="flex gap-3"><span class="text-ownerMint">✓</span> Curated opportunities across UK sectors</li>
+      <li class="flex gap-3"><span class="text-ownerMint">✓</span> Premium access to full headline details</li>
+      <li class="flex gap-3"><span class="text-ownerMint">✓</span> Shortlists, enquiries and tracked introductions</li>
+    </ul>
+    <a href="{{ url_for('pricing', role='buyer') }}" class="relative mt-8 inline-flex items-center rounded-xl bg-ownerMint px-5 py-3 text-sm font-semibold text-ownerInk transition hover:bg-white">View buyer access <span class="ml-2">→</span></a>
   </div>
 </section>
 
-<!-- LATEST LISTINGS -->
-<section class="mb-6">
-  <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3">
+<!-- LIVE OPPORTUNITIES -->
+<section class="py-20 sm:py-24">
+  <div class="mb-8 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
     <div>
-      {% set slug = "home_latest_listings_heading" %}
-      <h2 class="text-lg font-semibold text-white">
-        {{ page_text(slug, "Latest listings") }}
-        {% if can_edit_copy %}
-          <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
-             class="ml-2 text-[10px] text-ownerMint underline">Edit</a>
-        {% endif %}
-      </h2>
-
-      {% set slug = "home_latest_listings_subtext" %}
-      <p class="text-xs text-white/60">
-        {{ page_text(slug, "A snapshot of currently live opportunities on the platform.") }}
-        {% if can_edit_copy %}
-          <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
-             class="ml-2 text-[10px] text-ownerMint underline">Edit</a>
-        {% endif %}
-      </p>
+      <p class="text-xs font-semibold uppercase tracking-[0.2em] text-ownerMint">Marketplace</p>
+      <h2 class="mt-3 text-3xl font-semibold tracking-[-0.025em]">Latest opportunities</h2>
+      <p class="mt-3 text-sm text-white/55">A glimpse of established businesses currently looking for their next owner.</p>
     </div>
-    <a href="{{ url_for('listings') }}?view=list"
-       class="inline-flex items-center justify-center text-xs px-3 py-2 rounded border border-white/20 text-white/80 hover:bg-white/10 hover:text-ownerMint transition">
-      View all listings
-    </a>
+    <a href="{{ url_for('listings') }}" class="text-sm font-semibold text-white/70 transition hover:text-ownerMint">Browse all listings →</a>
   </div>
-
-  {# Gating banner for non-premium buyers / anonymous visitors #}
-  {% set can_see_full = current_user.is_authenticated
-                         and current_user.role == 'buyer'
-                         and is_premium_buyer %}
-  {% if not can_see_full %}
-    {% set slug = "home_latest_gating_text" %}
-    <div class="mb-4 rounded-lg border border-white/15 bg-black/30 px-4 py-3 text-[11px] text-white/80 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-      <span>
-        {{ page_text(
-          slug,
-          "Listings are shown confidentially. Titles and guide prices are partially obscured. Buyer Premium members can see full headline figures."
-        ) }}
-        {% if can_edit_copy %}
-          <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
-             class="ml-1 text-[10px] text-ownerMint underline">Edit</a>
-        {% endif %}
-      </span>
-      <a href="{{ url_for('pricing', role='buyer') }}"
-         class="inline-flex items-center px-3 py-1.5 rounded bg-ownerCoral text-white font-semibold hover:bg-ownerMint hover:text-black transition">
-        View buyer plans
-      </a>
-    </div>
-  {% endif %}
 
   {% if listings %}
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-      {% for l in listings %}
-        <a href="{{ url_for('listing_detail', listing_id=l.id) }}"
-           class="block rounded-lg border border-white/10 bg-black/30 p-4 hover:border-ownerMint/80 hover:shadow-lg hover:shadow-black/40 transition">
-
-          <p class="text-[11px] font-mono text-white/50 mb-1">
-            {{ l.listing_code }}
-          </p>
-
-          {# Gated title #}
-          <p class="font-semibold text-sm text-white mb-1">
+    <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+      {% for l in listings[:3] %}
+        <a href="{{ url_for('listing_detail', listing_id=l.id) }}" class="group rounded-2xl border border-white/10 bg-ownerInk/55 p-5 transition hover:-translate-y-1 hover:border-ownerMint/40 hover:shadow-xl hover:shadow-black/20">
+          <div class="flex items-center justify-between gap-3">
+            <span class="font-mono text-[10px] text-white/35">{{ l.listing_code or 'Reference pending' }}</span>
+            <span class="rounded-full border border-ownerMint/25 bg-ownerMint/10 px-2 py-1 text-[9px] font-semibold uppercase tracking-wider text-ownerMint">Live</span>
+          </div>
+          <h3 class="mt-6 text-base font-semibold transition group-hover:text-ownerMint">
+            {% if can_see_full %}{{ l.title or 'Confidential business' }}{% else %}Confidential business opportunity{% endif %}
+          </h3>
+          <p class="mt-2 text-xs text-white/50">{{ l.region or 'United Kingdom' }} · {{ l.care_type or 'Sector confidential' }}</p>
+          <div class="mt-6 flex items-center justify-between border-t border-white/10 pt-4 text-xs">
+            <span class="text-white/40">Guide price</span>
             {% if can_see_full %}
-              {{ l.title }}
+              <span class="font-semibold text-white">{{ l.guide_price_band or 'On request' }}</span>
             {% else %}
-              Confidential Business
+              <span class="font-semibold text-ownerMint">Premium access</span>
             {% endif %}
-          </p>
-
-          <p class="text-[11px] text-white/60 mb-1">
-            {{ l.region or "UK" }} • {{ l.care_type or "Sector / industry" }} • {{ l.beds or "?" }} units
-          </p>
-
-          <p class="text-[11px] text-white/60">
-            Guide price:
-            {% if can_see_full %}
-              <span class="text-ownerMint">
-                {{ l.guide_price_band or "On request" }}
-              </span>
-            {% else %}
-              <span class="blur-sm select-none">£X,XXX,XXX</span>
-              <span class="ml-1 text-[10px] text-ownerMint">Premium only</span>
-            {% endif %}
-          </p>
+          </div>
         </a>
       {% endfor %}
     </div>
   {% else %}
-    {% set slug = "home_latest_no_listings" %}
-    <p class="text-sm text-white/70">
-      {{ page_text(slug, "No live listings yet. New opportunities will appear here as they go live.") }}
-      {% if can_edit_copy %}
-        <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
-           class="ml-2 text-[10px] text-ownerMint underline">Edit</a>
-      {% endif %}
-    </p>
+    <div class="rounded-2xl border border-dashed border-white/15 bg-white/[.03] p-8 text-center">
+      <p class="text-sm text-white/60">New confidential opportunities are being prepared.</p>
+      <a href="{{ url_for('pricing', role='buyer') }}" class="mt-3 inline-block text-sm font-semibold text-ownerMint">Create a buyer profile →</a>
+    </div>
   {% endif %}
 </section>
 
+<!-- TRUST / ADVISERS -->
+<section class="grid gap-6 rounded-[2rem] border border-white/10 bg-black/20 p-7 sm:p-10 lg:grid-cols-[1.1fr_.9fr] lg:items-center">
+  <div>
+    <p class="text-xs font-semibold uppercase tracking-[0.2em] text-ownerMint">Built around discretion</p>
+    <h2 class="mt-3 max-w-xl text-3xl font-semibold tracking-[-0.025em]">Confidentiality is part of the process, not an afterthought.</h2>
+    <p class="mt-4 max-w-2xl text-sm leading-7 text-white/60">Ownerlane uses tiered access, anonymised public listings, NDA gates and broker-managed introductions to help protect owners, employees and ongoing operations.</p>
+  </div>
+  <div class="grid grid-cols-2 gap-3 text-center text-xs">
+    <div class="rounded-2xl border border-white/10 bg-white/[.04] px-3 py-5"><span class="block text-2xl text-ownerMint">◌</span><span class="mt-2 block text-white/65">Controlled disclosure</span></div>
+    <div class="rounded-2xl border border-white/10 bg-white/[.04] px-3 py-5"><span class="block text-2xl text-ownerMint">✓</span><span class="mt-2 block text-white/65">NDA-led enquiries</span></div>
+    <div class="rounded-2xl border border-white/10 bg-white/[.04] px-3 py-5"><span class="block text-2xl text-ownerMint">↔</span><span class="mt-2 block text-white/65">Supported introductions</span></div>
+    <div class="rounded-2xl border border-white/10 bg-white/[.04] px-3 py-5"><span class="block text-2xl text-ownerMint">◎</span><span class="mt-2 block text-white/65">Deal visibility</span></div>
+  </div>
+</section>
+
+<!-- FINAL CTA -->
+<section class="relative my-20 overflow-hidden rounded-[2rem] bg-ownerMint px-6 py-12 text-center text-ownerInk sm:px-10 sm:py-16">
+  <div class="absolute -left-16 -top-20 h-52 w-52 rounded-full border-[32px] border-white/20"></div>
+  <div class="absolute -bottom-24 -right-12 h-56 w-56 rounded-full bg-ownerBlue/15"></div>
+  <div class="relative mx-auto max-w-2xl">
+    <p class="text-xs font-semibold uppercase tracking-[0.2em] text-ownerInk/55">Your next move starts here</p>
+    {% set slug = "landing_final_heading" %}
+    <h2 class="mt-3 text-3xl font-semibold tracking-[-0.03em] sm:text-4xl">
+      {{ page_text(slug, "Ready to find the right way forward?") }}
+      {% if can_edit_copy %}<a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}" class="ml-2 text-[10px] tracking-normal underline">Edit</a>{% endif %}
+    </h2>
+    <p class="mx-auto mt-4 max-w-xl text-sm leading-6 text-ownerInk/65">Whether you are considering a sale or actively looking to acquire, Ownerlane gives you a confidential place to begin.</p>
+    <div class="mt-7 flex flex-col justify-center gap-3 sm:flex-row">
+      <a href="{{ url_for('pricing', role='seller') }}" class="rounded-xl bg-ownerInk px-5 py-3 text-sm font-semibold text-white transition hover:bg-ownerBlue">I’m considering selling</a>
+      <a href="{{ url_for('pricing', role='buyer') }}" class="rounded-xl border border-ownerInk/20 bg-white/50 px-5 py-3 text-sm font-semibold transition hover:bg-white">I’m looking to acquire</a>
+    </div>
+  </div>
+</section>
 {% endblock %}

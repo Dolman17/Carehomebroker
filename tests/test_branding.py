@@ -18,6 +18,34 @@ def test_ownerlane_homepage_brand(client):
     assert "Care Home Broker" not in page
 
 
+def test_landing_page_has_conversion_paths_and_confidentiality_copy(client):
+    response = client.get("/")
+    page = response.get_data(as_text=True)
+
+    assert "Sell your business" in page
+    assert "Explore opportunities" in page
+    assert "For business owners" in page
+    assert "For buyers & investors" in page
+    assert "Confidentiality is part of the process" in page
+    assert 'href="/pricing?role=seller"' in page
+    assert 'href="/pricing?role=buyer"' in page
+
+
+def test_landing_page_respects_listing_access(client):
+    anonymous_page = client.get("/").get_data(as_text=True)
+    assert "SECRET BUSINESS NAME" not in anonymous_page
+    assert "£4,000,000" not in anonymous_page
+    assert "Premium access" in anonymous_page
+
+    client.post(
+        "/login",
+        data={"email": "buyer@example.test", "password": "Testing123!"},
+    )
+    premium_page = client.get("/").get_data(as_text=True)
+    assert "SECRET BUSINESS NAME" in premium_page
+    assert "£4,000,000" in premium_page
+
+
 def test_public_marketplace_pages_use_ownerlane(client):
     for path in ("/listings", "/pricing", "/login"):
         response = client.get(path)
