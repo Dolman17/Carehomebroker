@@ -55,6 +55,12 @@ Buyer profile preferences
 
 Weekly digest task endpoint
 
+Persistent in-app notification centre with unread counts
+
+Immediate, weekly or disabled notification-email preferences
+
+Deduplicated saved-search and transaction-event delivery
+
 Listing matching logic
 
 Confidential listing handling

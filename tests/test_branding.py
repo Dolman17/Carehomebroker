@@ -121,7 +121,7 @@ def test_live_brand_sources_do_not_reference_legacy_names():
 def test_rebrand_preserves_route_contract():
     rules = {rule.rule for rule in app.url_map.iter_rules()}
 
-    assert len(rules) == 87
+    assert len(rules) == 91
     assert "/" in rules
     assert "/listings" in rules
     assert "/pricing" in rules
@@ -137,3 +137,4 @@ def test_rebrand_preserves_route_contract():
     assert "/complaints" in rules
     assert "/forgot-password" in rules
     assert "/verify-email/<token>" in rules
+    assert "/notifications" in rules

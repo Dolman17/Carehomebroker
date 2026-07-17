@@ -75,6 +75,13 @@
         </a>
 
         {% if current_user.is_authenticated %}
+          <a href="{{ url_for('notification_center') }}"
+             class="relative text-white/80 hover:text-ownerMint transition-colors">
+            Notifications
+            {% if unread_notification_count %}
+              <span class="ml-1 inline-flex min-w-5 items-center justify-center rounded-full bg-ownerCoral px-1.5 py-0.5 text-[10px] font-semibold text-white">{{ unread_notification_count if unread_notification_count < 100 else '99+' }}</span>
+            {% endif %}
+          </a>
           <a href="{{ url_for('my_dashboard') }}"
              class="text-white/80 hover:text-ownerMint transition-colors">
             My Dashboard
@@ -211,6 +218,12 @@
       </a>
 
       {% if current_user.is_authenticated %}
+
+        <a href="{{ url_for('notification_center') }}"
+           class="flex items-center justify-between py-1 text-white/80 hover:text-ownerMint">
+          <span>Notifications</span>
+          {% if unread_notification_count %}<span class="rounded-full bg-ownerCoral px-2 py-0.5 text-[10px] text-white">{{ unread_notification_count if unread_notification_count < 100 else '99+' }}</span>{% endif %}
+        </a>
 
         <a href="{{ url_for('my_dashboard') }}"
            class="py-1 text-white/80 hover:text-ownerMint">

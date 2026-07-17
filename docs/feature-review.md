@@ -9,7 +9,7 @@ This is a product-readiness review of the current application, not a security ce
 | Area | What works today | Readiness | Main gap |
 |---|---|---:|---|
 | Marketplace discovery | Public live listings, confidentiality gating, keyword/region/sector/price filters, price sorting, list and map views, pagination | 8/10 | More sector-specific filters and search analytics |
-| Buyer workflow | Detailed profile, rules-based matches, persistent shortlist, saved searches, enquiries, dashboard, subscriptions | 7/10 | Automated alert delivery and buyer verification |
+| Buyer workflow | Detailed profile, rules-based matches, persistent shortlist, saved searches, event-driven alerts, enquiries, dashboard and subscriptions | 8/10 | Buyer verification and richer qualification evidence |
 | Authentication | Verified-email registration, expiring one-time password resets, persistent login throttling and stricter admin sessions | 8/10 | Optional admin MFA and security-event audit views |
 | Seller workflow | Profile, listing creation/editing, photos, status changes, enquiries, buyer matches, introductions and valuation requests | 7/10 | Listing analytics, document room and offer workflow |
 | Confidentiality | Blurred restricted data, premium access rules, NDAs and private seller documents | 8/10 | Staged disclosure permissions and audit trail |
@@ -18,7 +18,7 @@ This is a product-readiness review of the current application, not a security ce
 | Valuer workflow | Directory/profile, request assignment, accept/decline/update and digest support | 5/10 | Verification, availability, scope/quote management and billing |
 | Billing | Stripe checkout, webhooks, subscription state and customer portal | 7/10 | Failed-payment recovery and entitlement audit views |
 | Admin | Role directories, listing approval, enquiries, matches, introductions, deals, subscriptions, content and impersonation | 7/10 | Activity log, operational reporting and bulk actions |
-| Notifications | Email helpers and weekly digest task | 4/10 | In-app notification centre and event-driven alerts |
+| Notifications | Persistent notification centre, unread state, immediate/weekly/off preferences, deduplicated saved-search alerts and transaction events | 8/10 | Delivery analytics, per-event controls and background workers |
 | Reporting | Deal/commission records and dashboard counts | 3/10 | Funnel, time-to-stage, listing engagement and revenue analytics |
 | Multi-sector data model | First-class sectors, configurable attributes and legacy compatibility | 7/10 | Admin-managed sector schemas and buyer criteria migration |
 
@@ -39,6 +39,10 @@ This is a product-readiness review of the current application, not a security ce
 - Added signed, expiring and single-use password-reset links with account-safe request responses.
 - Added persistent failed-login throttling without storing raw email or IP identities.
 - Added session rotation, opt-in remember-me and idle/absolute limits for admin sessions.
+- Added a persistent notification centre with unread counts and ownership-safe read controls.
+- Added immediate, weekly-digest and off email preferences with retryable delivery state.
+- Added deduplicated saved-search/profile alerts when listings become live.
+- Added notifications for enquiries, introduction changes and valuation requests/statuses.
 
 Saved-search matches are included in the existing protected weekly digest task. Immediate event-triggered alerts remain a later notification-centre enhancement.
 
@@ -48,7 +52,7 @@ Saved-search matches are included in the existing protected weekly digest task. 
 
 1. **Normalised sector model — delivered.** First-class sectors, configurable attributes and compatibility migration are now in place.
 2. **Authentication hardening — core delivered.** Verified email, password reset, login throttling and stronger admin sessions are in place; optional admin MFA remains a later enhancement.
-3. **Notification centre and saved-search delivery.** Create persisted notifications, deduplicate matching-listing alerts and send digest or immediate email according to buyer preference.
+3. **Notification centre and saved-search delivery — delivered.** Persisted, deduplicated in-app events now support immediate, weekly or disabled email delivery.
 4. **Money data migration — delivered.** Listings now store price, revenue and EBITDA in integer minor units plus currency, with legacy display fallbacks.
 5. **Activity and audit log.** Record sensitive access, status changes, admin actions and document downloads.
 
@@ -71,4 +75,4 @@ Saved-search matches are included in the existing protected weekly digest task. 
 
 ## Suggested next build
 
-Build the persisted notification centre next so saved searches, introductions and marketplace events can be delivered reliably without relying only on the weekly digest task. Pair it with the activity and audit log so users and administrators can see security-sensitive events and notification delivery history.
+Build the activity and audit log next so users and administrators can see sensitive access, admin actions, document downloads and notification-delivery history. This should provide the operational evidence needed before expanding into the staged data room.

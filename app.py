@@ -5,6 +5,7 @@ import smtplib
 import math
 import hashlib
 import hmac
+from html import escape
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from urllib.parse import urljoin, urlparse
 from email.message import EmailMessage
@@ -38,6 +39,7 @@ from flask_login import (
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 from sqlalchemy import func, desc, or_
+from sqlalchemy.exc import IntegrityError
 
 from flask import current_app
 
@@ -602,6 +604,51 @@ class SavedSearch(db.Model):
         db.UniqueConstraint(
             "buyer_id", "name", name="uq_saved_search_buyer_name"
         ),
+    )
+
+
+class NotificationPreference(db.Model):
+    __tablename__ = "notification_preference"
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(
+        db.Integer, db.ForeignKey("user.id"), unique=True, nullable=False
+    )
+    email_mode = db.Column(db.String(20), nullable=False, default="weekly")
+    updated_at = db.Column(
+        db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow
+    )
+
+    user = db.relationship(
+        "User", backref=db.backref("notification_preference", uselist=False)
+    )
+
+
+class Notification(db.Model):
+    __tablename__ = "notification"
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(
+        db.Integer, db.ForeignKey("user.id"), nullable=False, index=True
+    )
+    event_type = db.Column(db.String(50), nullable=False, index=True)
+    title = db.Column(db.String(200), nullable=False)
+    body = db.Column(db.Text, nullable=False)
+    target_url = db.Column(db.String(500))
+    dedupe_key = db.Column(db.String(255), nullable=False)
+    email_eligible = db.Column(db.Boolean, nullable=False, default=True)
+    read_at = db.Column(db.DateTime)
+    email_sent_at = db.Column(db.DateTime)
+    digest_sent_at = db.Column(db.DateTime)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+    user = db.relationship("User", backref="notifications")
+
+    __table_args__ = (
+        db.UniqueConstraint(
+            "user_id", "dedupe_key", name="uq_notification_user_dedupe"
+        ),
+        db.Index("ix_notification_user_unread", "user_id", "read_at"),
     )
 
 
@@ -1476,9 +1523,8 @@ def _label_for_intro_status(status_key: str) -> str:
 
 def notify_introduction_status_change(intro: Introduction, old_status: str, new_status: str):
     """
-    Send emails when an introduction moves through the pipeline.
-    - Always notifies the internal broker email (LEADS_NOTIFICATION_EMAIL).
-    - Optionally notifies buyer/seller on key milestones.
+    Send the operational broker email when an introduction changes status.
+    Buyer and seller delivery is handled by persisted notification preferences.
     """
     internal_email = app.config.get("LEADS_NOTIFICATION_EMAIL")
     if not internal_email:
@@ -1521,48 +1567,6 @@ def notify_introduction_status_change(intro: Introduction, old_status: str, new_
         subject=subject,
         html_body=html_body,
     )
-
-    # 2) Optional buyer / seller notifications on key milestones
-    #    (tweak this set if you want different behaviour)
-    external_notify_statuses = {"nda_signed", "viewing", "offer_made", "offer_accepted", "completed"}
-
-    if new_status in external_notify_statuses:
-        buyer_subject = f"Your introduction for {code} is now '{new_label}'"
-        seller_subject = f"Introduction for {code} is now '{new_label}'"
-
-        buyer_html = f"""
-            <p>Hi,</p>
-            <p>
-              The introduction for listing <strong>{code} – {title}</strong> has moved to:
-              <strong>{new_label}</strong>.
-            </p>
-            <p>
-              Please log into Ownerlane or contact the Ownerlane team for the next steps.
-            </p>
-        """
-
-        seller_html = f"""
-            <p>Hi,</p>
-            <p>
-              The introduction for your listing <strong>{code} – {title}</strong> has moved to:
-              <strong>{new_label}</strong>.
-            </p>
-            <p>
-              Please log into Ownerlane or contact the Ownerlane team for the next steps.
-            </p>
-        """
-
-        try:
-            send_email(buyer.email, buyer_subject, buyer_html)
-        except Exception:
-            current_app.logger.exception("Failed to send buyer intro status email")
-
-        try:
-            send_email(seller.email, seller_subject, seller_html)
-        except Exception:
-            current_app.logger.exception("Failed to send seller intro status email")
-
-
 
 def allowed_file(filename: str) -> bool:
     if "." not in filename:
@@ -1951,6 +1955,137 @@ def send_password_reset_email(user: User) -> bool:
     )
 
 
+def notification_email_mode(user_id: int) -> str:
+    preference = NotificationPreference.query.filter_by(user_id=user_id).first()
+    return preference.email_mode if preference else "weekly"
+
+
+def _notification_absolute_url(target_url: str | None) -> str | None:
+    if not target_url or not target_url.startswith("/") or target_url.startswith("//"):
+        return None
+    if app.config["PUBLIC_BASE_URL"]:
+        return f"{app.config['PUBLIC_BASE_URL']}{target_url}"
+    return urljoin(request.host_url, target_url.lstrip("/"))
+
+
+def deliver_notification_email(notification: Notification) -> bool:
+    if (
+        not notification.email_eligible
+        or notification.email_sent_at
+        or notification_email_mode(notification.user_id) != "immediate"
+    ):
+        return False
+    target = _notification_absolute_url(notification.target_url)
+    link = f'<p><a href="{escape(target)}">Open in Ownerlane</a></p>' if target else ""
+    sent = send_email(
+        notification.user.email,
+        notification.title,
+        f"<p>{escape(notification.body)}</p>{link}",
+    )
+    if sent:
+        notification.email_sent_at = utcnow()
+        db.session.commit()
+    return sent
+
+
+def publish_notification(
+    user: User,
+    event_type: str,
+    title: str,
+    body: str,
+    target_url: str | None,
+    dedupe_key: str,
+    email_eligible: bool = True,
+):
+    """Persist one event after its business transaction commits, then deliver it."""
+    target_url = (
+        target_url
+        if target_url and target_url.startswith("/") and not target_url.startswith("//")
+        else None
+    )
+    notification = Notification.query.filter_by(
+        user_id=user.id, dedupe_key=dedupe_key
+    ).first()
+    if notification:
+        return notification, False
+    notification = Notification(
+        user_id=user.id,
+        event_type=event_type[:50],
+        title=title[:200],
+        body=body,
+        target_url=target_url,
+        dedupe_key=dedupe_key[:255],
+        email_eligible=email_eligible,
+    )
+    db.session.add(notification)
+    try:
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        notification = Notification.query.filter_by(
+            user_id=user.id, dedupe_key=dedupe_key[:255]
+        ).first()
+        return notification, False
+    deliver_notification_email(notification)
+    return notification, True
+
+
+def publish_role_notification(role: str, **notification_data):
+    created = []
+    for user in User.query.filter_by(role=role).all():
+        notification, was_created = publish_notification(user, **notification_data)
+        if was_created:
+            created.append(notification)
+    return created
+
+
+def publish_listing_match_notifications(listing: Listing):
+    """Create one deduplicated alert per buyer when a listing becomes live."""
+    if listing.status != "live":
+        return []
+    created = []
+    for buyer in User.query.filter_by(role="buyer").all():
+        searches = SavedSearch.query.filter_by(buyer_id=buyer.id).all()
+        matched_searches = [
+            saved_search
+            for saved_search in searches
+            if listing_matches_saved_search(listing, saved_search)
+        ]
+        profile = BuyerProfile.query.filter_by(user_id=buyer.id).first()
+        profile_score = 0
+        if profile:
+            profile_score, _label, _reasons = compute_buyer_listing_match(
+                listing, profile
+            )
+        if not matched_searches and profile_score < 30:
+            continue
+
+        search_names = ", ".join(search.name for search in matched_searches[:3])
+        reason = (
+            f"Saved search: {search_names}."
+            if search_names
+            else "This opportunity matches your buyer profile."
+        )
+        body = f"{reason} {listing.region or 'UK'} · {listing.sector_name or 'Business'}"
+        email_eligible = (
+            any(search.email_alerts for search in matched_searches)
+            if matched_searches
+            else profile_score >= 30
+        )
+        notification, was_created = publish_notification(
+            buyer,
+            event_type="listing_match",
+            title="New opportunity matching your criteria",
+            body=body,
+            target_url=url_for("listing_detail", listing_id=listing.id),
+            dedupe_key=f"listing-match:{listing.id}",
+            email_eligible=email_eligible,
+        )
+        if was_created:
+            created.append(notification)
+    return created
+
+
 def _auth_attempt_key(identity: str, purpose: str) -> str:
     scoped_identity = (
         f"{purpose}|{identity.strip().lower()}|{request.remote_addr or 'unknown'}"
@@ -2177,6 +2312,19 @@ def inject_legal_details():
         "legal_contact_email": app.config["LEGAL_CONTACT_EMAIL"],
         "legal_last_updated": app.config["LEGAL_LAST_UPDATED"],
     }
+
+
+@app.context_processor
+def inject_notification_state():
+    unread_count = 0
+    try:
+        if current_user.is_authenticated:
+            unread_count = Notification.query.filter_by(
+                user_id=current_user.id, read_at=None
+            ).count()
+    except Exception:
+        unread_count = 0
+    return {"unread_notification_count": unread_count}
 
 
 
@@ -2457,6 +2605,14 @@ def listing_detail(listing_id):
             )
             db.session.add(enquiry)
             db.session.commit()
+            publish_notification(
+                listing.seller,
+                event_type="new_enquiry",
+                title="New buyer enquiry",
+                body=f"A buyer enquired about {listing.listing_code or 'your listing'}.",
+                target_url=url_for("seller_enquiries"),
+                dedupe_key=f"enquiry:{enquiry.id}",
+            )
             flash("Your enquiry has been sent.")
             return redirect(url_for("buyer_dashboard"))
 
@@ -2518,6 +2674,14 @@ def enquire(listing_id):
         )
         db.session.add(lead)
         db.session.commit()
+        publish_notification(
+            listing.seller,
+            event_type="new_enquiry",
+            title="New buyer enquiry",
+            body=f"A buyer enquired about {listing.listing_code or 'your listing'}.",
+            target_url=url_for("listing_detail", listing_id=listing.id),
+            dedupe_key=f"lead:{lead.id}",
+        )
 
         # Send notification email
         to_email = app.config["LEADS_NOTIFICATION_EMAIL"]
@@ -2882,9 +3046,19 @@ def valuer_request_detail(request_id):
             flash("Invalid status.", "error")
             return redirect(request.url)
 
+        previous_status = vr.status
         vr.status = new_status
         vr.created_at = vr.created_at  # unchanged; SQLAlchemy will track
         db.session.commit()
+        if new_status != previous_status:
+            publish_notification(
+                vr.seller,
+                event_type="valuation_status",
+                title=f"Valuation request {new_status}",
+                body=f"The valuation for {vr.listing.listing_code or 'your listing'} is now {new_status}.",
+                target_url=url_for("seller_dashboard"),
+                dedupe_key=f"valuation:{vr.id}:{new_status}",
+            )
         flash("Valuation request updated.", "success")
         return redirect(url_for("valuer_request_detail", request_id=vr.id))
 
@@ -3075,6 +3249,70 @@ def logout():
     return redirect(url_for("index"))
 
 
+@app.route("/notifications")
+@login_required
+def notification_center():
+    items = (
+        Notification.query.filter_by(user_id=current_user.id)
+        .order_by(Notification.created_at.desc())
+        .limit(100)
+        .all()
+    )
+    preference = NotificationPreference.query.filter_by(
+        user_id=current_user.id
+    ).first()
+    return render_template(
+        "notifications/index.html",
+        notifications=items,
+        email_mode=preference.email_mode if preference else "weekly",
+    )
+
+
+@app.route("/notifications/<int:notification_id>/open", methods=["POST"])
+@login_required
+def open_notification(notification_id):
+    notification = Notification.query.filter_by(
+        id=notification_id, user_id=current_user.id
+    ).first_or_404()
+    if not notification.read_at:
+        notification.read_at = utcnow()
+        db.session.commit()
+    if notification.target_url and is_safe_redirect_target(notification.target_url):
+        return redirect(notification.target_url)
+    return redirect(url_for("notification_center"))
+
+
+@app.route("/notifications/read-all", methods=["POST"])
+@login_required
+def read_all_notifications():
+    Notification.query.filter_by(user_id=current_user.id, read_at=None).update(
+        {"read_at": utcnow()}, synchronize_session=False
+    )
+    db.session.commit()
+    flash("All notifications marked as read.", "success")
+    return redirect(url_for("notification_center"))
+
+
+@app.route("/notifications/preferences", methods=["POST"])
+@login_required
+def update_notification_preferences():
+    email_mode = (request.form.get("email_mode") or "weekly").strip().lower()
+    if email_mode not in {"immediate", "weekly", "off"}:
+        flash("Choose a valid email preference.", "error")
+        return redirect(url_for("notification_center"))
+    preference = NotificationPreference.query.filter_by(
+        user_id=current_user.id
+    ).first()
+    if not preference:
+        preference = NotificationPreference(user_id=current_user.id)
+        db.session.add(preference)
+    preference.email_mode = email_mode
+    preference.updated_at = utcnow()
+    db.session.commit()
+    flash("Notification preferences updated.", "success")
+    return redirect(url_for("notification_center"))
+
+
 # -------------------------------------------------------------------
 # Seller routes
 # -------------------------------------------------------------------
@@ -3185,6 +3423,15 @@ def seller_request_introduction(buyer_id):
     )
     db.session.add(intro)
     db.session.commit()
+
+    publish_role_notification(
+        "admin",
+        event_type="introduction_request",
+        title="New introduction request",
+        body=f"A seller requested an introduction for {listing.listing_code or 'a listing'}.",
+        target_url=url_for("admin_introduction_requests"),
+        dedupe_key=f"introduction-request:{intro.id}",
+    )
 
     flash("Introduction request submitted for review.", "success")
     return redirect(url_for("seller_dashboard"))
@@ -3524,10 +3771,13 @@ def seller_update_listing_status(listing_id):
         )
         return redirect(url_for("pricing"))
 
+    previous_status = listing.status
     listing.status = status
     if not listing.listing_code:
         listing.listing_code = generate_listing_code()
     db.session.commit()
+    if status == "live" and previous_status != "live":
+        publish_listing_match_notifications(listing)
     flash(f"Listing marked as {status.replace('_', ' ')}.")
     return redirect(url_for("seller_dashboard"))
 
@@ -3579,6 +3829,16 @@ def request_valuation(listing_id):
         db.session.add(vr)
         db.session.commit()
 
+        if vr.valuer:
+            publish_notification(
+                vr.valuer,
+                event_type="valuation_request",
+                title="New valuation request",
+                body=f"You have a valuation request for {listing.listing_code or 'a listing'}.",
+                target_url=url_for("valuer_request_detail", request_id=vr.id),
+                dedupe_key=f"valuation-request:{vr.id}",
+            )
+
         # --- EMAIL NOTIFICATIONS (BROKER + OPTIONAL VALUER) ---
         try:
             admin_email = current_app.config.get("LEADS_NOTIFICATION_EMAIL")
@@ -3588,7 +3848,7 @@ def request_valuation(listing_id):
                 if valuer_user:
                     valuer_email = valuer_user.email
 
-            to_addresses = [e for e in [admin_email, valuer_email] if e]
+            to_addresses = [e for e in [admin_email] if e]
 
             if to_addresses:
                 subject = f"New valuation request for {listing.listing_code or 'listing'}"
@@ -4124,27 +4384,14 @@ def valuer_accept_request(req_id):
     vr.updated_at = datetime.utcnow()
     db.session.commit()
 
-    # Notify the seller
-    seller_email = vr.seller.email
     listing = vr.listing
-
-    subject = f"Valuer accepted your valuation request – {listing.listing_code or ''}"
-
-    html_body = f"""
-        <h2>Your valuation request has been accepted</h2>
-        <p><strong>Listing:</strong> {listing.listing_code or ''} – {listing.title}</p>
-        <p>Your chosen valuer ({current_user.email}) has accepted your request.</p>
-
-        <p>You can now wait for them to contact you or follow up via your dashboard.</p>
-
-        <p><a href="{url_for('seller_dashboard', _external=True)}">Open seller dashboard</a></p>
-    """
-
-    send_email(
-        to_addresses=seller_email,
-        subject=subject,
-        html_body=html_body,
-        reply_to=current_user.email,
+    publish_notification(
+        vr.seller,
+        event_type="valuation_status",
+        title="Valuation request accepted",
+        body=f"Your valuer accepted the request for {listing.listing_code or 'your listing'}.",
+        target_url=url_for("seller_dashboard"),
+        dedupe_key=f"valuation:{vr.id}:accepted",
     )
 
     flash("Request accepted and seller notified.", "success")
@@ -4164,24 +4411,14 @@ def valuer_decline_request(req_id):
     vr.updated_at = datetime.utcnow()
     db.session.commit()
 
-    seller_email = vr.seller.email
     listing = vr.listing
-
-    subject = f"Valuation request declined – {listing.listing_code or ''}"
-
-    html_body = f"""
-        <h2>Your valuation request was declined</h2>
-        <p><strong>Listing:</strong> {listing.listing_code or ''} – {listing.title}</p>
-        <p>Your chosen valuer ({current_user.email}) has declined the valuation request.</p>
-
-        <p>You may send the request to another valuer.</p>
-        <p><a href="{url_for('index', _external=True)}">Return to the marketplace</a></p>
-    """
-
-    send_email(
-        to_addresses=seller_email,
-        subject=subject,
-        html_body=html_body,
+    publish_notification(
+        vr.seller,
+        event_type="valuation_status",
+        title="Valuation request declined",
+        body=f"The valuer declined the request for {listing.listing_code or 'your listing'}.",
+        target_url=url_for("seller_dashboard"),
+        dedupe_key=f"valuation:{vr.id}:declined",
     )
 
     flash("Request declined and seller notified.", "success")
@@ -4202,25 +4439,14 @@ def valuer_complete_request(req_id):
     vr.updated_at = datetime.utcnow()
     db.session.commit()
 
-    seller_email = vr.seller.email
     listing = vr.listing
-
-    subject = f"Valuation completed – {listing.listing_code or ''}"
-
-    html_body = f"""
-        <h2>Your valuation has been completed</h2>
-        <p><strong>Listing:</strong> {listing.listing_code or ''} – {listing.title}</p>
-        <p>The valuation has now been marked as complete by {current_user.email}.</p>
-
-        <p>Please check your inbox or contact the valuer for the final report.</p>
-
-        <p><a href="{url_for('seller_dashboard', _external=True)}">Go to seller dashboard</a></p>
-    """
-
-    send_email(
-        to_addresses=seller_email,
-        subject=subject,
-        html_body=html_body,
+    publish_notification(
+        vr.seller,
+        event_type="valuation_status",
+        title="Valuation completed",
+        body=f"The valuation for {listing.listing_code or 'your listing'} was marked complete.",
+        target_url=url_for("seller_dashboard"),
+        dedupe_key=f"valuation:{vr.id}:completed",
     )
 
     flash("Request marked as complete and seller notified.", "success")
@@ -4616,10 +4842,13 @@ def admin_listings():
 @role_required("admin")
 def admin_approve_listing(listing_id):
     listing = Listing.query.get_or_404(listing_id)
+    previous_status = listing.status
     listing.status = "live"
     if not listing.listing_code:
         listing.listing_code = generate_listing_code()
     db.session.commit()
+    if previous_status != "live":
+        publish_listing_match_notifications(listing)
     flash("Listing approved and set live.")
     return redirect(url_for("admin_listings"))
 
@@ -4681,6 +4910,16 @@ def admin_approve_intro_request(intro_id):
     intro.updated_at = datetime.utcnow()
     db.session.commit()
 
+    for recipient in (intro.buyer, intro.seller):
+        publish_notification(
+            recipient,
+            event_type="introduction_status",
+            title="Introduction approved",
+            body=f"The introduction for {intro.listing.listing_code or 'the listing'} is now initiated.",
+            target_url=url_for("my_dashboard"),
+            dedupe_key=f"introduction:{intro.id}:initiated",
+        )
+
     flash("Introduction approved and marked as initiated.", "success")
     return redirect(url_for("admin_introduction_requests"))
 
@@ -4692,6 +4931,16 @@ def admin_decline_intro_request(intro_id):
     intro = Introduction.query.get_or_404(intro_id)
     intro.status = "declined"
     db.session.commit()
+
+    for recipient in (intro.buyer, intro.seller):
+        publish_notification(
+            recipient,
+            event_type="introduction_status",
+            title="Introduction request declined",
+            body=f"The introduction request for {intro.listing.listing_code or 'the listing'} was declined.",
+            target_url=url_for("my_dashboard"),
+            dedupe_key=f"introduction:{intro.id}:declined",
+        )
 
     flash("Introduction request declined.", "success")
     return redirect(url_for("admin_introduction_requests"))
@@ -4859,6 +5108,15 @@ def admin_create_introduction_from_enquiry(enquiry_id):
     )
     db.session.add(intro)
     db.session.commit()
+    for recipient in (intro.buyer, intro.seller):
+        publish_notification(
+            recipient,
+            event_type="introduction_status",
+            title="Introduction created",
+            body=f"An introduction was created for {intro.listing.listing_code or 'a listing'}.",
+            target_url=url_for("my_dashboard"),
+            dedupe_key=f"introduction:{intro.id}:initiated",
+        )
     flash("Introduction created from enquiry.")
     return redirect(url_for("admin_introductions"))
 
@@ -4966,6 +5224,17 @@ def admin_update_introduction_status(intro_id):
     db.session.add(history)
 
     db.session.commit()
+
+    new_label = _label_for_intro_status(new_status)
+    for recipient in (intro.buyer, intro.seller):
+        publish_notification(
+            recipient,
+            event_type="introduction_status",
+            title=f"Introduction moved to {new_label}",
+            body=f"The introduction for {intro.listing.listing_code or 'the listing'} is now {new_label}.",
+            target_url=url_for("my_dashboard"),
+            dedupe_key=f"introduction:{intro.id}:{new_status}",
+        )
 
     # Email notifications
     try:
@@ -5428,135 +5697,65 @@ def send_weekly_digest():
     if token != configured_token:
         return "Forbidden", 403
 
-    now = datetime.utcnow()
-    since = now - timedelta(days=7)
+    since = utcnow() - timedelta(days=7)
+    for listing in Listing.query.filter(
+        Listing.status == "live", Listing.created_at >= since
+    ).all():
+        publish_listing_match_notifications(listing)
 
-    # New live listings in the last 7 days
-    new_listings = (
-        Listing.query.filter(
-            Listing.status == "live",
-            Listing.created_at >= since,
-        ).all()
-    )
-
-    if not new_listings:
-        return "No new listings in last 7 days.", 200
-
-    buyer_matches = {}  # User -> list[(Listing, score, label, reasons)]
-
-    for buyer in User.query.filter_by(role="buyer").all():
-        profile = BuyerProfile.query.filter_by(user_id=buyer.id).first()
-        active_searches = SavedSearch.query.filter_by(
-            buyer_id=buyer.id, email_alerts=True
-        ).all()
-        if not profile and not active_searches:
-            continue
-
-        # Include profile matches and exact matches to opted-in saved searches.
-        scored = []
-        for listing in new_listings:
-            if listing.status != "live":
-                continue
-
-            score, label, reasons = (0, "Saved search match", [])
-            if profile:
-                score, label, reasons = compute_buyer_listing_match(listing, profile)
-
-            matching_searches = [
-                saved_search.name
-                for saved_search in active_searches
-                if listing_matches_saved_search(listing, saved_search)
-            ]
-            if score <= 0 and not matching_searches:
-                continue
-
-            if matching_searches:
-                reasons = list(reasons or [])
-                reasons.insert(0, f"Saved search: {', '.join(matching_searches[:2])}")
-
-            scored.append((listing, max(score, 1), label, reasons))
-
-        if not scored:
-            continue
-
-        # Sort by score (desc) then newest first
-        scored.sort(
-            key=lambda match: (
-                match[1],
-                match[0].created_at or datetime.min,
-            ),
-            reverse=True,
-        )
-
-        # Limit per-buyer list for the email
-        buyer_matches[buyer] = scored[:10]
-
-    if not buyer_matches:
-        return "No profile matches for buyers this week.", 200
+    # Retry immediate deliveries that previously failed.
+    for notification in Notification.query.filter_by(
+        email_eligible=True, email_sent_at=None
+    ).all():
+        if notification_email_mode(notification.user_id) == "immediate":
+            deliver_notification_email(notification)
 
     total_emails = 0
-    total_matches = 0
-
-    for buyer, matches in buyer_matches.items():
-        lines = []
-        lines.append(
-            "Here are new business opportunities from the last 7 days that match your profile:\n"
+    total_notifications = 0
+    for user in User.query.order_by(User.id.asc()).all():
+        if notification_email_mode(user.id) != "weekly":
+            continue
+        queued = (
+            Notification.query.filter_by(
+                user_id=user.id,
+                email_eligible=True,
+                digest_sent_at=None,
+                read_at=None,
+            )
+            .order_by(Notification.created_at.asc())
+            .limit(100)
+            .all()
         )
+        if not queued:
+            continue
 
-        is_premium = has_active_subscription(buyer, "buyer", "premium")
-        for l, _score, label, reasons in matches:
-            code = l.listing_code or "Ref pending"
-            can_view_sensitive = can_view_listing_sensitive(buyer, l)
-            title = (
-                l.title or "Confidential business"
-                if can_view_sensitive
-                else "Confidential business opportunity"
-            )
-            region = l.region or "Region"
-            care_type = l.care_type or "Sector / industry"
-            beds = l.beds or "?"
-            price = (
-                l.guide_price_band or "On request"
-                if can_view_sensitive
-                else "Premium only"
-            )
-            reasons = reasons or []
-
-            lines.append(f"- {code} – {title}")
-            lines.append(
-                f"  {label} • {region} • {care_type} • {beds} units • Guide price: {price}"
-            )
-            if reasons:
-                # Include only the first couple of reasons to keep it readable
-                for r in reasons[:2]:
-                    lines.append(f"    · {r}")
+        lines = ["Your weekly Ownerlane notifications:\n"]
+        for notification in queued:
+            lines.append(f"- {notification.title}")
+            lines.append(f"  {notification.body}")
+            target = _notification_absolute_url(notification.target_url)
+            if target:
+                lines.append(f"  {target}")
             lines.append("")
-
-        # Premium vs basic CTA
-        if is_premium:
-            lines.append(
-                "You have Buyer Premium access – log in to view full details and send enquiries directly."
-            )
-        else:
-            lines.append(
-                "You currently have Buyer Basic access. Upgrade to Buyer Premium to see full listing details and send enquiries directly through the platform."
-            )
-
-        lines.append("")
-        lines.append("Log in to your buyer dashboard to view and manage these opportunities.")
-        lines.append("")
-
-        body = "\n".join(lines)
-        subject = "Your weekly matched business opportunities"
-
-        # Use simple text body; send_email will wrap it as text/html combo
-        send_email(buyer.email, subject, body)
-
+        lines.append("Open Ownerlane to review and manage all notifications.")
+        sent = send_email(
+            user.email,
+            "Your weekly Ownerlane notifications",
+            "\n".join(lines),
+        )
+        if not sent:
+            continue
+        sent_at = utcnow()
+        for notification in queued:
+            notification.digest_sent_at = sent_at
+        db.session.commit()
         total_emails += 1
-        total_matches += len(matches)
+        total_notifications += len(queued)
 
+    if not total_emails:
+        return "No queued notifications for this week.", 200
     return (
-        f"Weekly digest sent: {total_emails} buyers, {total_matches} total matches.",
+        f"Weekly digest sent: {total_emails} users, {total_notifications} notifications.",
         200,
     )
 
