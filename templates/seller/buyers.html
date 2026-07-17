@@ -7,7 +7,7 @@
     <div>
       <h1 class="text-xl font-semibold">Matching buyers</h1>
       <p class="text-xs text-white/70">
-        Premium buyers whose acquisition criteria overlap your regions and care types.
+        Premium buyers whose acquisition criteria overlap your regions and sectors / industries.
       </p>
     </div>
     <a href="{{ url_for('seller_dashboard') }}"
@@ -17,7 +17,7 @@
   </div>
 
   {% if not listings %}
-    <div class="rounded-lg border border-kaijoYellow/60 bg-black/20 p-4 text-xs text-white/80 mb-5">
+    <div class="rounded-lg border border-ownerMint/60 bg-black/20 p-4 text-xs text-white/80 mb-5">
       Create and publish a listing before requesting a buyer introduction.
     </div>
   {% endif %}
@@ -38,14 +38,14 @@
               <p class="text-[10px] font-mono text-white/40">Buyer {{ buyer.id }}</p>
               <h2 class="text-sm font-semibold">{{ bp.business_name or "Confidential buyer" }}</h2>
             </div>
-            <span class="text-[10px] px-2 py-0.5 rounded-full border border-kaijoYellow/60 text-kaijoYellow">
+            <span class="text-[10px] px-2 py-0.5 rounded-full border border-ownerMint/60 text-ownerMint">
               {{ item.score }}/2 match
             </span>
           </div>
 
           <dl class="grid grid-cols-2 gap-2 text-[11px] text-white/70">
             <div><dt class="text-white/40">Regions</dt><dd>{{ bp.preferred_regions or "Not specified" }}</dd></div>
-            <div><dt class="text-white/40">Care types</dt><dd>{{ bp.care_types or "Not specified" }}</dd></div>
+            <div><dt class="text-white/40">Sectors / industries</dt><dd>{{ bp.care_types or "Not specified" }}</dd></div>
             <div><dt class="text-white/40">Budget</dt><dd>{{ bp.min_budget or "?" }} – {{ bp.max_budget or "?" }}</dd></div>
             <div><dt class="text-white/40">Timeline</dt><dd>{{ bp.transaction_timeline or "Flexible" }}</dd></div>
           </dl>
@@ -61,7 +61,7 @@
                 {% endfor %}
               </select>
               <button type="submit"
-                      class="px-3 py-1.5 text-[11px] rounded bg-kaijoPink hover:bg-kaijoYellow hover:text-black">
+                      class="px-3 py-1.5 text-[11px] rounded bg-ownerCoral hover:bg-ownerMint hover:text-black">
                 Request introduction
               </button>
             </form>

@@ -1155,7 +1155,7 @@ def notify_introduction_status_change(intro: Introduction, old_status: str, new_
           <strong>Changed at (UTC):</strong> {datetime.utcnow()}<br>
         </p>
         <p>
-          View in admin: (log into the Care Home Broker admin and open Introductions).
+          View in admin: (log into Ownerlane and open Introductions).
         </p>
     """
 
@@ -1181,7 +1181,7 @@ def notify_introduction_status_change(intro: Introduction, old_status: str, new_
               <strong>{new_label}</strong>.
             </p>
             <p>
-              Please log into the platform or contact Kaijo North Consulting for the next steps.
+              Please log into Ownerlane or contact the Ownerlane team for the next steps.
             </p>
         """
 
@@ -1192,7 +1192,7 @@ def notify_introduction_status_change(intro: Introduction, old_status: str, new_
               <strong>{new_label}</strong>.
             </p>
             <p>
-              Please log into the platform or contact Kaijo North Consulting for the next steps.
+              Please log into Ownerlane or contact the Ownerlane team for the next steps.
             </p>
         """
 
@@ -1309,23 +1309,23 @@ def compute_matches_for_buyer(buyer, limit=None):
         # Care type match
         if care_list and l.care_type in care_list:
             score += 30
-            reasons.append("Care type match")
+            reasons.append("Sector / industry match")
 
         # Beds range
         if profile.beds_min is not None and l.beds is not None:
             if l.beds >= profile.beds_min:
                 score += 10
-                reasons.append("Meets min beds")
+                reasons.append("Meets minimum size")
         if profile.beds_max is not None and l.beds is not None:
             if l.beds <= profile.beds_max:
                 score += 10
-                reasons.append("Within beds range")
+                reasons.append("Within size range")
 
         # Rough quality match
         if profile.quality_preference and l.cqc_rating:
             if profile.quality_preference.lower() in l.cqc_rating.lower():
                 score += 10
-                reasons.append("Quality/CQC match")
+                reasons.append("Quality / accreditation match")
 
         # If no specific matches triggered, still include with a low base score
         if score == 0:
@@ -1357,9 +1357,9 @@ def compute_buyer_listing_match(listing: Listing, profile: BuyerProfile):
 
     if care_types:
         if listing.care_type not in care_types:
-            return 0, "No match", ["Care type outside buyer mandate"]
+            return 0, "No match", ["Sector / industry outside buyer mandate"]
         score += 30
-        reasons.append("Care type match")
+        reasons.append("Sector / industry match")
 
     if profile.beds_min is not None:
         if listing.beds is None or listing.beds < profile.beds_min:
@@ -1417,7 +1417,7 @@ def send_introduction_status_email(intro: Introduction):
             <p><strong>Buyer:</strong> {buyer.email}</p>
             <p><strong>Seller:</strong> {seller.email}</p>
             <p><strong>New status:</strong> {human_status}</p>
-            <p>This introduction is being managed by Kaijo North Consulting via the Care Home Broker platform.</p>
+            <p>This introduction is being managed through Ownerlane.</p>
         """
 
         # Send to both buyer & seller; bcc broker if configured
@@ -1851,7 +1851,7 @@ def enquire(listing_id):
         if to_email:
             subject = (
                 f"New enquiry for listing #{listing.id}: "
-                f"{getattr(listing, 'name', 'Care Home')}"
+                f"{getattr(listing, 'name', 'Business')}"
             )
 
             safe_message_html = message.replace("\n", "<br>")
@@ -2742,7 +2742,7 @@ def request_valuation(listing_id):
                     <h2>New valuation request</h2>
                     <p><strong>Listing:</strong> {listing.listing_code or ''} – {listing.title}</p>
                     <p><strong>Region:</strong> {listing.region or ''}</p>
-                    <p><strong>Care type:</strong> {listing.care_type or ''}</p>
+                    <p><strong>Sector / industry:</strong> {listing.care_type or ''}</p>
                     <hr>
                     <p><strong>Seller:</strong> {current_user.email}</p>
                     <p><strong>Valuer assigned:</strong> {valuer_email or "Not yet"}</p>
@@ -2879,7 +2879,7 @@ def seller_profile():
                     <p><strong>Turnover:</strong> {profile.turnover or "n/a"}</p>
                     <p><strong>EBITDA:</strong> {profile.ebitda or "n/a"}</p>
                     <p><strong>Region(s):</strong> {profile.regions or "n/a"}</p>
-                    <p><strong>Care type:</strong> {profile.care_type or "n/a"}</p>
+                    <p><strong>Sector / industry:</strong> {profile.care_type or "n/a"}</p>
                     <p><strong>NDA accepted:</strong> {"Yes" if profile.nda_accepted else "No"}</p>
                     <p><small>Updated at: {profile.updated_at or profile.created_at}</small></p>
                 """
@@ -2910,13 +2910,23 @@ def buyer_profile():
 
     # Choices for checkboxes / selects
     region_choices = sorted(REGION_COORDS.keys())
+    # Kept on the legacy care_types field until the generic sector migration.
     care_type_choices = [
+        "Healthcare & Social Care",
+        "Hospitality & Leisure",
+        "Professional Services",
+        "Retail & E-commerce",
+        "Technology & Software",
+        "Manufacturing",
+        "Construction & Property",
+        "Recruitment",
         "Residential",
         "Nursing",
         "Dementia / EMI",
         "Learning disability",
         "Mental health",
         "Supported living",
+        "Other",
     ]
     dd_choices = [
         "Financial due diligence",
@@ -3698,10 +3708,10 @@ def admin_archive_listing(listing_id):
 def test_email():
     ok = send_email(
         to_addresses="YOUR_REAL_ADDRESS@gmail.com",
-        subject="Care Home Broker SMTP test",
+        subject="Ownerlane SMTP test",
         html_body="""
             <h2>SMTP is live ✅</h2>
-            <p>This is a test email from the Care Home Broker app.</p>
+            <p>This is a test email from Ownerlane.</p>
         """,
     )
     if ok:
@@ -4550,14 +4560,14 @@ def send_weekly_digest():
     for buyer, matches in buyer_matches.items():
         lines = []
         lines.append(
-            "Here are new care home opportunities from the last 7 days that match your profile:\n"
+            "Here are new business opportunities from the last 7 days that match your profile:\n"
         )
 
         for l in matches:
             code = l.listing_code or "Ref pending"
-            title = l.title or "Confidential care home"
+            title = l.title or "Confidential business"
             region = l.region or "Region"
-            care_type = l.care_type or "Care type"
+            care_type = l.care_type or "Sector / industry"
             beds = l.beds or "?"
             price = l.guide_price_band or "On request"
             label = getattr(l, "_match_label", "Match")
@@ -4565,7 +4575,7 @@ def send_weekly_digest():
 
             lines.append(f"- {code} – {title}")
             lines.append(
-                f"  {label} • {region} • {care_type} • {beds} beds • Guide price: {price}"
+                f"  {label} • {region} • {care_type} • {beds} units • Guide price: {price}"
             )
             if reasons:
                 # Include only the first couple of reasons to keep it readable
@@ -4589,7 +4599,7 @@ def send_weekly_digest():
         lines.append("")
 
         body = "\n".join(lines)
-        subject = "Your weekly matched care home opportunities"
+        subject = "Your weekly matched business opportunities"
 
         # Use simple text body; send_email will wrap it as text/html combo
         send_email(buyer.email, subject, body)

@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Private Deal Broker – Kaijo North Consulting{% endblock %}
+{% block title %}Ownerlane | Where businesses find their next owner{% endblock %}
 
 {% block content %}
 {% set can_edit_copy = current_user.is_authenticated and current_user.role in ['admin', 'valuer'] %}
@@ -10,26 +10,24 @@
     <!-- Left: brand + main message -->
     <div class="p-6 sm:p-10 flex flex-col justify-between gap-8">
       <div class="flex items-center gap-3">
-        <div class="w-14 h-14 rounded-md overflow-hidden flex shadow-lg shadow-black/40">
-          <div class="w-1/2 h-full bg-kaijoYellow"></div>
-          <div class="w-1/2 h-full bg-kaijoPurple"></div>
-        </div>
+        <img src="{{ url_for('static', filename='img/ownerlane-mark.svg') }}"
+             alt="" class="w-14 h-14 rounded-2xl shadow-lg shadow-black/40">
         <div class="leading-tight">
           {% set slug = "home_hero_brand_title" %}
           <p class="text-sm font-semibold tracking-[0.25em] uppercase">
-            {{ page_text(slug, "KAIJO") }}
+            {{ page_text(slug, "OWNERLANE") }}
             {% if can_edit_copy %}
               <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
-                 class="ml-2 text-[10px] text-kaijoYellow underline">Edit</a>
+                 class="ml-2 text-[10px] text-ownerMint underline">Edit</a>
             {% endif %}
           </p>
 
           {% set slug = "home_hero_brand_subtitle" %}
           <p class="text-[11px] tracking-[0.22em] uppercase text-white/70">
-            {{ page_text(slug, "North Consulting") }}
+            {{ page_text(slug, "Business Marketplace") }}
             {% if can_edit_copy %}
               <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
-                 class="ml-2 text-[10px] text-kaijoYellow underline">Edit</a>
+                 class="ml-2 text-[10px] text-ownerMint underline">Edit</a>
             {% endif %}
           </p>
         </div>
@@ -37,11 +35,11 @@
 
       <div>
         {% set slug = "home_hero_heading" %}
-        <h1 class="text-2xl sm:text-3xl lg:text-4xl font-semibold text-kaijoYellow mb-3">
-          {{ page_text(slug, "A confidential marketplace for buying & selling businesses.") }}
+        <h1 class="text-2xl sm:text-3xl lg:text-4xl font-semibold text-ownerMint mb-3">
+          {{ page_text(slug, "Where businesses find their next owner.") }}
           {% if can_edit_copy %}
             <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
-               class="ml-2 text-[10px] text-kaijoYellow underline">Edit</a>
+               class="ml-2 text-[10px] text-ownerMint underline">Edit</a>
           {% endif %}
         </h1>
 
@@ -49,11 +47,11 @@
         <p class="text-sm sm:text-base text-white/80 max-w-xl">
           {{ page_text(
             slug,
-            "Built for operators, investors and owners who want a discreet, structured way to explore sales and acquisitions – without going straight to a public agent process."
+            "A modern, confidential marketplace for owners, operators and investors buying and selling established businesses."
           ) }}
           {% if can_edit_copy %}
             <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
-               class="ml-2 text-[10px] text-kaijoYellow underline">Edit</a>
+               class="ml-2 text-[10px] text-ownerMint underline">Edit</a>
           {% endif %}
         </p>
       </div>
@@ -61,7 +59,7 @@
       <div class="flex flex-wrap gap-3 text-xs sm:text-sm">
         {% set slug = "home_hero_cta_seller" %}
         <a href="{{ url_for('pricing') }}"
-           class="inline-flex items-center justify-center px-4 py-2 rounded bg-kaijoPink text-white hover:bg-kaijoYellow hover:text-black transition">
+           class="inline-flex items-center justify-center px-4 py-2 rounded bg-ownerCoral text-white hover:bg-ownerMint hover:text-black transition">
           {{ page_text(slug, "I want to sell a business") }}
           {% if can_edit_copy %}
             <span class="ml-2 text-[10px] text-black/80 underline">Edit</span>
@@ -70,10 +68,10 @@
 
         {% set slug = "home_hero_cta_buyer" %}
         <a href="{{ url_for('pricing') }}"
-           class="inline-flex items-center justify-center px-4 py-2 rounded border border-white/30 text-white hover:bg-white/10 hover:text-kaijoYellow transition">
+           class="inline-flex items-center justify-center px-4 py-2 rounded border border-white/30 text-white hover:bg-white/10 hover:text-ownerMint transition">
           {{ page_text(slug, "I want to buy a business") }}
           {% if can_edit_copy %}
-            <span class="ml-2 text-[10px] text-kaijoYellow underline">Edit</span>
+            <span class="ml-2 text-[10px] text-ownerMint underline">Edit</span>
           {% endif %}
         </a>
       </div>
@@ -84,28 +82,28 @@
       <div class="space-y-2 sm:space-y-3 text-right w-full">
         {% set slug = "home_hero_tagline_1" %}
         <p class="text-xl sm:text-2xl lg:text-3xl font-semibold">
-          {{ page_text(slug, "Innovating") }} <span class="text-kaijoYellow">teams.</span>
+          {{ page_text(slug, "Discover") }} <span class="text-ownerMint">opportunity.</span>
           {% if can_edit_copy %}
             <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
-               class="ml-2 text-[10px] text-kaijoYellow underline">Edit</a>
+               class="ml-2 text-[10px] text-ownerMint underline">Edit</a>
           {% endif %}
         </p>
 
         {% set slug = "home_hero_tagline_2" %}
         <p class="text-xl sm:text-2xl lg:text-3xl font-semibold">
-          {{ page_text(slug, "Expanding") }} <span class="text-kaijoPurple">businesses.</span>
+          {{ page_text(slug, "Meet") }} <span class="text-ownerBlue">qualified people.</span>
           {% if can_edit_copy %}
             <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
-               class="ml-2 text-[10px] text-kaijoYellow underline">Edit</a>
+               class="ml-2 text-[10px] text-ownerMint underline">Edit</a>
           {% endif %}
         </p>
 
         {% set slug = "home_hero_tagline_3" %}
         <p class="text-xl sm:text-2xl lg:text-3xl font-semibold">
-          {{ page_text(slug, "Elevating") }} <span class="text-kaijoPink">care.</span>
+          {{ page_text(slug, "Move") }} <span class="text-ownerCoral">business forward.</span>
           {% if can_edit_copy %}
             <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
-               class="ml-2 text-[10px] text-kaijoYellow underline">Edit</a>
+               class="ml-2 text-[10px] text-ownerMint underline">Edit</a>
           {% endif %}
         </p>
 
@@ -113,11 +111,11 @@
         <p class="text-xs sm:text-sm text-white/60 mt-4">
           {{ page_text(
             slug,
-            "Kaijo North Consulting brings together sector insight, commercial discipline and a practical route to market for owners and buyers."
+            "Ownerlane brings serious buyers and business owners together through a clear, controlled route to the right conversation."
           ) }}
           {% if can_edit_copy %}
             <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
-               class="ml-2 text-[10px] text-kaijoYellow underline">Edit</a>
+               class="ml-2 text-[10px] text-ownerMint underline">Edit</a>
           {% endif %}
         </p>
       </div>
@@ -130,10 +128,10 @@
   <div class="max-w-4xl space-y-3">
     {% set slug = "home_what_is_heading" %}
     <h2 class="text-xl font-semibold text-white">
-      {{ page_text(slug, "What is the Private Deal Portal platform?") }}
+      {{ page_text(slug, "A better lane to your next deal") }}
       {% if can_edit_copy %}
         <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
-           class="ml-2 text-[10px] text-kaijoYellow underline">Edit</a>
+           class="ml-2 text-[10px] text-ownerMint underline">Edit</a>
       {% endif %}
     </h2>
 
@@ -141,11 +139,11 @@
     <p class="text-sm text-white/80">
       {{ page_text(
         slug,
-        "The platform is a private deal portal for UK businesses. Sellers can quietly indicate their interest in a sale, and vetted buyers can review opportunities, send enquiries, and receive curated matches – all with a focus on confidentiality and quality, not volume."
+        "Ownerlane is a private marketplace for established UK businesses. Owners can explore a sale discreetly, while vetted buyers review relevant opportunities, make enquiries and receive curated matches."
       ) }}
       {% if can_edit_copy %}
         <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
-           class="ml-2 text-[10px] text-kaijoYellow underline">Edit</a>
+           class="ml-2 text-[10px] text-ownerMint underline">Edit</a>
       {% endif %}
     </p>
 
@@ -153,11 +151,11 @@
     <p class="text-sm text-white/80">
       {{ page_text(
         slug,
-        "It sits between “nothing happening” and “full agency process”: structured enough to move a deal forward, light-touch enough to protect day-to-day operations and staff."
+        "It is structured enough to move a deal forward and discreet enough to protect day-to-day operations, people and reputation."
       ) }}
       {% if can_edit_copy %}
         <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
-           class="ml-2 text-[10px] text-kaijoYellow underline">Edit</a>
+           class="ml-2 text-[10px] text-ownerMint underline">Edit</a>
       {% endif %}
     </p>
   </div>
@@ -170,18 +168,18 @@
     {{ page_text(slug, "How it works") }}
     {% if can_edit_copy %}
       <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
-         class="ml-2 text-[10px] text-kaijoYellow underline">Edit</a>
+         class="ml-2 text-[10px] text-ownerMint underline">Edit</a>
     {% endif %}
   </h2>
 
   <div class="grid md:grid-cols-3 gap-4">
     <div class="bg-white/5 border border-white/10 rounded-lg p-4 backdrop-blur-sm">
       {% set slug = "home_hiw_step1_title" %}
-      <div class="text-kaijoYellow text-sm font-semibold mb-1">
+      <div class="text-ownerMint text-sm font-semibold mb-1">
         {{ page_text(slug, "1. Create your profile") }}
         {% if can_edit_copy %}
           <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
-             class="ml-1 text-[10px] text-kaijoYellow underline">Edit</a>
+             class="ml-1 text-[10px] text-ownerMint underline">Edit</a>
         {% endif %}
       </div>
 
@@ -193,18 +191,18 @@
         ) }}
         {% if can_edit_copy %}
           <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
-             class="ml-1 text-[10px] text-kaijoYellow underline">Edit</a>
+             class="ml-1 text-[10px] text-ownerMint underline">Edit</a>
         {% endif %}
       </p>
     </div>
 
     <div class="bg-white/5 border border-white/10 rounded-lg p-4 backdrop-blur-sm">
       {% set slug = "home_hiw_step2_title" %}
-      <div class="text-kaijoPink text-sm font-semibold mb-1">
+      <div class="text-ownerCoral text-sm font-semibold mb-1">
         {{ page_text(slug, "2. Listings & matching") }}
         {% if can_edit_copy %}
           <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
-             class="ml-1 text-[10px] text-kaijoYellow underline">Edit</a>
+             class="ml-1 text-[10px] text-ownerMint underline">Edit</a>
         {% endif %}
       </div>
 
@@ -216,18 +214,18 @@
         ) }}
         {% if can_edit_copy %}
           <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
-             class="ml-1 text-[10px] text-kaijoYellow underline">Edit</a>
+             class="ml-1 text-[10px] text-ownerMint underline">Edit</a>
         {% endif %}
       </p>
     </div>
 
     <div class="bg-white/5 border border-white/10 rounded-lg p-4 backdrop-blur-sm">
       {% set slug = "home_hiw_step3_title" %}
-      <div class="text-kaijoPurple text-sm font-semibold mb-1">
+      <div class="text-ownerBlue text-sm font-semibold mb-1">
         {{ page_text(slug, "3. Structured enquiries") }}
         {% if can_edit_copy %}
           <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
-             class="ml-1 text-[10px] text-kaijoYellow underline">Edit</a>
+             class="ml-1 text-[10px] text-ownerMint underline">Edit</a>
         {% endif %}
       </div>
 
@@ -239,7 +237,7 @@
         ) }}
         {% if can_edit_copy %}
           <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
-             class="ml-1 text-[10px] text-kaijoYellow underline">Edit</a>
+             class="ml-1 text-[10px] text-ownerMint underline">Edit</a>
         {% endif %}
       </p>
     </div>
@@ -252,11 +250,11 @@
     <!-- Sellers -->
     <div class="bg-white/5 border border-white/10 rounded-lg p-5 backdrop-blur-sm">
       {% set slug = "home_sellers_heading" %}
-      <h3 class="text-md font-semibold text-kaijoYellow mb-2">
+      <h3 class="text-md font-semibold text-ownerMint mb-2">
         {{ page_text(slug, "For Sellers") }}
         {% if can_edit_copy %}
           <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
-             class="ml-2 text-[10px] text-kaijoYellow underline">Edit</a>
+             class="ml-2 text-[10px] text-ownerMint underline">Edit</a>
         {% endif %}
       </h3>
 
@@ -264,21 +262,21 @@
       <p class="text-xs text-white/75 mb-3">
         {{ page_text(
           slug,
-          "A controlled way to explore a sale while protecting residents, staff and reputation."
+          "A controlled way to explore a sale while protecting your people, operations and reputation."
         ) }}
         {% if can_edit_copy %}
           <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
-             class="ml-2 text-[10px] text-kaijoYellow underline">Edit</a>
+             class="ml-2 text-[10px] text-ownerMint underline">Edit</a>
         {% endif %}
       </p>
 
       <ul class="text-xs text-white/80 space-y-2 list-disc list-inside">
         {% set slug = "home_sellers_bullet_1" %}
         <li>
-          {{ page_text(slug, "Create confidential listings for one or multiple homes.") }}
+          {{ page_text(slug, "Create confidential listings for one or multiple businesses.") }}
           {% if can_edit_copy %}
             <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
-               class="ml-1 text-[10px] text-kaijoYellow underline">Edit</a>
+               class="ml-1 text-[10px] text-ownerMint underline">Edit</a>
           {% endif %}
         </li>
 
@@ -287,7 +285,7 @@
           {{ page_text(slug, "Upload photos and key commercial headline metrics.") }}
           {% if can_edit_copy %}
             <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
-               class="ml-1 text-[10px] text-kaijoYellow underline">Edit</a>
+               class="ml-1 text-[10px] text-ownerMint underline">Edit</a>
           {% endif %}
         </li>
 
@@ -299,7 +297,7 @@
           ) }}
           {% if can_edit_copy %}
             <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
-               class="ml-1 text-[10px] text-kaijoYellow underline">Edit</a>
+               class="ml-1 text-[10px] text-ownerMint underline">Edit</a>
           {% endif %}
         </li>
 
@@ -308,7 +306,7 @@
           {{ page_text(slug, "Review enquiries in one place with status tracking.") }}
           {% if can_edit_copy %}
             <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
-               class="ml-1 text-[10px] text-kaijoYellow underline">Edit</a>
+               class="ml-1 text-[10px] text-ownerMint underline">Edit</a>
           {% endif %}
         </li>
 
@@ -316,18 +314,18 @@
         <li>
           {{ page_text(
             slug,
-            "Option to work with Kaijo North Consulting for deeper advisory support."
+            "Request supported introductions when you are ready to move forward."
           ) }}
           {% if can_edit_copy %}
             <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
-               class="ml-1 text-[10px] text-kaijoYellow underline">Edit</a>
+               class="ml-1 text-[10px] text-ownerMint underline">Edit</a>
           {% endif %}
         </li>
       </ul>
 
       {% set slug = "home_sellers_cta" %}
       <a href="{{ url_for('pricing', role='seller') }}"
-         class="inline-flex items-center justify-center mt-4 px-4 py-2 rounded bg-kaijoPink text-white text-xs hover:bg-kaijoYellow hover:text-black transition">
+         class="inline-flex items-center justify-center mt-4 px-4 py-2 rounded bg-ownerCoral text-white text-xs hover:bg-ownerMint hover:text-black transition">
         {{ page_text(slug, "Start as a seller") }}
         {% if can_edit_copy %}
           <span class="ml-2 text-[10px] text-black/80 underline">Edit</span>
@@ -338,11 +336,11 @@
     <!-- Buyers -->
     <div class="bg-white/5 border border-white/10 rounded-lg p-5 backdrop-blur-sm">
       {% set slug = "home_buyers_heading" %}
-      <h3 class="text-md font-semibold text-kaijoPink mb-2">
+      <h3 class="text-md font-semibold text-ownerCoral mb-2">
         {{ page_text(slug, "For Buyers & Investors") }}
         {% if can_edit_copy %}
           <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
-             class="ml-2 text-[10px] text-kaijoYellow underline">Edit</a>
+             class="ml-2 text-[10px] text-ownerMint underline">Edit</a>
         {% endif %}
       </h3>
 
@@ -354,7 +352,7 @@
         ) }}
         {% if can_edit_copy %}
           <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
-             class="ml-2 text-[10px] text-kaijoYellow underline">Edit</a>
+             class="ml-2 text-[10px] text-ownerMint underline">Edit</a>
         {% endif %}
       </p>
 
@@ -367,7 +365,7 @@
           ) }}
           {% if can_edit_copy %}
             <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
-               class="ml-1 text-[10px] text-kaijoYellow underline">Edit</a>
+               class="ml-1 text-[10px] text-ownerMint underline">Edit</a>
           {% endif %}
         </li>
 
@@ -376,7 +374,7 @@
           {{ page_text(slug, "See a dashboard of live, relevant opportunities.") }}
           {% if can_edit_copy %}
             <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
-               class="ml-1 text-[10px] text-kaijoYellow underline">Edit</a>
+               class="ml-1 text-[10px] text-ownerMint underline">Edit</a>
           {% endif %}
         </li>
 
@@ -388,7 +386,7 @@
           ) }}
           {% if can_edit_copy %}
             <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
-               class="ml-1 text-[10px] text-kaijoYellow underline">Edit</a>
+               class="ml-1 text-[10px] text-ownerMint underline">Edit</a>
           {% endif %}
         </li>
 
@@ -397,7 +395,7 @@
           {{ page_text(slug, "Track your enquiry history and upcoming follow-ups.") }}
           {% if can_edit_copy %}
             <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
-               class="ml-1 text-[10px] text-kaijoYellow underline">Edit</a>
+               class="ml-1 text-[10px] text-ownerMint underline">Edit</a>
           {% endif %}
         </li>
 
@@ -405,21 +403,21 @@
         <li>
           {{ page_text(
             slug,
-            "Benefit from an operator-led view of quality and sustainability, not just yield."
+            "Focus on commercial fit, quality and long-term potential—not just headline yield."
           ) }}
           {% if can_edit_copy %}
             <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
-               class="ml-1 text-[10px] text-kaijoYellow underline">Edit</a>
+               class="ml-1 text-[10px] text-ownerMint underline">Edit</a>
           {% endif %}
         </li>
       </ul>
 
       {% set slug = "home_buyers_cta" %}
       <a href="{{ url_for('pricing', role='buyer') }}"
-         class="inline-flex items-center justify-center mt-4 px-4 py-2 rounded border border-white/30 text-white text-xs hover:bg-white/10 hover:text-kaijoYellow transition">
+         class="inline-flex items-center justify-center mt-4 px-4 py-2 rounded border border-white/30 text-white text-xs hover:bg-white/10 hover:text-ownerMint transition">
         {{ page_text(slug, "Start as a buyer") }}
         {% if can_edit_copy %}
-          <span class="ml-2 text-[10px] text-kaijoYellow underline">Edit</span>
+          <span class="ml-2 text-[10px] text-ownerMint underline">Edit</span>
         {% endif %}
       </a>
     </div>
@@ -435,7 +433,7 @@
         {{ page_text(slug, "Latest listings") }}
         {% if can_edit_copy %}
           <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
-             class="ml-2 text-[10px] text-kaijoYellow underline">Edit</a>
+             class="ml-2 text-[10px] text-ownerMint underline">Edit</a>
         {% endif %}
       </h2>
 
@@ -444,12 +442,12 @@
         {{ page_text(slug, "A snapshot of currently live opportunities on the platform.") }}
         {% if can_edit_copy %}
           <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
-             class="ml-2 text-[10px] text-kaijoYellow underline">Edit</a>
+             class="ml-2 text-[10px] text-ownerMint underline">Edit</a>
         {% endif %}
       </p>
     </div>
     <a href="{{ url_for('listings') }}?view=list"
-       class="inline-flex items-center justify-center text-xs px-3 py-2 rounded border border-white/20 text-white/80 hover:bg-white/10 hover:text-kaijoYellow transition">
+       class="inline-flex items-center justify-center text-xs px-3 py-2 rounded border border-white/20 text-white/80 hover:bg-white/10 hover:text-ownerMint transition">
       View all listings
     </a>
   </div>
@@ -468,11 +466,11 @@
         ) }}
         {% if can_edit_copy %}
           <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
-             class="ml-1 text-[10px] text-kaijoYellow underline">Edit</a>
+             class="ml-1 text-[10px] text-ownerMint underline">Edit</a>
         {% endif %}
       </span>
       <a href="{{ url_for('pricing', role='buyer') }}"
-         class="inline-flex items-center px-3 py-1.5 rounded bg-kaijoPink text-white font-semibold hover:bg-kaijoYellow hover:text-black transition">
+         class="inline-flex items-center px-3 py-1.5 rounded bg-ownerCoral text-white font-semibold hover:bg-ownerMint hover:text-black transition">
         View buyer plans
       </a>
     </div>
@@ -482,7 +480,7 @@
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
       {% for l in listings %}
         <a href="{{ url_for('listing_detail', listing_id=l.id) }}"
-           class="block rounded-lg border border-white/10 bg-black/30 p-4 hover:border-kaijoYellow/80 hover:shadow-lg hover:shadow-black/40 transition">
+           class="block rounded-lg border border-white/10 bg-black/30 p-4 hover:border-ownerMint/80 hover:shadow-lg hover:shadow-black/40 transition">
 
           <p class="text-[11px] font-mono text-white/50 mb-1">
             {{ l.listing_code }}
@@ -498,18 +496,18 @@
           </p>
 
           <p class="text-[11px] text-white/60 mb-1">
-            {{ l.region or "UK" }} • {{ l.care_type or "Care type" }} • {{ l.beds or "?" }} beds
+            {{ l.region or "UK" }} • {{ l.care_type or "Sector / industry" }} • {{ l.beds or "?" }} units
           </p>
 
           <p class="text-[11px] text-white/60">
             Guide price:
             {% if can_see_full %}
-              <span class="text-kaijoYellow">
+              <span class="text-ownerMint">
                 {{ l.guide_price_band or "On request" }}
               </span>
             {% else %}
               <span class="blur-sm select-none">£X,XXX,XXX</span>
-              <span class="ml-1 text-[10px] text-kaijoYellow">Premium only</span>
+              <span class="ml-1 text-[10px] text-ownerMint">Premium only</span>
             {% endif %}
           </p>
         </a>
@@ -521,7 +519,7 @@
       {{ page_text(slug, "No live listings yet. New opportunities will appear here as they go live.") }}
       {% if can_edit_copy %}
         <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
-           class="ml-2 text-[10px] text-kaijoYellow underline">Edit</a>
+           class="ml-2 text-[10px] text-ownerMint underline">Edit</a>
       {% endif %}
     </p>
   {% endif %}

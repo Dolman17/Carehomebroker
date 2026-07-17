@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Request a valuation – Care Home Broker{% endblock %}
+{% block title %}Request a valuation – Ownerlane{% endblock %}
 
 {% block content %}
 <div class="max-w-3xl mx-auto py-6 text-white space-y-6">
@@ -12,7 +12,7 @@
       </p>
       <h1 class="text-xl sm:text-2xl font-semibold">
         Request a valuation from
-        <span class="text-kaijoYellow">
+        <span class="text-ownerMint">
           {{ profile.company_name or valuer.email }}
         </span>
       </h1>
@@ -52,13 +52,13 @@
 
   {% if not seller_listings %}
     <!-- No listings yet -->
-    <div class="rounded-lg border border-kaijoYellow/60 bg-black/20 p-4 text-xs text-white/80">
-      <p class="font-semibold mb-1 text-kaijoYellow">You don’t have any listings yet</p>
+    <div class="rounded-lg border border-ownerMint/60 bg-black/20 p-4 text-xs text-white/80">
+      <p class="font-semibold mb-1 text-ownerMint">You don’t have any listings yet</p>
       <p class="mb-2">
-        To request a valuation, first create a listing for the care home you’d like valued.
+        To request a valuation, first create a listing for the business you’d like valued.
       </p>
       <a href="{{ url_for('seller_new_listing') }}"
-         class="inline-flex items-center px-3 py-1.5 rounded bg-kaijoPink text-white text-[11px] hover:bg-kaijoYellow hover:text-black transition">
+         class="inline-flex items-center px-3 py-1.5 rounded bg-ownerCoral text-white text-[11px] hover:bg-ownerMint hover:text-black transition">
         Create a listing
       </a>
     </div>
@@ -103,11 +103,11 @@
       <!-- Actions -->
       <div class="flex items-center justify-between gap-3 pt-2">
         <a href="{{ url_for('seller_dashboard') }}"
-           class="text-[11px] text-white/70 hover:text-kaijoYellow">
+           class="text-[11px] text-white/70 hover:text-ownerMint">
           Cancel and go back
         </a>
         <button type="submit"
-                class="px-4 py-2 rounded bg-kaijoPink text-white text-xs font-semibold hover:bg-kaijoYellow hover:text-black transition">
+                class="px-4 py-2 rounded bg-ownerCoral text-white text-xs font-semibold hover:bg-ownerMint hover:text-black transition">
           Send valuation request
         </button>
 

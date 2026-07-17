@@ -3,7 +3,7 @@
 
 {% block content %}
 <div class="mb-6">
-  <h1 class="text-xl font-semibold text-kaijoYellow mb-1">User Management</h1>
+  <h1 class="text-xl font-semibold text-ownerMint mb-1">User Management</h1>
   <p class="text-xs text-white/70">View users and impersonate for troubleshooting.</p>
 </div>
 
@@ -27,7 +27,7 @@
                 <span class="text-[11px] text-white/50">This is you</span>
               {% else %}
                 <form method="post" action="{{ url_for('admin_impersonate', user_id=u.id) }}" class="inline">
-                  <button class="text-[11px] px-3 py-1 rounded border border-white/20 text-white/80 hover:bg-white/10 hover:text-kaijoYellow transition">
+                  <button class="text-[11px] px-3 py-1 rounded border border-white/20 text-white/80 hover:bg-white/10 hover:text-ownerMint transition">
                     Impersonate
                   </button>
                 </form>

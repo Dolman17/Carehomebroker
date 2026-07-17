@@ -23,7 +23,7 @@
         <th class="px-4 py-2">Business</th>
         <th class="px-4 py-2">Turnover / EBITDA</th>
         <th class="px-4 py-2">Regions</th>
-        <th class="px-4 py-2">Care type</th>
+        <th class="px-4 py-2">Sector / industry</th>
         <th class="px-4 py-2">NDA</th>
         <th class="px-4 py-2">Tier</th>
         <th class="px-4 py-2 text-right">Joined</th>
@@ -66,7 +66,7 @@
         </td>
         <td class="px-4 py-2 align-top text-[11px]">
           {% if p and p.nda_accepted %}
-            <span class="inline-flex items-center px-2 py-0.5 rounded-full bg-kaijoYellow/20 border border-kaijoYellow/60 text-kaijoYellow">
+            <span class="inline-flex items-center px-2 py-0.5 rounded-full bg-ownerMint/20 border border-ownerMint/60 text-ownerMint">
               NDA accepted
             </span>
           {% else %}
@@ -75,7 +75,7 @@
         </td>
         <td class="px-4 py-2 align-top text-[11px]">
           {% if u.id in premium_ids %}
-            <span class="inline-flex items-center px-2 py-0.5 rounded-full bg-kaijoPink/20 border border-kaijoPink/60 text-kaijoPink">
+            <span class="inline-flex items-center px-2 py-0.5 rounded-full bg-ownerCoral/20 border border-ownerCoral/60 text-ownerCoral">
               Seller Premium
             </span>
           {% elif u.id in basic_ids %}

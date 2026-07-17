@@ -15,7 +15,7 @@
 
     <div class="flex items-center gap-2">
       {% if is_premium_seller(current_user) %}
-        <span class="inline-flex items-center px-3 py-1 rounded-full text-[11px] bg-kaijoYellow text-black font-semibold uppercase tracking-[0.15em]">
+        <span class="inline-flex items-center px-3 py-1 rounded-full text-[11px] bg-ownerMint text-black font-semibold uppercase tracking-[0.15em]">
           Seller Premium
         </span>
       {% else %}
@@ -31,12 +31,12 @@
     <div class="mb-4 flex flex-wrap items-center justify-between gap-3 text-xs">
       <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/5 border border-white/15 text-white/80">
         <span class="text-[10px] uppercase tracking-[0.2em] text-white/50">Your plan</span>
-        <span class="font-semibold text-kaijoYellow">{{ current_plan_label }}</span>
+        <span class="font-semibold text-ownerMint">{{ current_plan_label }}</span>
       </div>
 
       <form method="POST" action="{{ url_for('billing_portal') }}">
         <button type="submit"
-                class="px-3 py-1.5 rounded border border-white/25 text-white/80 text-[11px] hover:bg-white/10 hover:text-kaijoYellow transition">
+                class="px-3 py-1.5 rounded border border-white/25 text-white/80 text-[11px] hover:bg-white/10 hover:text-ownerMint transition">
           Manage billing
         </button>
       </form>
@@ -44,7 +44,7 @@
   {% else %}
     <div class="mb-4 text-[11px] text-white/60">
       You don’t have an active subscription yet.
-      <a href="{{ url_for('pricing', role='seller') }}" class="underline hover:text-kaijoYellow">
+      <a href="{{ url_for('pricing', role='seller') }}" class="underline hover:text-ownerMint">
         Choose a seller plan
       </a>
     </div>
@@ -52,16 +52,16 @@
 
   <!-- PROFILE COMPLETION NUDGE -->
   {% if profile_incomplete %}
-    <div class="rounded-lg border border-kaijoYellow/60 bg-black/40 px-4 py-3 text-xs text-white/80">
+    <div class="rounded-lg border border-ownerMint/60 bg-black/40 px-4 py-3 text-xs text-white/80">
       <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
         <div>
-          <p class="font-semibold text-kaijoYellow mb-1">Complete your seller profile</p>
+          <p class="font-semibold text-ownerMint mb-1">Complete your seller profile</p>
           <p class="text-white/70">
             Add business details and financials so buyers and valuers have enough context when you list or request valuations.
           </p>
         </div>
         <a href="{{ url_for('seller_profile') }}"
-           class="inline-flex items-center justify-center px-3 py-1.5 rounded bg-kaijoPink text-white text-[11px] font-semibold hover:bg-kaijoYellow hover:text-black transition">
+           class="inline-flex items-center justify-center px-3 py-1.5 rounded bg-ownerCoral text-white text-[11px] font-semibold hover:bg-ownerMint hover:text-black transition">
           Update seller profile
         </a>
       </div>
@@ -80,7 +80,7 @@
           </p>
         </div>
         <a href="{{ url_for('pricing', role='seller') }}"
-           class="inline-flex items-center justify-center px-3 py-1.5 rounded bg-kaijoPink text-white text-[11px] font-semibold hover:bg-kaijoYellow hover:text-black transition">
+           class="inline-flex items-center justify-center px-3 py-1.5 rounded bg-ownerCoral text-white text-[11px] font-semibold hover:bg-ownerMint hover:text-black transition">
           View seller plans
         </a>
       </div>
@@ -100,7 +100,7 @@
           </p>
         </div>
         <a href="{{ url_for('seller_new_listing') }}"
-           class="inline-flex items-center justify-center px-3 py-1.5 rounded bg-kaijoPink text-white text-[11px] font-semibold hover:bg-kaijoYellow hover:text-black transition">
+           class="inline-flex items-center justify-center px-3 py-1.5 rounded bg-ownerCoral text-white text-[11px] font-semibold hover:bg-ownerMint hover:text-black transition">
           + Create new listing
         </a>
       </div>
@@ -120,18 +120,18 @@
                   <p class="text-[11px] text-white/60 mt-0.5">
                     {{ l.region or "Region tbc" }}
                     {% if l.care_type %} • {{ l.care_type }}{% endif %}
-                    {% if l.beds %} • {{ l.beds }} beds{% endif %}
+                    {% if l.beds %} • {{ l.beds }} units{% endif %}
                   </p>
                 </div>
 
                 <div class="text-right text-[11px]">
                   <span class="inline-flex items-center px-2 py-0.5 rounded-full
                                {% if l.status == 'live' %}
-                                 bg-kaijoYellow text-black
+                                 bg-ownerMint text-black
                                {% elif l.status == 'draft' %}
                                  bg-white/5 text-white/70
                                {% elif l.status == 'under_offer' %}
-                                 bg-kaijoPurple/80 text-white
+                                 bg-ownerBlue/80 text-white
                                {% elif l.status == 'sold' %}
                                  bg-emerald-500/80 text-black
                                {% else %}
@@ -146,11 +146,11 @@
               </div>
               <div class="flex flex-wrap gap-2 mt-2 text-[11px]">
   <a href="{{ url_for('listing_detail', listing_id=l.id) }}"
-     class="px-3 py-1.5 rounded border border-white/20 text-white/80 hover:bg-white/10 hover:text-kaijoYellow transition">
+     class="px-3 py-1.5 rounded border border-white/20 text-white/80 hover:bg-white/10 hover:text-ownerMint transition">
     View listing
   </a>
   <a href="{{ url_for('seller_edit_listing', listing_id=l.id) }}"
-     class="px-3 py-1.5 rounded border border-white/20 text-white/80 hover:bg-white/10 hover:text-kaijoYellow transition">
+     class="px-3 py-1.5 rounded border border-white/20 text-white/80 hover:bg-white/10 hover:text-ownerMint transition">
     Edit
   </a>
 </div>
@@ -162,7 +162,7 @@
       {% else %}
         <p class="text-xs text-white/60">
           You don’t have any listings yet.
-          <a href="{{ url_for('seller_new_listing') }}" class="underline hover:text-kaijoYellow">
+          <a href="{{ url_for('seller_new_listing') }}" class="underline hover:text-ownerMint">
             Create your first listing.
           </a>
         </p>
@@ -202,7 +202,7 @@
         <div class="flex items-center justify-between gap-2 mb-2">
           <h2 class="text-sm font-semibold text-white">Seller profile</h2>
           <a href="{{ url_for('seller_profile') }}"
-             class="text-[11px] text-white/60 hover:text-kaijoYellow">
+             class="text-[11px] text-white/60 hover:text-ownerMint">
             Edit profile
           </a>
         </div>
@@ -218,7 +218,7 @@
               <dd>{{ profile.region or "Not set" }}</dd>
             </div>
             <div>
-              <dt class="text-white/50">Care type</dt>
+              <dt class="text-white/50">Sector / industry</dt>
               <dd>{{ profile.care_type or "Not set" }}</dd>
             </div>
             <div>

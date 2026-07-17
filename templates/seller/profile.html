@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Seller Profile – Care Home Broker{% endblock %}
+{% block title %}Seller Profile – Ownerlane{% endblock %}
 
 {% block content %}
 <div class="max-w-4xl mx-auto text-white py-6">
@@ -16,7 +16,7 @@
 
     <!-- Business Info -->
     <div class="rounded-lg border border-white/10 bg-white/5 p-5">
-      <h2 class="text-lg font-semibold mb-4 text-kaijoYellow">Business Details</h2>
+      <h2 class="text-lg font-semibold mb-4 text-ownerMint">Business Details</h2>
 
       <div class="grid md:grid-cols-2 gap-4 text-sm">
         <div>
@@ -27,7 +27,7 @@
         </div>
 
         <div>
-          <label class="block mb-1 text-white/80">Care Type</label>
+          <label class="block mb-1 text-white/80">Sector / industry</label>
           <input type="text" name="care_type"
                  value="{{ profile.care_type if profile else '' }}"
                  placeholder="Elderly, LD, MH, etc."
@@ -53,7 +53,7 @@
 
     <!-- Financial Info -->
     <div class="rounded-lg border border-white/10 bg-white/5 p-5">
-      <h2 class="text-lg font-semibold mb-4 text-kaijoPink">Financial Information</h2>
+      <h2 class="text-lg font-semibold mb-4 text-ownerCoral">Financial Information</h2>
 
       <div class="grid md:grid-cols-2 gap-4 text-sm">
 
@@ -109,7 +109,7 @@
 
     <!-- Summary -->
     <div class="rounded-lg border border-white/10 bg-white/5 p-5">
-      <h2 class="text-lg font-semibold mb-3 text-kaijoPurple">Business Summary</h2>
+      <h2 class="text-lg font-semibold mb-3 text-ownerBlue">Business Summary</h2>
 
       <textarea name="summary" rows="5"
                 placeholder="Provide any helpful background about your operations, performance and sale appetite."
@@ -128,7 +128,7 @@
 
     <!-- Documents -->
     <div class="rounded-lg border border-white/10 bg-white/5 p-5">
-      <h2 class="text-lg font-semibold mb-3 text-kaijoYellow">Documents</h2>
+      <h2 class="text-lg font-semibold mb-3 text-ownerMint">Documents</h2>
 
       <p class="text-xs text-white/60 mb-3">
         Upload accounts, business summaries or supporting documents (PDF, DOC, DOCX, XLS or XLSX).
@@ -155,8 +155,8 @@
 
     <!-- Submit -->
     <div class="flex justify-end">
-      <button class="px-6 py-2 rounded bg-kaijoPink text-white text-sm font-semibold 
-                     hover:bg-kaijoYellow hover:text-black transition">
+      <button class="px-6 py-2 rounded bg-ownerCoral text-white text-sm font-semibold
+                     hover:bg-ownerMint hover:text-black transition">
         Save Profile
       </button>
     </div>

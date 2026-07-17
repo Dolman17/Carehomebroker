@@ -19,12 +19,12 @@
     <div class="flex flex-col items-start sm:items-end gap-2">
       {% if is_premium_valuer %}
         <span class="inline-flex items-center px-3 py-1 rounded-full text-[11px]
-                     bg-kaijoPink text-white font-semibold border border-white/20">
+                     bg-ownerCoral text-white font-semibold border border-white/20">
           Premium valuer
         </span>
       {% endif %}
       <p class="text-[11px] text-white/50">
-        Listed via Kaijo North Consulting Care Home Broker.
+        Listed on Ownerlane.
       </p>
     </div>
   </div>
@@ -84,22 +84,22 @@
       </div>
 
       <!-- CTA block -->
-      <div class="rounded-lg border border-kaijoYellow/60 bg-black/30 p-4">
-        <h2 class="text-sm font-semibold text-kaijoYellow mb-2">Request a valuation</h2>
+      <div class="rounded-lg border border-ownerMint/60 bg-black/30 p-4">
+        <h2 class="text-sm font-semibold text-ownerMint mb-2">Request a valuation</h2>
 
         {% if current_user.is_authenticated and current_user.role in ["buyer","seller"] %}
           <p class="text-xs text-white/80 mb-3">
-            Use your Care Home Broker account to request a valuation or independent view 
+            Use your Ownerlane account to request a valuation or independent view
             from this valuer. We do not share your personal details publicly.
           </p>
           <a href="{{ url_for('login', next=request.path) }}"
-             class="inline-flex items-center px-4 py-2 rounded bg-kaijoPink text-white text-xs font-semibold hover:bg-kaijoYellow hover:text-black transition">
+             class="inline-flex items-center px-4 py-2 rounded bg-ownerCoral text-white text-xs font-semibold hover:bg-ownerMint hover:text-black transition">
             Continue via your account
           </a>
         {% else %}
           <p class="text-xs text-white/80 mb-3">
             To request a valuation or introduction, log in or register as a buyer or seller.
-            Your details will be handled confidentially via the Kaijo North platform.
+            Your details will be handled confidentially via the Ownerlane platform.
           </p>
           <div class="flex flex-wrap gap-2">
             <a href="{{ url_for('login', next=request.path) }}"
@@ -124,7 +124,7 @@
   <!-- Back link -->
   <div>
     <a href="{{ url_for('index') }}"
-       class="inline-flex items-center text-xs text-white/70 hover:text-kaijoYellow">
+       class="inline-flex items-center text-xs text-white/70 hover:text-ownerMint">
       ← Back to marketplace
     </a>
   </div>

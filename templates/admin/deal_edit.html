@@ -55,7 +55,7 @@
     </div>
 
     {% if deal.broker_commission_amount %}
-      <div class="text-[11px] text-kaijoYellow mt-1">
+      <div class="text-[11px] text-ownerMint mt-1">
         Current commission value:
         £{{ "%.2f"|format(deal.broker_commission_amount / 100) }}
       </div>
@@ -63,7 +63,7 @@
 
     <div class="pt-2 flex items-center justify-between">
       <button type="submit"
-              class="px-4 py-2 rounded bg-kaijoPink text-[11px] font-semibold hover:bg-kaijoYellow hover:text-black transition">
+              class="px-4 py-2 rounded bg-ownerCoral text-[11px] font-semibold hover:bg-ownerMint hover:text-black transition">
         Save deal
       </button>
       <p class="text-[10px] text-white/50">

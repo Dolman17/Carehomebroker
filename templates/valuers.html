@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Valuer Directory – Care Home Broker{% endblock %}
+{% block title %}Valuer Directory – Ownerlane{% endblock %}
 
 {% block content %}
 <div class="max-w-5xl mx-auto space-y-8 text-white">
@@ -11,7 +11,7 @@
     <p class="text-sm text-white/70 mt-2 max-w-2xl">
       Accredited valuers available for formal valuations, independent assessments, 
       desktop reviews and advisory input for buyers and sellers.
-      Listings below are created by professionals who have registered with Kaijo North.
+      Listings below are created by professionals who have registered with Ownerlane.
     </p>
   </div>
 
@@ -25,7 +25,7 @@
           <!-- Header: name + premium badge -->
           <div class="flex items-center justify-between mb-3">
             <div>
-              <h2 class="text-lg font-semibold text-kaijoYellow">
+              <h2 class="text-lg font-semibold text-ownerMint">
                 {{ v.company_name or "Valuer" }}
               </h2>
               <p class="text-[11px] text-white/60">
@@ -34,7 +34,7 @@
             </div>
 
             {% if v.user_id in valuer_sub_ids %}
-              <span class="px-2 py-1 rounded-full text-[10px] bg-kaijoPink text-white font-semibold border border-white/10">
+              <span class="px-2 py-1 rounded-full text-[10px] bg-ownerCoral text-white font-semibold border border-white/10">
                 Premium
               </span>
             {% endif %}
@@ -67,7 +67,7 @@
           <!-- CTA -->
           <div class="flex justify-end">
             <a href="{{ url_for('login') }}"
-               class="px-3 py-1.5 rounded bg-kaijoPink text-white text-xs hover:bg-kaijoYellow hover:text-black transition">
+               class="px-3 py-1.5 rounded bg-ownerCoral text-white text-xs hover:bg-ownerMint hover:text-black transition">
               Request valuation
             </a>
           </div>

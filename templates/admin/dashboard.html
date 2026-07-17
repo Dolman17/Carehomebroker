@@ -17,14 +17,14 @@
     <div class="text-[11px] uppercase tracking-[0.18em] text-white/50 mb-1">
       Listings
     </div>
-    <div class="text-2xl font-semibold text-kaijoYellow">
+    <div class="text-2xl font-semibold text-ownerMint">
       {{ listing_counts.live or 0 }}
     </div>
     <div class="text-[11px] text-white/60 mt-1">
       Live • Draft: {{ listing_counts.draft or 0 }} • Under offer: {{ listing_counts.under_offer or 0 }} • Sold: {{ listing_counts.sold or 0 }}
     </div>
     <a href="{{ url_for('admin_listings') }}"
-       class="mt-3 inline-flex items-center text-[11px] text-white/70 hover:text-kaijoYellow">
+       class="mt-3 inline-flex items-center text-[11px] text-white/70 hover:text-ownerMint">
       Manage listings →
     </a>
   </div>
@@ -44,7 +44,7 @@
       <div>Admins: {{ admins_total or 0 }}</div>
     </div>
     <a href="{{ url_for('admin_users') }}"
-       class="mt-3 inline-flex items-center text-[11px] text-white/70 hover:text-kaijoYellow">
+       class="mt-3 inline-flex items-center text-[11px] text-white/70 hover:text-ownerMint">
       Manage users →
     </a>
   </div>
@@ -54,7 +54,7 @@
     <div class="text-[11px] uppercase tracking-[0.18em] text-white/50 mb-1">
       Active subscriptions
     </div>
-    <div class="text-2xl font-semibold text-kaijoPink">
+    <div class="text-2xl font-semibold text-ownerCoral">
       {{
         (subscription_breakdown.buyer.basic
          + subscription_breakdown.buyer.premium
@@ -70,7 +70,7 @@
       <div>Valuer – Basic: {{ subscription_breakdown.valuer.basic }} / Premium: {{ subscription_breakdown.valuer.premium }}</div>
     </div>
     <a href="{{ url_for('pricing') }}"
-       class="mt-3 inline-flex items-center text-[11px] text-white/70 hover:text-kaijoYellow">
+       class="mt-3 inline-flex items-center text-[11px] text-white/70 hover:text-ownerMint">
       View pricing →
     </a>
   </div>
@@ -90,11 +90,11 @@
     </div>
     <div class="mt-3 flex flex-wrap gap-2 text-[11px]">
       <a href="{{ url_for('admin_deals') }}"
-         class="inline-flex items-center px-2 py-1 rounded border border-white/20 text-white/70 hover:bg-white/10 hover:text-kaijoYellow">
+         class="inline-flex items-center px-2 py-1 rounded border border-white/20 text-white/70 hover:bg-white/10 hover:text-ownerMint">
         Deals
       </a>
       <a href="{{ url_for('admin_valuation_requests') }}"
-         class="inline-flex items-center px-2 py-1 rounded border border-white/20 text-white/70 hover:bg-white/10 hover:text-kaijoYellow">
+         class="inline-flex items-center px-2 py-1 rounded border border-white/20 text-white/70 hover:bg-white/10 hover:text-ownerMint">
         Valuations
       </a>
     </div>
@@ -109,7 +109,7 @@
     <div class="flex items-center justify-between mb-2">
       <h2 class="text-sm font-semibold text-white">Buyers</h2>
       <a href="{{ url_for('admin_buyers') }}"
-         class="text-[11px] text-white/60 hover:text-kaijoYellow">
+         class="text-[11px] text-white/60 hover:text-ownerMint">
         View all →
       </a>
     </div>
@@ -128,7 +128,7 @@
     <div class="flex items-center justify-between mb-2">
       <h2 class="text-sm font-semibold text-white">Sellers</h2>
       <a href="{{ url_for('admin_sellers') }}"
-         class="text-[11px] text-white/60 hover:text-kaijoYellow">
+         class="text-[11px] text-white/60 hover:text-ownerMint">
         View all →
       </a>
     </div>
@@ -147,7 +147,7 @@
     <div class="flex items-center justify-between mb-2">
       <h2 class="text-sm font-semibold text-white">Valuer framework</h2>
       <a href="{{ url_for('admin_valuers') }}"
-         class="text-[11px] text-white/60 hover:text-kaijoYellow">
+         class="text-[11px] text-white/60 hover:text-ownerMint">
         View all →
       </a>
     </div>
@@ -171,7 +171,7 @@
     <div class="flex items-center justify-between mb-2">
       <h2 class="text-sm font-semibold text-white">Newest listings</h2>
       <a href="{{ url_for('admin_listings') }}"
-         class="text-[11px] text-white/60 hover:text-kaijoYellow">
+         class="text-[11px] text-white/60 hover:text-ownerMint">
         All listings →
       </a>
     </div>
@@ -187,7 +187,7 @@
             </div>
           </div>
           <div class="text-white/60">
-            {{ l.region or "Region" }} • {{ l.care_type or "Care type" }} • {{ l.beds or "?" }} beds
+            {{ l.region or "Region" }} • {{ l.care_type or "Sector / industry" }} • {{ l.beds or "?" }} units
           </div>
           <div class="text-white/50">
             Status: {{ l.status }}
@@ -204,7 +204,7 @@
     <div class="flex items-center justify-between mb-2">
       <h2 class="text-sm font-semibold text-white">Recent valuation requests</h2>
       <a href="{{ url_for('admin_valuation_requests') }}"
-         class="text-[11px] text-white/60 hover:text-kaijoYellow">
+         class="text-[11px] text-white/60 hover:text-ownerMint">
         All requests →
       </a>
     </div>
@@ -238,7 +238,7 @@
     <div class="flex items-center justify-between mb-2">
       <h2 class="text-sm font-semibold text-white">Recent deals</h2>
       <a href="{{ url_for('admin_deals') }}"
-         class="text-[11px] text-white/60 hover:text-kaijoYellow">
+         class="text-[11px] text-white/60 hover:text-ownerMint">
         All deals →
       </a>
     </div>

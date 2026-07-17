@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Buyer Profile – Care Home Broker{% endblock %}
+{% block title %}Buyer Profile – Ownerlane{% endblock %}
 
 {% block content %}
 <div class="max-w-4xl mx-auto py-6 text-white">
@@ -21,7 +21,7 @@
 
     <!-- BASIC DETAILS -->
     <section class="rounded-lg border border-white/10 bg-black/30 p-4">
-      <h2 class="text-sm font-semibold mb-3 text-kaijoYellow">Basic details</h2>
+      <h2 class="text-sm font-semibold mb-3 text-ownerMint">Basic details</h2>
 
       <div class="grid md:grid-cols-2 gap-4 text-xs">
         <div>
@@ -64,7 +64,7 @@
 
     <!-- DEAL APPETITE -->
     <section class="rounded-lg border border-white/10 bg-black/30 p-4">
-      <h2 class="text-sm font-semibold mb-3 text-kaijoPink">Deal appetite</h2>
+      <h2 class="text-sm font-semibold mb-3 text-ownerCoral">Deal appetite</h2>
 
       <div class="grid md:grid-cols-2 gap-4 text-xs">
         <div>
@@ -142,7 +142,7 @@
 
     <!-- TARGET CRITERIA -->
     <section class="rounded-lg border border-white/10 bg-black/30 p-4">
-      <h2 class="text-sm font-semibold mb-3 text-kaijoPurple">Target criteria</h2>
+      <h2 class="text-sm font-semibold mb-3 text-ownerBlue">Target criteria</h2>
 
       <div class="grid md:grid-cols-2 gap-4 text-xs">
 
@@ -163,9 +163,9 @@
           </div>
         </div>
 
-        <!-- Care types -->
+        <!-- Sectors / industries -->
         <div>
-          <p class="mb-1">Care types of interest *</p>
+          <p class="mb-1">Sectors / industries of interest *</p>
           <div class="grid grid-cols-1 gap-1">
             {% for ct in care_type_choices %}
               <label class="inline-flex items-center gap-1">
@@ -182,7 +182,7 @@
 
         <!-- Beds -->
         <div>
-          <label class="block mb-1">Beds range (approx)</label>
+          <label class="block mb-1">Business size / units (approx)</label>
           <div class="flex gap-2">
             <input type="number" name="beds_min" min="0" placeholder="Min"
                    value="{{ profile.beds_min if profile and profile.beds_min is not none else '' }}"
@@ -212,7 +212,7 @@
             <option value="" {% if not ti %}selected{% endif %}>Open to discussion</option>
             <option value="Yes" {% if ti == 'Yes' %}selected{% endif %}>Actively interested in turnaround</option>
             <option value="Selective" {% if ti == 'Selective' %}selected{% endif %}>Selective / case by case</option>
-            <option value="No" {% if ti == 'No' %}selected{% endif %}>No, stable homes only</option>
+            <option value="No" {% if ti == 'No' %}selected{% endif %}>No, stable businesses only</option>
           </select>
         </div>
       </div>
@@ -220,7 +220,7 @@
 
     <!-- TIMING & STRATEGY -->
     <section class="rounded-lg border border-white/10 bg-black/30 p-4">
-      <h2 class="text-sm font-semibold mb-3 text-kaijoYellow">Timing & strategy</h2>
+      <h2 class="text-sm font-semibold mb-3 text-ownerMint">Timing & strategy</h2>
 
       <div class="grid md:grid-cols-2 gap-4 text-xs">
         <div>
@@ -248,7 +248,7 @@
 
     <!-- ADVISORS & DUE DILIGENCE -->
     <section class="rounded-lg border border-white/10 bg-black/30 p-4">
-      <h2 class="text-sm font-semibold mb-3 text-kaijoPink">Advisors & due diligence</h2>
+      <h2 class="text-sm font-semibold mb-3 text-ownerCoral">Advisors & due diligence</h2>
 
       <div class="grid md:grid-cols-2 gap-4 text-xs">
         <div>
@@ -285,7 +285,7 @@
 
     <!-- CONFIDENTIALITY -->
     <section class="rounded-lg border border-white/10 bg-black/30 p-4">
-      <h2 class="text-sm font-semibold mb-3 text-kaijoPurple">Confidentiality</h2>
+      <h2 class="text-sm font-semibold mb-3 text-ownerBlue">Confidentiality</h2>
 
       <div class="text-xs space-y-2">
         <p class="text-white/80">
@@ -311,7 +311,7 @@
         You can update this profile at any time as your strategy evolves.
       </p>
       <button type="submit"
-              class="px-4 py-2 rounded bg-kaijoPink text-white text-xs font-semibold hover:bg-kaijoYellow hover:text-black transition">
+              class="px-4 py-2 rounded bg-ownerCoral text-white text-xs font-semibold hover:bg-ownerMint hover:text-black transition">
         Save buyer profile
       </button>
     </div>

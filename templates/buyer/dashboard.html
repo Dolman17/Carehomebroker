@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Buyer Dashboard – Care Home Broker{% endblock %}
+{% block title %}Buyer Dashboard – Ownerlane{% endblock %}
 
 {% block content %}
 <div class="space-y-6 text-white">
@@ -14,7 +14,7 @@
     </div>
 
     <a href="{{ url_for('buyer_profile') }}"
-       class="inline-flex items-center justify-center text-xs px-3 py-2 rounded border border-white/20 text-white/90 hover:bg-white/10 hover:text-kaijoYellow transition">
+       class="inline-flex items-center justify-center text-xs px-3 py-2 rounded border border-white/20 text-white/90 hover:bg-white/10 hover:text-ownerMint transition">
       ✏️ Update buyer profile
     </a>
   </div>
@@ -23,12 +23,12 @@
   <div class="mb-4 flex flex-wrap items-center justify-between gap-3 text-xs">
     <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/5 border border-white/15 text-white/80">
       <span class="text-[10px] uppercase tracking-[0.2em] text-white/50">Your plan</span>
-      <span class="font-semibold text-kaijoYellow">{{ current_plan_label }}</span>
+      <span class="font-semibold text-ownerMint">{{ current_plan_label }}</span>
     </div>
 
     <form method="POST" action="{{ url_for('billing_portal') }}">
       <button type="submit"
-              class="px-3 py-1.5 rounded border border-white/25 text-white/80 text-[11px] hover:bg-white/10 hover:text-kaijoYellow transition">
+              class="px-3 py-1.5 rounded border border-white/25 text-white/80 text-[11px] hover:bg-white/10 hover:text-ownerMint transition">
         Manage billing
       </button>
     </form>
@@ -36,7 +36,7 @@
   {% else %}
   <div class="mb-4 text-[11px] text-white/60">
     You don’t have an active subscription yet.
-    <a href="{{ url_for('pricing', role='buyer') }}" class="underline hover:text-kaijoYellow">
+    <a href="{{ url_for('pricing', role='buyer') }}" class="underline hover:text-ownerMint">
       Choose a plan
     </a>
   </div>
@@ -51,16 +51,16 @@
 
       {% if profile_complete %}
         <p class="text-white/70 mb-2">
-          Your profile is <span class="text-kaijoYellow font-semibold">deal-ready</span>.
+          Your profile is <span class="text-ownerMint font-semibold">deal-ready</span>.
           We’re using it to rank and prioritise opportunities for you.
         </p>
       {% else %}
         <p class="text-white/70 mb-2">
-          Your profile is <span class="text-kaijoPink font-semibold">incomplete</span>.
+          Your profile is <span class="text-ownerCoral font-semibold">incomplete</span>.
           Add your budget, regions and strategy to improve match quality.
         </p>
         <a href="{{ url_for('buyer_profile') }}"
-           class="inline-flex items-center px-3 py-1.5 rounded bg-kaijoPink text-white hover:bg-kaijoYellow hover:text-black transition">
+           class="inline-flex items-center px-3 py-1.5 rounded bg-ownerCoral text-white hover:bg-ownerMint hover:text-black transition">
           Complete your buyer profile
         </a>
       {% endif %}
@@ -72,7 +72,7 @@
 
       {% if is_premium_buyer %}
         <p class="text-white/70 mb-1">
-          You are on <span class="text-kaijoYellow font-semibold">Buyer Premium</span>.
+          You are on <span class="text-ownerMint font-semibold">Buyer Premium</span>.
           You can see full listing details and send structured enquiries.
         </p>
         <p class="text-white/50">
@@ -84,7 +84,7 @@
           You’ll see blurred headline details – upgrade to unlock full listings and enquiry tools.
         </p>
         <a href="{{ url_for('pricing', role='buyer') }}"
-           class="inline-flex items-center px-3 py-1.5 rounded bg-kaijoPink text-white font-semibold hover:bg-kaijoYellow hover:text-black transition">
+           class="inline-flex items-center px-3 py-1.5 rounded bg-ownerCoral text-white font-semibold hover:bg-ownerMint hover:text-black transition">
           View Buyer Premium options
         </a>
         <p class="mt-2 text-[11px] text-white/50">
@@ -101,11 +101,11 @@
       <div>
         <h2 class="text-sm font-semibold">Matches based on your profile</h2>
         <p class="text-[11px] text-white/60">
-          Ranked by fit against your regions, care types, beds and budget.
+          Ranked by fit against your regions, sectors / industries, units and budget.
         </p>
       </div>
       <a href="{{ url_for('listings') }}"
-         class="text-[11px] text-white/70 hover:text-kaijoYellow underline-offset-2 hover:underline">
+         class="text-[11px] text-white/70 hover:text-ownerMint underline-offset-2 hover:underline">
         Browse all live listings →
       </a>
     </div>
@@ -114,7 +114,7 @@
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
         {% for l in top_matches %}
           <a href="{{ url_for('listing_detail', listing_id=l.id) }}"
-             class="block rounded-md border border-white/10 bg-black/40 p-3 hover:border-kaijoYellow/80 hover:shadow-lg hover:shadow-black/40 transition">
+             class="block rounded-md border border-white/10 bg-black/40 p-3 hover:border-ownerMint/80 hover:shadow-lg hover:shadow-black/40 transition">
 
             <p class="text-[10px] font-mono text-white/40 mb-1">
               {{ l.listing_code or "Ref pending" }}
@@ -125,26 +125,26 @@
               {% if is_premium_buyer %}
                 {{ l.title }}
               {% else %}
-                <span class="blur-sm select-none">Confidential care home</span>
-                <span class="ml-1 text-[10px] text-kaijoYellow">Premium only</span>
+                <span class="blur-sm select-none">Confidential business</span>
+                <span class="ml-1 text-[10px] text-ownerMint">Premium only</span>
               {% endif %}
             </p>
 
             <p class="text-[11px] text-white/70 mb-1">
               {{ l.region or "Region tbc" }} •
-              {{ l.care_type or "Care type tbc" }} •
-              {{ l.beds or "?" }} beds
+              {{ l.care_type or "Sector / industry tbc" }} •
+              {{ l.beds or "?" }} units
             </p>
 
             <p class="text-[11px] text-white/60">
               Guide price:
               {% if is_premium_buyer %}
-                <span class="text-kaijoYellow">
+                <span class="text-ownerMint">
                   {{ l.guide_price_band or "On request" }}
                 </span>
               {% else %}
                 <span class="blur-sm select-none">£X,XXX,XXX</span>
-                <span class="ml-1 text-[10px] text-kaijoYellow">Premium only</span>
+                <span class="ml-1 text-[10px] text-ownerMint">Premium only</span>
               {% endif %}
             </p>
           </a>
@@ -205,7 +205,7 @@
       <div class="flex items-center justify-between mb-2">
         <h2 class="text-sm font-semibold">Shortlist</h2>
         <a href="{{ url_for('buyer_shortlist') }}"
-           class="text-[11px] text-white/70 hover:text-kaijoYellow underline-offset-2 hover:underline">
+           class="text-[11px] text-white/70 hover:text-ownerMint underline-offset-2 hover:underline">
           View full shortlist →
         </a>
       </div>
@@ -214,7 +214,7 @@
         <div class="space-y-2 max-h-64 overflow-y-auto pr-1">
           {% for l in shortlist_listings %}
             <a href="{{ url_for('listing_detail', listing_id=l.id) }}"
-               class="block border border-white/10 rounded-md px-3 py-2 text-[11px] hover:border-kaijoYellow/70 transition">
+               class="block border border-white/10 rounded-md px-3 py-2 text-[11px] hover:border-ownerMint/70 transition">
               <div class="flex items-center justify-between gap-2 mb-1">
                 <span class="font-mono text-white/50">
                   {{ l.listing_code or "Ref" }}
@@ -227,12 +227,12 @@
                 {% if is_premium_buyer %}
                   {{ l.title }}
                 {% else %}
-                  <span class="blur-sm select-none">Confidential care home</span>
-                  <span class="ml-1 text-[10px] text-kaijoYellow">Premium</span>
+                  <span class="blur-sm select-none">Confidential business</span>
+                  <span class="ml-1 text-[10px] text-ownerMint">Premium</span>
                 {% endif %}
               </p>
               <p class="text-white/60">
-                {{ l.care_type or "Care type" }} • {{ l.beds or "?" }} beds
+                {{ l.care_type or "Sector / industry" }} • {{ l.beds or "?" }} units
               </p>
             </a>
           {% endfor %}

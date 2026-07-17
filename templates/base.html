@@ -2,7 +2,9 @@
 <html lang="en" class="h-full">
 <head>
   <meta charset="UTF-8">
-  <title>{% block title %}Care Home Broker{% endblock %}</title>
+  <title>{% block title %}Ownerlane{% endblock %}</title>
+  <meta name="description" content="Ownerlane is the confidential marketplace where businesses find their next owner.">
+  <link rel="icon" href="{{ url_for('static', filename='img/ownerlane-mark.svg') }}" type="image/svg+xml">
 
   <!-- Tailwind CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -16,11 +18,12 @@
             sans: ['Poppins', 'system-ui', 'sans-serif'],
           },
           colors: {
-            kaijoGreenDark: '#123424',
-            kaijoGreenMid: '#0E3A2D',
-            kaijoPurple: '#7A2E8C',
-            kaijoYellow: '#F3A61C',
-            kaijoPink: '#E51878',
+            ownerInk: '#0B1220',
+            ownerNavy: '#111C32',
+            ownerBlue: '#2563EB',
+            ownerMint: '#2DD4BF',
+            ownerCoral: '#FB7185',
+            ownerCloud: '#F7F9FC',
           }
         }
       }
@@ -38,7 +41,7 @@
 </head>
 
 <body class="min-h-full flex flex-col font-sans
-             bg-gradient-to-br from-kaijoGreenDark via-kaijoGreenMid to-kaijoPurple text-white">
+             bg-gradient-to-br from-ownerInk via-ownerNavy to-ownerBlue text-white">
 
   <!-- NAVBAR (sticky) -->
   <header class="sticky top-0 z-30 border-b border-white/10 bg-black/40 backdrop-blur">
@@ -46,44 +49,44 @@
 
       <!-- Logo -->
       <a href="{{ url_for('index') }}" class="flex items-center gap-2">
-        <img src="{{ url_for('static', filename='img/kaijo-logo.png') }}"
-             alt="Kaijo North Consulting"
+        <img src="{{ url_for('static', filename='img/ownerlane-logo.svg') }}"
+             alt="Ownerlane"
              class="hidden sm:block h-9 w-auto">
-        <img src="{{ url_for('static', filename='img/kaijo-logo.png') }}"
-             alt="Kaijo North Consulting"
+        <img src="{{ url_for('static', filename='img/ownerlane-logo.svg') }}"
+             alt="Ownerlane"
              class="sm:hidden h-7 w-auto">
       </a>
 
       <!-- Desktop nav -->
       <div class="hidden sm:flex items-center gap-4 text-xs sm:text-sm">
         <a href="{{ url_for('index') }}"
-           class="text-white/80 hover:text-kaijoYellow transition-colors">
+           class="text-white/80 hover:text-ownerMint transition-colors">
           Home
         </a>
 
         <a href="{{ url_for('listings') }}"
-           class="text-white/80 hover:text-kaijoYellow transition-colors">
+           class="text-white/80 hover:text-ownerMint transition-colors">
           Listings
         </a>
 
         <a href="{{ url_for('pricing') }}?role=buyer"
-           class="text-white/80 hover:text-kaijoYellow transition-colors">
+           class="text-white/80 hover:text-ownerMint transition-colors">
           Pricing
         </a>
 
         {% if current_user.is_authenticated %}
           <a href="{{ url_for('my_dashboard') }}"
-             class="text-white/80 hover:text-kaijoYellow transition-colors">
+             class="text-white/80 hover:text-ownerMint transition-colors">
             My Dashboard
           </a>
           <form action="{{ url_for('logout') }}" method="POST" class="ml-1">
-            <button class="text-kaijoPink hover:text-white transition-colors">
+            <button class="text-ownerCoral hover:text-white transition-colors">
               Logout
             </button>
           </form>
         {% else %}
           <a href="{{ url_for('login') }}"
-             class="text-white/80 hover:text-kaijoYellow transition-colors">
+             class="text-white/80 hover:text-ownerMint transition-colors">
             Login
           </a>
         {% endif %}
@@ -103,13 +106,13 @@
 
   <!-- IMPERSONATION TOOLBAR (sticky under nav) -->
   {% if session.get('impersonator_id') %}
-    <div class="bg-kaijoPink/25 border-b border-kaijoPink/70 sticky top-[52px] sm:top-[56px] z-20">
+    <div class="bg-ownerCoral/25 border-b border-ownerCoral/70 sticky top-[52px] sm:top-[56px] z-20">
       <div class="max-w-6xl mx-auto px-4 py-2 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-[11px] text-white">
         <span>
           You are currently impersonating another user. Actions will be recorded as them.
         </span>
         <form method="post" action="{{ url_for('stop_impersonating') }}">
-          <button class="px-3 py-1 rounded bg-kaijoPink text-white hover:bg-kaijoYellow hover:text-black transition">
+          <button class="px-3 py-1 rounded bg-ownerCoral text-white hover:bg-ownerMint hover:text-black transition">
             Stop impersonating
           </button>
         </form>
@@ -123,7 +126,7 @@
     {% if messages %}
       <div class="space-y-2">
         {% for msg in messages %}
-          <div class="bg-black/50 border border-kaijoYellow/60 text-kaijoYellow px-4 py-2 rounded text-xs sm:text-sm">
+          <div class="bg-black/50 border border-ownerMint/60 text-ownerMint px-4 py-2 rounded text-xs sm:text-sm">
             {{ msg }}
           </div>
         {% endfor %}
@@ -140,8 +143,8 @@
   <!-- FOOTER -->
   <footer class="border-t border-white/10 bg-black/20 mt-10">
     <div class="max-w-6xl mx-auto px-4 py-4 text-[11px] sm:text-xs text-white/60 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-      <span>© 2025 Kaijo North Consulting – Care Home Broker</span>
-      <span class="text-white/40">Innovating teams. Expanding businesses. Elevating care.</span>
+      <span>© 2026 Ownerlane</span>
+      <span class="text-white/40">Where businesses find their next owner.</span>
     </div>
   </footer>
 
@@ -161,35 +164,35 @@
 
     <nav class="flex flex-col gap-2 text-sm">
       <a href="{{ url_for('index') }}"
-         class="py-1 text-white/90 hover:text-kaijoYellow">
+         class="py-1 text-white/90 hover:text-ownerMint">
         Home
       </a>
 
       <a href="{{ url_for('listings') }}"
-         class="py-1 text-white/80 hover:text-kaijoYellow">
+         class="py-1 text-white/80 hover:text-ownerMint">
         Listings
       </a>
 
       <a href="{{ url_for('pricing') }}"
-         class="py-1 text-white/80 hover:text-kaijoYellow">
+         class="py-1 text-white/80 hover:text-ownerMint">
         Pricing
       </a>
 
       {% if current_user.is_authenticated %}
 
         <a href="{{ url_for('my_dashboard') }}"
-           class="py-1 text-white/80 hover:text-kaijoYellow">
+           class="py-1 text-white/80 hover:text-ownerMint">
           My Dashboard
         </a>
 
         <a href="{{ url_for('admin_enquiries') }}"
-   class="text-sm text-white/70 hover:text-kaijoYellow">
+   class="text-sm text-white/70 hover:text-ownerMint">
   Enquiries
 </a>
 
 
         <form action="{{ url_for('logout') }}" method="POST" class="mt-2">
-          <button class="w-full text-left py-1 text-kaijoPink hover:text-white">
+          <button class="w-full text-left py-1 text-ownerCoral hover:text-white">
             Logout
           </button>
         </form>
@@ -197,7 +200,7 @@
       {% else %}
 
         <a href="{{ url_for('login') }}"
-           class="py-1 text-white/80 hover:text-kaijoYellow">
+           class="py-1 text-white/80 hover:text-ownerMint">
           Login
         </a>
 
@@ -209,18 +212,18 @@
 
 
   <!-- FLOATING MOBILE CTA BAR -->
-  <div class="md:hidden fixed bottom-0 inset-x-0 z-30 bg-gradient-to-r from-kaijoPurple via-black to-kaijoYellow border-t border-white/10">
+  <div class="md:hidden fixed bottom-0 inset-x-0 z-30 bg-gradient-to-r from-ownerBlue via-black to-ownerMint border-t border-white/10">
     <div class="max-w-6xl mx-auto px-4 py-2 flex items-center justify-between gap-2 text-[11px]">
       <span class="text-white/80 hidden xs:inline">
-        Looking to buy or sell a care home?
+        Looking to buy or sell a business?
       </span>
       <div class="flex gap-2 ml-auto">
         <a href="{{ url_for('pricing', role='buyer') }}"
-           class="px-3 py-1 rounded border border-white/30 text-white/90 hover:bg-white/10 hover:text-kaijoYellow">
+           class="px-3 py-1 rounded border border-white/30 text-white/90 hover:bg-white/10 hover:text-ownerMint">
           Buy
         </a>
         <a href="{{ url_for('pricing', role='seller') }}"
-           class="px-3 py-1 rounded bg-kaijoPink text-white hover:bg-kaijoYellow hover:text-black">
+           class="px-3 py-1 rounded bg-ownerCoral text-white hover:bg-ownerMint hover:text-black">
           Sell
         </a>
       </div>

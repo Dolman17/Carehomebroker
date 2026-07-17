@@ -16,7 +16,7 @@
       <p class="text-xs text-white/60 mt-1">
         {{ vr.listing.listing_code or "Ref" }} •
         {{ vr.listing.region or "Region tbc" }} •
-        {{ vr.listing.care_type or "Care type tbc" }}
+        {{ vr.listing.care_type or "Sector / industry tbc" }}
       </p>
     </div>
     <a href="{{ url_for('valuer_requests') }}"
@@ -76,7 +76,7 @@
           </select>
         </div>
         <button type="submit"
-                class="mt-2 sm:mt-6 sm:ml-3 px-4 py-1.5 rounded bg-kaijoPink text-white text-[11px] font-semibold hover:bg-kaijoYellow hover:text-black transition">
+                class="mt-2 sm:mt-6 sm:ml-3 px-4 py-1.5 rounded bg-ownerCoral text-white text-[11px] font-semibold hover:bg-ownerMint hover:text-black transition">
           Save
         </button>
       </form>
@@ -119,11 +119,11 @@
     <h2 class="text-sm font-semibold mb-2">Listing snapshot</h2>
     <div class="grid gap-y-2 text-xs text-white/80">
       <p>
-        <span class="text-white/50">Beds:</span>
+        <span class="text-white/50">Business size / units:</span>
         {{ vr.listing.beds or "n/a" }}
       </p>
       <p>
-        <span class="text-white/50">Occupancy:</span>
+        <span class="text-white/50">Capacity utilisation:</span>
         {{ vr.listing.occupancy_percent or "n/a" }}%
       </p>
       <p>

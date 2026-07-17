@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Valuer Dashboard – Care Home Broker{% endblock %}
+{% block title %}Valuer Dashboard – Ownerlane{% endblock %}
 
 {% block content %}
 <div class="max-w-5xl mx-auto py-8 text-white">
@@ -9,19 +9,19 @@
     <div>
       <h1 class="text-2xl font-semibold mb-1">Valuer dashboard</h1>
       <p class="text-xs text-white/70">
-        Welcome, {{ current_user.email }} – part of the Kaijo North valuer framework.
+        Welcome, {{ current_user.email }} – part of the Ownerlane valuer framework.
       </p>
     </div>
 
     <a href="{{ url_for('valuer_profile') }}"
-       class="inline-flex items-center justify-center px-3 py-2 rounded border border-white/30 text-xs text-white hover:bg-white/10 hover:text-kaijoYellow transition">
+       class="inline-flex items-center justify-center px-3 py-2 rounded border border-white/30 text-xs text-white hover:bg-white/10 hover:text-ownerMint transition">
       Edit profile
     </a>
   </div>
 
   <!-- OPEN REQUESTS BANNER -->
   {% if open_requests_count and open_requests_count > 0 %}
-    <div class="mb-4 rounded-lg border border-kaijoYellow/60 bg-black/30 px-4 py-3 text-xs text-kaijoYellow">
+    <div class="mb-4 rounded-lg border border-ownerMint/60 bg-black/30 px-4 py-3 text-xs text-ownerMint">
       <span class="font-semibold">{{ open_requests_count }}</span>
       open valuation request{% if open_requests_count != 1 %}s{% endif %} awaiting your attention.
       <a href="{{ url_for('valuer_requests') }}" class="underline">
@@ -35,12 +35,12 @@
     <div class="mb-4 flex flex-wrap items-center justify-between gap-3 text-xs">
       <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/5 border border-white/15 text-white/80">
         <span class="text-[10px] uppercase tracking-[0.2em] text-white/50">Your plan</span>
-        <span class="font-semibold text-kaijoYellow">{{ current_plan_label }}</span>
+        <span class="font-semibold text-ownerMint">{{ current_plan_label }}</span>
       </div>
 
       <form method="POST" action="{{ url_for('billing_portal') }}">
         <button type="submit"
-                class="px-3 py-1.5 rounded border border-white/25 text-white/80 text-[11px] hover:bg-white/10 hover:text-kaijoYellow transition">
+                class="px-3 py-1.5 rounded border border-white/25 text-white/80 text-[11px] hover:bg-white/10 hover:text-ownerMint transition">
           Manage billing
         </button>
       </form>
@@ -48,7 +48,7 @@
   {% else %}
     <div class="mb-4 text-[11px] text-white/60">
       You don’t have an active subscription yet.
-      <a href="{{ url_for('pricing', role='valuer') }}" class="underline hover:text-kaijoYellow">
+      <a href="{{ url_for('pricing', role='valuer') }}" class="underline hover:text-ownerMint">
         Choose a plan
       </a>
     </div>
@@ -65,7 +65,7 @@
             Valuer plan
           </p>
           {% if subscription %}
-            <p class="text-sm font-semibold text-kaijoYellow">
+            <p class="text-sm font-semibold text-ownerMint">
               Valuer {{ subscription.tier|capitalize }}
             </p>
             <p class="text-[11px] text-white/60 mt-1">
@@ -103,7 +103,7 @@
     <div class="rounded-lg border border-white/10 bg-black/40 px-4 py-3 text-[11px] sm:text-xs flex flex-col justify-between">
       {% if not subscription or subscription.tier != "premium" %}
         <div>
-          <p class="font-semibold text-kaijoYellow mb-1">
+          <p class="font-semibold text-ownerMint mb-1">
             Grow your valuer presence
           </p>
           <p class="text-white/70 mb-2">
@@ -115,7 +115,7 @@
           <input type="hidden" name="role" value="valuer">
           <input type="hidden" name="tier" value="premium">
           <button type="submit"
-                  class="w-full px-3 py-2 rounded bg-kaijoPink text-white font-semibold hover:bg-kaijoYellow hover:text-black transition">
+                  class="w-full px-3 py-2 rounded bg-ownerCoral text-white font-semibold hover:bg-ownerMint hover:text-black transition">
             Upgrade to Valuer Premium
           </button>
         </form>
@@ -146,12 +146,12 @@
           Your details are ready to appear in the valuer framework when the directory goes live.
         </p>
       {% else %}
-        <p class="text-xs text-kaijoYellow mb-1">Needs attention</p>
+        <p class="text-xs text-ownerMint mb-1">Needs attention</p>
         <p class="text-[11px] text-white/70 mb-2">
           Add your company, accreditation and regions so sellers and buyers can find you.
         </p>
         <a href="{{ url_for('valuer_profile') }}"
-           class="inline-flex items-center px-3 py-1.5 rounded bg-kaijoPink text-white text-[11px] hover:bg-kaijoYellow hover:text-black transition">
+           class="inline-flex items-center px-3 py-1.5 rounded bg-ownerCoral text-white text-[11px] hover:bg-ownerMint hover:text-black transition">
           Complete profile
         </a>
       {% endif %}
@@ -162,7 +162,7 @@
       <h2 class="text-sm font-semibold mb-2">Valuation requests</h2>
       <p class="text-[11px] text-white/60">
         In the next phase, sellers will be able to request valuations directly from the framework.
-        Those requests will appear here with filters by region, care type and deal stage.
+        Those requests will appear here with filters by region, sector / industry and deal stage.
       </p>
     </div>
 

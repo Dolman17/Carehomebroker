@@ -3,7 +3,7 @@
 
 {% block content %}
 <div class="max-w-md mx-auto">
-  <h1 class="text-xl font-semibold text-kaijoYellow mb-3">Create Buyer Account</h1>
+  <h1 class="text-xl font-semibold text-ownerMint mb-3">Create Buyer Account</h1>
 
   <form method="post"
         class="bg-white/5 border border-white/10 rounded-lg p-5 space-y-4 backdrop-blur-sm shadow-[0_0_20px_rgba(0,0,0,0.35)]">
@@ -22,14 +22,14 @@
     </div>
 
     <button
-      class="w-full bg-kaijoPink text-white text-sm rounded py-2 hover:bg-kaijoYellow hover:text-black transition">
+      class="w-full bg-ownerCoral text-white text-sm rounded py-2 hover:bg-ownerMint hover:text-black transition">
       Create Buyer Account
     </button>
   </form>
 
   <p class="mt-4 text-[11px] text-white/70">
     Already registered?
-    <a href="{{ url_for('login') }}" class="text-kaijoYellow hover:underline">Login here</a>.
+    <a href="{{ url_for('login') }}" class="text-ownerMint hover:underline">Login here</a>.
   </p>
 </div>
 {% endblock %}

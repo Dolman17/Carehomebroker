@@ -1,12 +1,12 @@
 {% extends "base.html" %}
-{% block title %}Register as Valuer – Care Home Broker{% endblock %}
+{% block title %}Register as Valuer – Ownerlane{% endblock %}
 
 {% block content %}
 <div class="max-w-xl mx-auto py-8">
   <div class="mb-6">
     <h1 class="text-2xl font-semibold text-white mb-1">Register as a Valuer</h1>
     <p class="text-xs text-white/70">
-      Join the Kaijo North valuer framework to be discoverable by care home buyers and sellers.
+      Join the Ownerlane valuer network to be discoverable by business buyers and sellers.
     </p>
   </div>
 
@@ -92,16 +92,16 @@
       </label>
       <textarea id="bio" name="bio" rows="4"
                 class="w-full rounded border border-white/20 bg-black/40 px-3 py-2 text-sm text-white placeholder:text-white/40"
-                placeholder="Summarise your experience in valuing care homes and social care businesses."></textarea>
+                placeholder="Summarise your experience in valuing established businesses."></textarea>
     </div>
 
     <div class="flex items-center justify-between pt-2">
       <a href="{{ url_for('login') }}"
-         class="text-[11px] text-white/60 hover:text-kaijoYellow">
+         class="text-[11px] text-white/60 hover:text-ownerMint">
         Already registered? Log in
       </a>
       <button type="submit"
-              class="px-4 py-2 rounded bg-kaijoPink text-white text-xs font-semibold hover:bg-kaijoYellow hover:text-black transition">
+              class="px-4 py-2 rounded bg-ownerCoral text-white text-xs font-semibold hover:bg-ownerMint hover:text-black transition">
         Create valuer account
       </button>
     </div>

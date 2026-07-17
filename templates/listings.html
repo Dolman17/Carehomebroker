@@ -26,10 +26,10 @@
   <div>
     {% set slug = "listings_header_title" %}
     <h1 class="text-xl font-semibold text-white">
-      {{ page_text(slug, "Available Care Homes") }}
+      {{ page_text(slug, "Business opportunities") }}
       {% if can_edit_copy %}
         <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
-           class="ml-2 text-[10px] text-kaijoYellow underline">Edit</a>
+           class="ml-2 text-[10px] text-ownerMint underline">Edit</a>
       {% endif %}
     </h1>
 
@@ -38,28 +38,28 @@
       {{ page_text(slug, "A curated, confidential marketplace of live opportunities.") }}
       {% if can_edit_copy %}
         <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
-           class="ml-2 text-[9px] text-kaijoYellow underline">Edit</a>
+           class="ml-2 text-[9px] text-ownerMint underline">Edit</a>
       {% endif %}
     </p>
   </div>
 
   <a href="{{ url_for('index') }}"
-     class="text-xs border border-white/25 text-white/80 px-3 py-2 rounded hover:bg-white/10 hover:text-kaijoYellow transition">
+     class="text-xs border border-white/25 text-white/80 px-3 py-2 rounded hover:bg-white/10 hover:text-ownerMint transition">
     ← Back to home
   </a>
 </div>
 
 {# Logged-in buyer, but NOT premium #}
 {% if is_buyer and not is_premium_buyer %}
-  <div class="mb-5 rounded-lg border border-kaijoYellow/70 bg-black/40 px-4 py-3 text-xs">
+  <div class="mb-5 rounded-lg border border-ownerMint/70 bg-black/40 px-4 py-3 text-xs">
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
       <div>
         {% set slug = "listings_buyer_basic_title" %}
-        <p class="font-semibold text-kaijoYellow">
+        <p class="font-semibold text-ownerMint">
           {{ page_text(slug, "You’re on Buyer Basic.") }}
           {% if can_edit_copy %}
             <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
-               class="ml-2 text-[9px] text-kaijoYellow underline">Edit</a>
+               class="ml-2 text-[9px] text-ownerMint underline">Edit</a>
           {% endif %}
         </p>
 
@@ -71,14 +71,14 @@
           ) }}
           {% if can_edit_copy %}
             <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
-               class="ml-2 text-[9px] text-kaijoYellow underline">Edit</a>
+               class="ml-2 text-[9px] text-ownerMint underline">Edit</a>
           {% endif %}
         </p>
       </div>
       <div class="flex flex-col sm:items-end gap-2 sm:min-w-[180px]">
         {% set slug = "listings_buyer_basic_cta" %}
         <a href="{{ url_for('pricing', role='buyer') }}"
-           class="inline-flex items-center justify-center px-4 py-2 rounded bg-kaijoPink text-white text-[11px] font-semibold hover:bg-kaijoYellow hover:text-black transition">
+           class="inline-flex items-center justify-center px-4 py-2 rounded bg-ownerCoral text-white text-[11px] font-semibold hover:bg-ownerMint hover:text-black transition">
           {{ page_text(slug, "View Buyer Premium options") }}
           {% if can_edit_copy %}
             <span class="ml-2 text-[9px] text-black/80 underline">Edit</span>
@@ -90,7 +90,7 @@
           {{ page_text(slug, "Premium unlocks full marketplace access & enquiry workflows.") }}
           {% if can_edit_copy %}
             <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
-               class="ml-1 text-[9px] text-kaijoYellow underline">Edit</a>
+               class="ml-1 text-[9px] text-ownerMint underline">Edit</a>
           {% endif %}
         </p>
       </div>
@@ -107,7 +107,7 @@
           {{ page_text(slug, "Log in or register to see more detail") }}
           {% if can_edit_copy %}
             <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
-               class="ml-2 text-[9px] text-kaijoYellow underline">Edit</a>
+               class="ml-2 text-[9px] text-ownerMint underline">Edit</a>
           {% endif %}
         </p>
 
@@ -119,18 +119,18 @@
           ) }}
           {% if can_edit_copy %}
             <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
-               class="ml-2 text-[9px] text-kaijoYellow underline">Edit</a>
+               class="ml-2 text-[9px] text-ownerMint underline">Edit</a>
           {% endif %}
         </p>
       </div>
       <div class="flex flex-col sm:items-end gap-2 sm:min-w-[220px]">
         <div class="flex gap-2">
           <a href="{{ url_for('login') }}"
-             class="px-3 py-1.5 rounded bg-white text-gray-900 text-[11px] font-semibold hover:bg-kaijoYellow hover:text-black transition">
+             class="px-3 py-1.5 rounded bg-white text-gray-900 text-[11px] font-semibold hover:bg-ownerMint hover:text-black transition">
             Log in
           </a>
           <a href="{{ url_for('pricing', role='buyer') }}"
-             class="px-3 py-1.5 rounded border border-white text-[11px] hover:bg-white/10 hover:text-kaijoYellow transition">
+             class="px-3 py-1.5 rounded border border-white text-[11px] hover:bg-white/10 hover:text-ownerMint transition">
             Buyer options
           </a>
         </div>
@@ -143,7 +143,7 @@
           ) }}
           {% if can_edit_copy %}
             <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
-               class="ml-1 text-[9px] text-kaijoYellow underline">Edit</a>
+               class="ml-1 text-[9px] text-ownerMint underline">Edit</a>
           {% endif %}
         </p>
       </div>
@@ -165,7 +165,7 @@
       <a href="{{ url_for('listing_detail', listing_id=l.id) }}"
          class="block rounded-lg
                 bg-white/5 border border-white/10
-                hover:bg-white/10 hover:border-kaijoYellow/70
+                hover:bg-white/10 hover:border-ownerMint/70
                 transition shadow-sm backdrop-blur-sm overflow-hidden">
 
         {# Thumbnail / primary photo #}
@@ -210,10 +210,10 @@
           {% else %}
             {% set slug = "listings_card_confidential_title" %}
             <p class="font-semibold text-sm text-white mb-1">
-              {{ page_text(slug, "Confidential care home opportunity") }}
+              {{ page_text(slug, "Confidential business opportunity") }}
               {% if can_edit_copy %}
                 <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
-                   class="ml-1 text-[9px] text-kaijoYellow underline">Edit</a>
+                   class="ml-1 text-[9px] text-ownerMint underline">Edit</a>
               {% endif %}
             </p>
           {% endif %}
@@ -221,8 +221,8 @@
           {# Meta #}
           <p class="text-[11px] text-white/60 mb-1">
             {{ l.region or "Region confidential" }} •
-            {{ l.care_type or "Care type confidential" }} •
-            {{ l.beds or "?" }} beds
+            {{ l.care_type or "Sector / industry confidential" }} •
+            {{ l.beds or "?" }} units
           </p>
 
           {# GUIDE PRICE – blur for non-premium buyers + public #}
@@ -231,11 +231,11 @@
             {{ page_text(slug, "Guide price:") }}
             {% if can_edit_copy %}
               <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
-                 class="ml-1 text-[9px] text-kaijoYellow underline">Edit</a>
+                 class="ml-1 text-[9px] text-ownerMint underline">Edit</a>
             {% endif %}
 
             {% if can_view_this_listing %}
-              <span class="text-kaijoYellow">
+              <span class="text-ownerMint">
                 {{ l.guide_price_band or "On request" }}
               </span>
             {% else %}
@@ -243,7 +243,7 @@
               <span class="blur-sm select-none">
                 {{ page_text(slug, "£X,XXX,XXX") }}
               </span>
-              <span class="ml-1 text-[10px] text-kaijoYellow/90">
+              <span class="ml-1 text-[10px] text-ownerMint/90">
                 Premium only
               </span>
             {% endif %}
@@ -261,7 +261,7 @@
     ) }}
     {% if can_edit_copy %}
       <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
-         class="ml-2 text-[9px] text-kaijoYellow underline">Edit</a>
+         class="ml-2 text-[9px] text-ownerMint underline">Edit</a>
     {% endif %}
   </p>
 {% endif %}

@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Valuer Profile – Care Home Broker{% endblock %}
+{% block title %}Valuer Profile – Ownerlane{% endblock %}
 
 {% block content %}
 <div class="max-w-4xl mx-auto py-8 text-white">
@@ -7,7 +7,7 @@
   <div class="mb-6">
     <h1 class="text-2xl font-semibold mb-1">Valuer profile</h1>
     <p class="text-xs text-white/70">
-      These details are used to match you to care home owners and buyers looking for valuation support.
+      These details are used to match you to business owners and buyers looking for valuation support.
     </p>
   </div>
 
@@ -73,16 +73,16 @@
       </label>
       <textarea id="bio" name="bio" rows="4"
                 class="w-full rounded border border-white/20 bg-black/40 px-3 py-2 text-sm text-white placeholder:text-white/40"
-                placeholder="Summarise your experience in valuing care homes and social care businesses.">{{ profile.bio if profile else '' }}</textarea>
+                placeholder="Summarise your experience in valuing established businesses.">{{ profile.bio if profile else '' }}</textarea>
     </div>
 
     <div class="flex items-center justify-between pt-2">
       <a href="{{ url_for('valuer_dashboard') }}"
-         class="text-[11px] text-white/60 hover:text-kaijoYellow">
+         class="text-[11px] text-white/60 hover:text-ownerMint">
         ← Back to valuer dashboard
       </a>
       <button type="submit"
-              class="px-4 py-2 rounded bg-kaijoPink text-white text-xs font-semibold hover:bg-kaijoYellow hover:text-black transition">
+              class="px-4 py-2 rounded bg-ownerCoral text-white text-xs font-semibold hover:bg-ownerMint hover:text-black transition">
         Save profile
       </button>
     </div>

@@ -1,11 +1,15 @@
-Care Home Broker – Buy & Sell UK Care Homes
+# Ownerlane
 
-A lightweight, mobile-friendly marketplace where care home providers can privately advertise interest to sell and verified buyers can enquire, track opportunities, and receive smart personalised recommendations.
+**Where businesses find their next owner.**
+
+Ownerlane is a modern, confidential marketplace where owners can explore a sale and verified buyers can discover, enquire about, and track established UK business opportunities.
+
+Visit [ownerlane.uk](https://ownerlane.uk).
 
 Built with Flask + Tailwind + SQLite and deployable via Waitress, Heroku/Railway, or Docker.
 
-✨ Features
-🔐 Authentication
+# Features
+## Authentication
 
 Buyer accounts
 
@@ -15,7 +19,7 @@ Admin dashboard
 
 Login/Logout with Flask-Login
 
-🏡 Seller Portal
+## Seller portal
 
 Create, edit, and manage listings
 
@@ -27,7 +31,7 @@ Track enquiries
 
 Update status (Draft, Live, Under Offer, Sold)
 
-📌 Buyer Portal
+## Buyer portal
 
 Browse listings
 
@@ -39,7 +43,7 @@ Personalised recommendations
 
 Buyer profile preferences
 
-🧠 Smart Extras
+## Marketplace tools
 
 Weekly digest task endpoint
 
@@ -49,13 +53,13 @@ Confidential listing handling
 
 Clean, mobile-first UI
 
-🗂 Data
+## Data
 
 SQLite by default
 
 Can switch to Postgres easily using DATABASE_URL
 
-🏗 Project Structure
+## Project structure
 project/
 │ app.py
 │ run_prod.py
@@ -77,10 +81,10 @@ project/
     ├── seller/
     └── buyer/
 
-🚀 Getting Started (Development)
+## Getting started
 1. Clone the project
-git clone your-repo-url-here
-cd your-project-folder
+git clone https://github.com/Dolman17/Carehomebroker.git
+cd Carehomebroker
 
 2. Create a virtual environment
 python -m venv .venv
@@ -130,7 +134,7 @@ Then visit:
 
 http://127.0.0.1:5000
 
-🏭 Running in Production
+## Running in production
 
 We use Waitress as the production server.
 
@@ -146,8 +150,9 @@ http://0.0.0.0:8000
 
 Production environments overwrite PORT.
 
-☸ Deployment Options
-🔹 Heroku / Railway (Procfile)
+## Deployment options
+
+### Heroku / Railway
 
 A simple Procfile is included:
 
@@ -160,22 +165,22 @@ Run `flask --app app.py db upgrade` as a release/deployment step before starting
 the web process. `RUN_MIGRATIONS_ON_START=1` is available for a single-instance
 deployment, but a dedicated release step is safer when multiple instances may start.
 
-🔹 Docker Deployment
+### Docker
 Build image
-docker build -t care-broker .
+docker build -t ownerlane .
 
 Run container with mounted uploads
 docker run -p 8000:8000 \
   -v $(pwd)/static/uploads:/app/static/uploads \
   -v $(pwd)/instance/private_uploads:/app/instance/private_uploads \
   --env-file .env \
-  care-broker
+  ownerlane
 
 Stop the container
 docker ps
 docker stop <container-id>
 
-⚙ Environment Variables
+## Environment variables
 
 .env.example shows everything required:
 

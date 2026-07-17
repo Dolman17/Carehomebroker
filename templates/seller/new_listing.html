@@ -6,11 +6,11 @@
 
   <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-3">
     <div>
-      <h1 class="text-xl font-semibold text-kaijoYellow">New Listing</h1>
-      <p class="text-xs text-white/70">Add a confidential care home listing</p>
+      <h1 class="text-xl font-semibold text-ownerMint">New Listing</h1>
+      <p class="text-xs text-white/70">Add a confidential business listing</p>
     </div>
     <a href="{{ url_for('seller_dashboard') }}"
-       class="text-xs border border-white/20 text-white/80 px-3 py-2 rounded hover:bg-white/10 hover:text-kaijoYellow transition">
+       class="text-xs border border-white/20 text-white/80 px-3 py-2 rounded hover:bg-white/10 hover:text-ownerMint transition">
       ← Back
     </a>
   </div>
@@ -22,7 +22,7 @@
       <label class="text-xs text-white/70">Listing Title</label>
       <input type="text" name="title" required
              class="w-full border border-white/20 bg-black/40 text-sm text-white rounded px-3 py-2 placeholder:text-white/40"
-             placeholder="Confidential – 40-bed elderly care home – North West">
+             placeholder="Confidential established business – North West">
     </div>
 
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -41,33 +41,38 @@
       </div>
 
       <div>
-        <label class="text-xs text-white/70">Care Type</label>
+        <label class="text-xs text-white/70">Sector / industry</label>
         <select name="care_type"
                 class="w-full border border-white/20 bg-black/40 text-sm text-white rounded px-3 py-2">
           <option value="">Select</option>
-          <option>Elderly</option>
-          <option>LD</option>
-          <option>MH</option>
-          <option>Children</option>
+          <option>Healthcare &amp; Social Care</option>
+          <option>Hospitality &amp; Leisure</option>
+          <option>Professional Services</option>
+          <option>Retail &amp; E-commerce</option>
+          <option>Technology &amp; Software</option>
+          <option>Manufacturing</option>
+          <option>Construction &amp; Property</option>
+          <option>Recruitment</option>
+          <option>Other</option>
         </select>
       </div>
     </div>
 
     <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
       <div>
-        <label class="text-xs text-white/70">Beds</label>
+        <label class="text-xs text-white/70">Business size / units</label>
         <input type="number" name="beds"
                class="w-full border border-white/20 bg-black/40 text-sm text-white rounded px-3 py-2">
       </div>
 
       <div>
-        <label class="text-xs text-white/70">Occupancy (%)</label>
+        <label class="text-xs text-white/70">Capacity utilisation (%)</label>
         <input type="number" name="occupancy_percent"
                class="w-full border border-white/20 bg-black/40 text-sm text-white rounded px-3 py-2">
       </div>
 
       <div>
-        <label class="text-xs text-white/70">CQC Rating</label>
+        <label class="text-xs text-white/70">Regulatory / accreditation</label>
         <input type="text" name="cqc_rating"
                class="w-full border border-white/20 bg-black/40 text-sm text-white rounded px-3 py-2">
       </div>
@@ -134,7 +139,7 @@
       <span>Keep confidential (hide name/address).</span>
     </label>
 
-    <button class="bg-kaijoPink text-white text-sm rounded px-4 py-2 hover:bg-kaijoYellow hover:text-black transition">
+    <button class="bg-ownerCoral text-white text-sm rounded px-4 py-2 hover:bg-ownerMint hover:text-black transition">
       Create Listing
     </button>
 

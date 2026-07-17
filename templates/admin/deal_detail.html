@@ -34,7 +34,7 @@
       <p class="text-white/70 mt-2"><span class="text-white/40">Listing:</span></p>
       <p class="text-white">{{ listing.listing_code or "Ref" }} – {{ listing.title or "Listing" }}</p>
       <p class="text-white/60 text-[11px] mt-1">
-        {{ listing.region or "Region" }} • {{ listing.care_type or "Care type" }} • {{ listing.beds or "?" }} beds
+        {{ listing.region or "Region" }} • {{ listing.care_type or "Sector / industry" }} • {{ listing.beds or "?" }} units
       </p>
     </div>
 
@@ -121,7 +121,7 @@
         <div class="text-[11px] text-white/70">
           {% if deal.broker_commission_amount %}
             Estimated commission:
-            <span class="font-semibold text-kaijoYellow">
+            <span class="font-semibold text-ownerMint">
               £{{ "%.2f" | format(deal.broker_commission_amount / 100) }}
             </span>
             ({{ deal.broker_commission_percent or 0 }}%)
@@ -133,7 +133,7 @@
         </div>
 
         <button type="submit"
-                class="px-4 py-2 rounded bg-kaijoPink text-white text-[11px] font-semibold hover:bg-kaijoYellow hover:text-black">
+                class="px-4 py-2 rounded bg-ownerCoral text-white text-[11px] font-semibold hover:bg-ownerMint hover:text-black">
           Save changes
         </button>
       </div>
