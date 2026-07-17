@@ -39,6 +39,10 @@ Track enquiries
 
 Update status (Draft, Live, Under Offer, Sold)
 
+Manage staged data rooms with retained document versions
+
+Grant or revoke buyer access per introduction and disclosure stage
+
 ## Buyer portal
 
 Browse listings
@@ -64,6 +68,10 @@ Deduplicated saved-search and transaction-event delivery
 Listing matching logic
 
 Confidential listing handling
+
+Privacy-safe activity and audit log
+
+Audited data-room document access
 
 Clean, mobile-first UI
 
@@ -221,6 +229,7 @@ company and data-protection details should be completed before public launch.
 SECRET_KEY=your-secret
 PUBLIC_BASE_URL=https://ownerlane.uk
 DATABASE_URL=sqlite:///care_broker.db
+PRIVATE_UPLOAD_ROOT=/path/to/persistent/private-storage
 DIGEST_TASK_TOKEN=your-token
 
 SMTP_SERVER=smtp.gmail.com
@@ -248,6 +257,12 @@ static/uploads/
 Cover image = first uploaded file or any is_cover=True.
 
 If you deploy using Docker, remember to mount this folder or you’ll lose uploads on redeploy.
+
+Seller and data-room documents are never served from the public static folder.
+They are stored beneath `PRIVATE_UPLOAD_ROOT` (default:
+`instance/private_uploads`). In Railway or another ephemeral environment, mount
+a persistent volume and set `PRIVATE_UPLOAD_ROOT` to that mount path before
+accepting production documents.
 
 🧪 Future Enhancements (ready when you are)
 

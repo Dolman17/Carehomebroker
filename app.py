@@ -186,10 +186,20 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 app.config["ALLOWED_EXTENSIONS"] = {"png", "jpg", "jpeg", "gif", "webp"}
 app.config["ALLOWED_DOCUMENT_EXTENSIONS"] = {"pdf", "doc", "docx", "xls", "xlsx"}
+app.config["ALLOWED_DOCUMENT_MIME_TYPES"] = {
+    "application/pdf",
+    "application/msword",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/vnd.ms-excel",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+}
 
 # Private seller and deal-document storage. These files must never be served by
 # Flask's public static route.
-PRIVATE_UPLOAD_ROOT = os.path.join(app.instance_path, "private_uploads")
+PRIVATE_UPLOAD_ROOT = os.getenv("PRIVATE_UPLOAD_ROOT") or os.path.join(
+    app.instance_path, "private_uploads"
+)
+PRIVATE_UPLOAD_ROOT = os.path.abspath(PRIVATE_UPLOAD_ROOT)
 os.makedirs(PRIVATE_UPLOAD_ROOT, exist_ok=True)
 
 SELLER_DOCS_FOLDER = os.path.join(PRIVATE_UPLOAD_ROOT, "seller_docs")
@@ -200,6 +210,10 @@ app.config["SELLER_DOCS_FOLDER"] = SELLER_DOCS_FOLDER
 OFFER_DOCS_FOLDER = os.path.join(PRIVATE_UPLOAD_ROOT, "offer_docs")
 os.makedirs(OFFER_DOCS_FOLDER, exist_ok=True)
 app.config["OFFER_DOCS_FOLDER"] = OFFER_DOCS_FOLDER
+
+DATA_ROOM_FOLDER = os.path.join(PRIVATE_UPLOAD_ROOT, "data_room")
+os.makedirs(DATA_ROOM_FOLDER, exist_ok=True)
+app.config["DATA_ROOM_FOLDER"] = DATA_ROOM_FOLDER
 
 # -------------------------------------------------------------------
 # Deal / introduction status pipeline
@@ -216,6 +230,22 @@ INTRO_STATUSES = [
     ("declined", "Declined"),
     ("failed", "Failed"),
 ]
+
+DATA_ROOM_STAGES = (
+    ("teaser", "Teaser", 0),
+    ("nda", "NDA signed", 1),
+    ("due_diligence", "Due diligence", 2),
+    ("transaction", "Transaction", 3),
+)
+DATA_ROOM_CATEGORIES = (
+    ("overview", "Business overview", "teaser"),
+    ("financial", "Financial information", "nda"),
+    ("legal", "Legal and corporate", "due_diligence"),
+    ("operational", "Operational due diligence", "due_diligence"),
+    ("property", "Property and assets", "due_diligence"),
+    ("offer", "Offers and transaction documents", "transaction"),
+    ("other", "Other", "nda"),
+)
 
 
 
@@ -1089,6 +1119,52 @@ class Introduction(db.Model):
     listing = db.relationship("Listing")
 
 
+class DataRoomDocument(db.Model):
+    __tablename__ = "data_room_document"
+
+    id = db.Column(db.Integer, primary_key=True)
+    listing_id = db.Column(db.Integer, db.ForeignKey("listing.id"), nullable=False, index=True)
+    uploaded_by_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
+    document_key = db.Column(db.String(32), nullable=False, index=True)
+    version = db.Column(db.Integer, nullable=False, default=1)
+    category = db.Column(db.String(30), nullable=False, index=True)
+    disclosure_stage = db.Column(db.String(30), nullable=False, index=True)
+    title = db.Column(db.String(200), nullable=False)
+    filename = db.Column(db.String(255), nullable=False)
+    original_filename = db.Column(db.String(255), nullable=False)
+    mime_type = db.Column(db.String(100))
+    size_bytes = db.Column(db.Integer)
+    is_current = db.Column(db.Boolean, nullable=False, default=True, index=True)
+    archived_at = db.Column(db.DateTime)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+    listing = db.relationship("Listing", backref="data_room_documents")
+    uploaded_by = db.relationship("User", foreign_keys=[uploaded_by_id])
+
+    __table_args__ = (
+        db.UniqueConstraint("document_key", "version", name="uq_data_room_document_version"),
+    )
+
+
+class DataRoomAccess(db.Model):
+    __tablename__ = "data_room_access"
+
+    id = db.Column(db.Integer, primary_key=True)
+    introduction_id = db.Column(
+        db.Integer, db.ForeignKey("introductions.id"), unique=True, nullable=False
+    )
+    disclosure_stage = db.Column(db.String(30), nullable=False, default="teaser")
+    granted_by_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
+    granted_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    revoked_at = db.Column(db.DateTime)
+    updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+    introduction = db.relationship(
+        "Introduction", backref=db.backref("data_room_access", uselist=False)
+    )
+    granted_by = db.relationship("User", foreign_keys=[granted_by_id])
+
+
 class IntroductionStatusHistory(db.Model):
     __tablename__ = "introduction_status_history"
 
@@ -1601,6 +1677,53 @@ def allowed_document(filename: str) -> bool:
         return False
     ext = filename.rsplit(".", 1)[1].lower()
     return ext in app.config["ALLOWED_DOCUMENT_EXTENSIONS"]
+
+
+def data_room_stage_rank(stage: str | None) -> int:
+    return {key: rank for key, _label, rank in DATA_ROOM_STAGES}.get(stage, -1)
+
+
+def data_room_stage_label(stage: str | None) -> str:
+    return {key: label for key, label, _rank in DATA_ROOM_STAGES}.get(stage, "No access")
+
+
+def data_room_category_label(category: str | None) -> str:
+    return {key: label for key, label, _stage in DATA_ROOM_CATEGORIES}.get(category, "Other")
+
+
+def can_manage_data_room(user, listing: Listing) -> bool:
+    return bool(
+        getattr(user, "is_authenticated", False)
+        and (user.role == "admin" or (user.role == "seller" and listing.seller_id == user.id))
+    )
+
+
+def buyer_data_room_access(user, listing: Listing):
+    if not getattr(user, "is_authenticated", False) or user.role != "buyer":
+        return None
+    return (
+        DataRoomAccess.query.join(Introduction)
+        .filter(
+            Introduction.buyer_id == user.id,
+            Introduction.listing_id == listing.id,
+            DataRoomAccess.revoked_at.is_(None),
+        )
+        .order_by(DataRoomAccess.updated_at.desc())
+        .first()
+    )
+
+
+def can_download_data_room_document(user, document: DataRoomDocument) -> bool:
+    if document.archived_at or not document.is_current:
+        return False
+    if can_manage_data_room(user, document.listing):
+        return True
+    access = buyer_data_room_access(user, document.listing)
+    return bool(
+        access
+        and data_room_stage_rank(document.disclosure_stage)
+        <= data_room_stage_rank(access.disclosure_stage)
+    )
 
 
 # Simple UK-ish region coordinates for map view
@@ -2348,6 +2471,8 @@ def inject_template_globals():
         "datetime": datetime,
         "has_active_subscription": has_active_subscription,
         "_label_for_intro_status": _label_for_intro_status,
+        "data_room_stage_label": data_room_stage_label,
+        "data_room_category_label": data_room_category_label,
     }
 
 
@@ -4198,6 +4323,242 @@ def download_seller_document(document_id):
     )
 
 
+@app.route("/seller/listings/<int:listing_id>/data-room", methods=["GET", "POST"])
+@login_required
+def seller_listing_data_room(listing_id):
+    listing = Listing.query.get_or_404(listing_id)
+    if not can_manage_data_room(current_user, listing):
+        abort(404)
+
+    if request.method == "POST":
+        upload = request.files.get("document")
+        category = (request.form.get("category") or "other").strip()
+        stage = (request.form.get("disclosure_stage") or "nda").strip()
+        title = (request.form.get("title") or "").strip()
+        replacement_id = request.form.get("replacement_id", type=int)
+        categories = {key for key, _label, _stage in DATA_ROOM_CATEGORIES}
+        stages = {key for key, _label, _rank in DATA_ROOM_STAGES}
+        if (
+            not upload
+            or not upload.filename
+            or not allowed_document(upload.filename)
+            or upload.mimetype not in app.config["ALLOWED_DOCUMENT_MIME_TYPES"]
+        ):
+            flash("Choose a PDF, Word or Excel document.", "error")
+            return redirect(request.url)
+        if category not in categories or stage not in stages:
+            flash("Choose a valid document category and disclosure stage.", "error")
+            return redirect(request.url)
+
+        original = secure_filename(upload.filename)
+        extension = os.path.splitext(original)[1].lower()
+        filename = f"{uuid.uuid4().hex}{extension}"
+        replacement = None
+        if replacement_id:
+            replacement = DataRoomDocument.query.filter_by(
+                id=replacement_id, listing_id=listing.id, is_current=True
+            ).first_or_404()
+        document_key = replacement.document_key if replacement else uuid.uuid4().hex
+        version = replacement.version + 1 if replacement else 1
+        path = os.path.join(app.config["DATA_ROOM_FOLDER"], filename)
+        upload.save(path)
+        document = DataRoomDocument(
+            listing_id=listing.id,
+            uploaded_by_id=current_user.id,
+            document_key=document_key,
+            version=version,
+            category=category,
+            disclosure_stage=stage,
+            title=(title or original)[:200],
+            filename=filename,
+            original_filename=original,
+            mime_type=(upload.mimetype or "application/octet-stream")[:100],
+            size_bytes=os.path.getsize(path),
+        )
+        if replacement:
+            replacement.is_current = False
+        db.session.add(document)
+        db.session.commit()
+        record_audit_event(
+            "data_room.document_replaced" if replacement else "data_room.document_uploaded",
+            "Data-room document replaced" if replacement else "Data-room document uploaded",
+            subject_user_id=listing.seller_id,
+            resource_type="data_room_document", resource_id=document.id,
+            details={"listing_id": listing.id, "stage": stage, "version": version},
+        )
+        for intro in Introduction.query.filter_by(listing_id=listing.id).all():
+            access = intro.data_room_access
+            if (
+                access and not access.revoked_at
+                and data_room_stage_rank(stage) <= data_room_stage_rank(access.disclosure_stage)
+            ):
+                publish_notification(
+                    intro.buyer,
+                    event_type="data_room_document",
+                    title="New data-room document",
+                    body=f"A document was added for {listing.listing_code or 'an opportunity'}.",
+                    target_url=url_for("introduction_data_room", intro_id=intro.id),
+                    dedupe_key=f"data-room-document:{document.id}:{intro.id}",
+                )
+        flash("Document uploaded to the data room.", "success")
+        return redirect(url_for("seller_listing_data_room", listing_id=listing.id))
+
+    documents = DataRoomDocument.query.filter_by(listing_id=listing.id).order_by(
+        DataRoomDocument.created_at.desc()
+    ).all()
+    introductions = Introduction.query.filter_by(listing_id=listing.id).order_by(
+        Introduction.created_at.desc()
+    ).all()
+    return render_template(
+        "data_room/manage.html", listing=listing, documents=documents,
+        introductions=introductions, stages=DATA_ROOM_STAGES,
+        categories=DATA_ROOM_CATEGORIES,
+    )
+
+
+@app.route("/introductions/<int:intro_id>/data-room")
+@login_required
+def introduction_data_room(intro_id):
+    intro = Introduction.query.get_or_404(intro_id)
+    is_party = current_user.id in {intro.buyer_id, intro.seller_id}
+    if current_user.role != "admin" and not is_party:
+        abort(404)
+    access = intro.data_room_access
+    can_manage = can_manage_data_room(current_user, intro.listing)
+    query = DataRoomDocument.query.filter_by(
+        listing_id=intro.listing_id, is_current=True, archived_at=None
+    )
+    if not can_manage:
+        if not access or access.revoked_at:
+            documents = []
+        else:
+            allowed_stages = [
+                key for key, _label, rank in DATA_ROOM_STAGES
+                if rank <= data_room_stage_rank(access.disclosure_stage)
+            ]
+            documents = query.filter(
+                DataRoomDocument.disclosure_stage.in_(allowed_stages)
+            ).order_by(DataRoomDocument.category, DataRoomDocument.title).all()
+    else:
+        documents = query.order_by(DataRoomDocument.category, DataRoomDocument.title).all()
+    return render_template(
+        "data_room/introduction.html", introduction=intro, access=access,
+        documents=documents, can_manage=can_manage,
+        stages=DATA_ROOM_STAGES,
+    )
+
+
+@app.route("/introductions/<int:intro_id>/data-room/access", methods=["POST"])
+@login_required
+def update_data_room_access(intro_id):
+    intro = Introduction.query.get_or_404(intro_id)
+    if not can_manage_data_room(current_user, intro.listing):
+        abort(404)
+    stage = (request.form.get("disclosure_stage") or "").strip()
+    valid_stages = {key for key, _label, _rank in DATA_ROOM_STAGES}
+    access = intro.data_room_access
+    if stage == "revoked":
+        if access and not access.revoked_at:
+            access.revoked_at = utcnow()
+            access.updated_at = utcnow()
+            db.session.commit()
+            record_audit_event(
+                "data_room.access_revoked", "Data-room access revoked",
+                subject_user_id=intro.buyer_id, resource_type="introduction",
+                resource_id=intro.id,
+            )
+            publish_notification(
+                intro.buyer, event_type="data_room_access",
+                title="Data-room access changed",
+                body=f"Your data-room access for {intro.listing.listing_code or 'an opportunity'} was revoked.",
+                target_url=url_for("buyer_dashboard"),
+                dedupe_key=f"data-room-access:{intro.id}:revoked:{int(utcnow().timestamp())}",
+            )
+        flash("Data-room access revoked.", "success")
+        return redirect(url_for("introduction_data_room", intro_id=intro.id))
+    if intro.status in {"pending_seller_request", "declined", "failed"}:
+        flash("Access can only be granted after an introduction is approved.", "error")
+        return redirect(url_for("introduction_data_room", intro_id=intro.id))
+    if stage not in valid_stages:
+        flash("Choose a valid disclosure stage.", "error")
+        return redirect(url_for("introduction_data_room", intro_id=intro.id))
+    if access:
+        previous_stage = access.disclosure_stage
+        access.disclosure_stage = stage
+        access.granted_by_id = current_user.id
+        access.granted_at = utcnow()
+        access.revoked_at = None
+        access.updated_at = utcnow()
+    else:
+        previous_stage = None
+        access = DataRoomAccess(
+            introduction_id=intro.id, disclosure_stage=stage,
+            granted_by_id=current_user.id,
+        )
+        db.session.add(access)
+    db.session.commit()
+    record_audit_event(
+        "data_room.access_granted", "Data-room access granted or updated",
+        subject_user_id=intro.buyer_id, resource_type="introduction",
+        resource_id=intro.id,
+        details={"previous_stage": previous_stage, "stage": stage},
+    )
+    publish_notification(
+        intro.buyer, event_type="data_room_access",
+        title="Data-room access granted",
+        body=f"You can now access documents up to {data_room_stage_label(stage)} for {intro.listing.listing_code or 'an opportunity'}.",
+        target_url=url_for("introduction_data_room", intro_id=intro.id),
+        dedupe_key=f"data-room-access:{intro.id}:{stage}:{int(utcnow().timestamp())}",
+    )
+    flash("Data-room access updated.", "success")
+    return redirect(url_for("introduction_data_room", intro_id=intro.id))
+
+
+@app.route("/data-room/documents/<int:document_id>/archive", methods=["POST"])
+@login_required
+def archive_data_room_document(document_id):
+    document = DataRoomDocument.query.get_or_404(document_id)
+    if not can_manage_data_room(current_user, document.listing):
+        abort(404)
+    document.archived_at = utcnow()
+    document.is_current = False
+    db.session.commit()
+    record_audit_event(
+        "data_room.document_archived", "Data-room document archived",
+        subject_user_id=document.listing.seller_id,
+        resource_type="data_room_document", resource_id=document.id,
+        details={"listing_id": document.listing_id},
+    )
+    flash("Document archived. Its audit and version history were retained.", "success")
+    return redirect(url_for("seller_listing_data_room", listing_id=document.listing_id))
+
+
+@app.route("/data-room/documents/<int:document_id>/download")
+@login_required
+def download_data_room_document(document_id):
+    document = DataRoomDocument.query.get_or_404(document_id)
+    if not can_download_data_room_document(current_user, document):
+        abort(404)
+    path = os.path.join(app.config["DATA_ROOM_FOLDER"], document.filename)
+    if not os.path.isfile(path):
+        abort(404)
+    access = buyer_data_room_access(current_user, document.listing)
+    record_audit_event(
+        "data_room.document_downloaded", "Data-room document downloaded",
+        subject_user_id=document.listing.seller_id,
+        resource_type="data_room_document", resource_id=document.id,
+        details={
+            "listing_id": document.listing_id,
+            "introduction_id": access.introduction_id if access else None,
+            "version": document.version,
+        },
+    )
+    return send_from_directory(
+        app.config["DATA_ROOM_FOLDER"], document.filename,
+        as_attachment=True, download_name=document.original_filename,
+    )
+
+
 @app.route("/buyer/profile", methods=["GET", "POST"])
 @login_required
 @role_required("buyer")
@@ -4490,6 +4851,11 @@ def buyer_dashboard():
         .limit(5)
         .all()
     )
+    data_room_introductions = (
+        Introduction.query.filter_by(buyer_id=current_user.id)
+        .order_by(Introduction.updated_at.desc())
+        .all()
+    )
 
     return render_template(
         "buyer/dashboard.html",   # <-- key fix vs buyer_dashboard.html
@@ -4503,6 +4869,7 @@ def buyer_dashboard():
         current_plan_label=current_plan_label,
         profile_complete=profile_complete,
         saved_searches=saved_searches,
+        data_room_introductions=data_room_introductions,
     )
 
 

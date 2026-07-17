@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}Data room – {{ listing.listing_code or 'Listing' }}{% endblock %}
+{% block content %}
+<div class="space-y-6">
+  <div class="flex flex-wrap items-end justify-between gap-3">
+    <div>
+      <p class="text-[11px] uppercase tracking-[0.2em] text-ownerMint">Staged data room</p>
+      <h1 class="mt-2 text-2xl font-semibold">{{ listing.listing_code or 'Listing' }} – {{ listing.title }}</h1>
+      <p class="mt-2 text-sm text-white/60">Upload once, control disclosure separately for every introduction.</p>
+    </div>
+    <a href="{{ url_for('seller_dashboard') if current_user.role == 'seller' else url_for('admin_listings') }}" class="text-xs text-white/60 hover:text-ownerMint">← Back</a>
+  </div>
+
+  <section class="rounded-xl border border-white/10 bg-black/25 p-5">
+    <h2 class="text-sm font-semibold">Upload a document</h2>
+    <form method="post" enctype="multipart/form-data" class="mt-4 grid gap-3 md:grid-cols-2">
+      <input name="title" placeholder="Document title (optional)" class="rounded border border-white/15 bg-black/30 px-3 py-2 text-xs text-white">
+      <input type="file" name="document" required accept=".pdf,.doc,.docx,.xls,.xlsx" class="rounded border border-white/15 bg-black/20 px-3 py-2 text-xs text-white">
+      <select name="category" class="rounded border border-white/15 bg-ownerInk px-3 py-2 text-xs text-white">
+        {% for key, label, default_stage in categories %}<option value="{{ key }}">{{ label }}</option>{% endfor %}
+      </select>
+      <select name="disclosure_stage" class="rounded border border-white/15 bg-ownerInk px-3 py-2 text-xs text-white">
+        {% for key, label, rank in stages %}<option value="{{ key }}">{{ label }}</option>{% endfor %}
+      </select>
+      <select name="replacement_id" class="rounded border border-white/15 bg-ownerInk px-3 py-2 text-xs text-white md:col-span-2">
+        <option value="">New document</option>
+        {% for document in documents if document.is_current and not document.archived_at %}<option value="{{ document.id }}">Replace: {{ document.title }} (v{{ document.version }})</option>{% endfor %}
+      </select>
+      <button class="rounded bg-ownerMint px-4 py-2 text-xs font-semibold text-ownerInk hover:bg-white md:col-span-2">Upload securely</button>
+    </form>
+  </section>
+
+  <section class="rounded-xl border border-white/10 bg-black/25 p-5">
+    <div class="flex items-center justify-between"><h2 class="text-sm font-semibold">Documents and versions</h2><span class="text-xs text-white/45">{{ documents|length }} versions retained</span></div>
+    <div class="mt-4 space-y-3">
+      {% for document in documents %}
+      <div class="rounded-lg border {{ 'border-white/10' if document.is_current and not document.archived_at else 'border-white/5 opacity-55' }} p-3 text-xs sm:flex sm:items-center sm:justify-between sm:gap-4">
+        <div>
+          <p class="font-medium text-white">{{ document.title }} <span class="text-white/40">v{{ document.version }}</span></p>
+          <p class="mt-1 text-white/50">{{ data_room_category_label(document.category) }} · {{ data_room_stage_label(document.disclosure_stage) }} · {{ document.original_filename }}</p>
+          {% if document.archived_at %}<p class="mt-1 text-ownerCoral">Archived</p>{% elif not document.is_current %}<p class="mt-1 text-white/40">Superseded</p>{% endif %}
+        </div>
+        {% if document.is_current and not document.archived_at %}
+        <div class="mt-3 flex gap-2 sm:mt-0">
+          <a href="{{ url_for('download_data_room_document', document_id=document.id) }}" class="rounded border border-white/20 px-3 py-1.5 hover:text-ownerMint">Download</a>
+          <form method="post" action="{{ url_for('archive_data_room_document', document_id=document.id) }}"><button class="rounded border border-ownerCoral/50 px-3 py-1.5 text-ownerCoral hover:bg-ownerCoral hover:text-white">Archive</button></form>
+        </div>
+        {% endif %}
+      </div>
+      {% else %}<p class="text-sm text-white/55">No documents have been uploaded.</p>{% endfor %}
+    </div>
+  </section>
+
+  <section class="rounded-xl border border-white/10 bg-black/25 p-5">
+    <h2 class="text-sm font-semibold">Introduction access</h2>
+    <div class="mt-4 space-y-3">
+      {% for intro in introductions %}
+      <div class="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-white/10 p-3 text-xs">
+        <div><p class="font-medium">{{ intro.buyer.email }}</p><p class="mt-1 text-white/45">Introduction #{{ intro.id }} · {{ intro.status|replace('_', ' ')|title }} · {{ data_room_stage_label(intro.data_room_access.disclosure_stage) if intro.data_room_access and not intro.data_room_access.revoked_at else 'No access' }}</p></div>
+        <a href="{{ url_for('introduction_data_room', intro_id=intro.id) }}" class="text-ownerMint hover:text-white">Manage access →</a>
+      </div>
+      {% else %}<p class="text-sm text-white/55">No introductions exist for this listing yet.</p>{% endfor %}
+    </div>
+  </section>
+</div>
+{% endblock %}
