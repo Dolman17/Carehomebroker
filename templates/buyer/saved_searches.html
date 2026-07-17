@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}Saved Searches – Ownerlane{% endblock %}
+
+{% block content %}
+<div class="space-y-5 text-white">
+  <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+    <div>
+      <h1 class="text-xl font-semibold sm:text-2xl">Saved searches</h1>
+      <p class="text-xs text-white/65">Reopen your criteria and choose which searches can send matching-listing alerts.</p>
+    </div>
+    <a href="{{ url_for('listings') }}"
+       class="rounded bg-ownerMint px-4 py-2 text-center text-xs font-semibold text-black transition hover:bg-white">
+      Create a new search
+    </a>
+  </div>
+
+  {% if searches %}
+    <div class="space-y-3">
+      {% for search in searches %}
+        <article class="rounded-lg border border-white/10 bg-black/30 p-4">
+          <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 class="text-sm font-semibold">{{ search.name }}</h2>
+              <p class="mt-1 text-[11px] text-white/55">
+                Keyword: {{ search.search_term or 'Any' }} · Region: {{ search.region or 'Any' }} · Sector: {{ search.care_type or 'Any' }}
+              </p>
+              <p class="mt-1 text-[10px] {{ 'text-ownerMint' if search.email_alerts else 'text-white/40' }}">
+                {{ 'Weekly matching-listing email alerts are on' if search.email_alerts else 'Email alerts are off' }}
+              </p>
+            </div>
+            <div class="flex flex-wrap gap-2">
+              <a href="{{ url_for('listings', q=search.search_term or '', region=search.region or '', care_type=search.care_type or '') }}"
+                 class="rounded border border-ownerMint/60 px-3 py-1.5 text-[11px] text-ownerMint transition hover:bg-ownerMint hover:text-black">
+                View results
+              </a>
+              <form method="POST" action="{{ url_for('toggle_saved_search_alerts', search_id=search.id) }}">
+                <button type="submit" class="rounded border border-white/20 px-3 py-1.5 text-[11px] text-white/75 transition hover:bg-white/10">
+                  Turn alerts {{ 'off' if search.email_alerts else 'on' }}
+                </button>
+              </form>
+              <form method="POST" action="{{ url_for('delete_saved_search', search_id=search.id) }}"
+                    onsubmit="return confirm('Delete this saved search?');">
+                <button type="submit" class="rounded border border-ownerCoral/50 px-3 py-1.5 text-[11px] text-ownerCoral transition hover:bg-ownerCoral hover:text-white">
+                  Delete
+                </button>
+              </form>
+            </div>
+          </div>
+        </article>
+      {% endfor %}
+    </div>
+  {% else %}
+    <div class="rounded-lg border border-dashed border-white/20 bg-black/20 p-8 text-center">
+      <p class="text-sm text-white/75">You have no saved searches yet.</p>
+      <p class="mt-1 text-xs text-white/50">Use marketplace filters to define the opportunities you want Ownerlane to remember.</p>
+    </div>
+  {% endif %}
+
+  <a href="{{ url_for('buyer_dashboard') }}" class="inline-block text-xs text-white/65 hover:text-ownerMint">← Back to buyer dashboard</a>
+</div>
+{% endblock %}

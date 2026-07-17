@@ -119,4 +119,84 @@ def test_core_route_set_is_preserved_with_legal_pages(seeded_app):
     assert "/valuer/dashboard" in rules
     assert "/admin" in rules
     assert "/my/dashboard" in rules
-    assert len(route_rules) == 80
+    assert len(route_rules) == 84
+
+
+def test_buyer_shortlist_persists_in_database(client, seeded_app):
+    login(client, "buyer")
+    response = client.post(
+        "/listings/1/toggle-shortlist",
+        data={"next": "/buyer/shortlist"},
+    )
+    assert response.status_code == 302
+
+    with client.session_transaction() as browser_session:
+        browser_session.pop("shortlist", None)
+
+    page = client.get("/buyer/shortlist")
+    assert page.status_code == 200
+    assert b"SECRET BUSINESS NAME" in page.data
+    with seeded_app.app.app_context():
+        assert seeded_app.ShortlistItem.query.filter_by(
+            buyer_id=3, listing_id=1
+        ).count() == 1
+
+
+def test_buyer_can_manage_saved_searches(client, seeded_app):
+    login(client, "buyer")
+    response = client.post(
+        "/buyer/saved-searches",
+        data={
+            "name": "Midlands residential",
+            "search_q": "growth",
+            "region": "Midlands",
+            "care_type": "Residential",
+            "email_alerts": "1",
+        },
+    )
+    assert response.status_code == 302
+
+    page = client.get("/buyer/saved-searches")
+    assert b"Midlands residential" in page.data
+    with seeded_app.app.app_context():
+        saved_search = seeded_app.SavedSearch.query.one()
+        assert saved_search.email_alerts is True
+        search_id = saved_search.id
+
+    assert client.post(f"/buyer/saved-searches/{search_id}/alerts").status_code == 302
+    with seeded_app.app.app_context():
+        assert seeded_app.db.session.get(
+            seeded_app.SavedSearch, search_id
+        ).email_alerts is False
+
+    assert client.post(f"/buyer/saved-searches/{search_id}/delete").status_code == 302
+    with seeded_app.app.app_context():
+        assert seeded_app.SavedSearch.query.count() == 0
+
+
+def test_weekly_digest_includes_opted_in_saved_search_matches(
+    client, seeded_app, monkeypatch
+):
+    sent_messages = []
+    monkeypatch.setattr(
+        seeded_app,
+        "send_email",
+        lambda recipient, subject, body: sent_messages.append(
+            (recipient, subject, body)
+        ) or True,
+    )
+    with seeded_app.app.app_context():
+        seeded_app.db.session.add(
+            seeded_app.SavedSearch(
+                buyer_id=3,
+                name="Midlands opportunities",
+                region="Midlands",
+                email_alerts=True,
+            )
+        )
+        seeded_app.db.session.commit()
+
+    response = client.get("/tasks/send_weekly_digest?token=test-digest-token")
+    assert response.status_code == 200
+    assert len(sent_messages) == 1
+    assert "Saved search: Midlands opportunities" in sent_messages[0][2]

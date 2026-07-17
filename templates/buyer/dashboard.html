@@ -158,6 +158,40 @@
     {% endif %}
   </section>
 
+  <!-- SAVED SEARCHES -->
+  <section class="rounded-lg border border-white/10 bg-black/30 p-4">
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3">
+      <div>
+        <h2 class="text-sm font-semibold">Saved searches</h2>
+        <p class="text-[11px] text-white/60">Return to your preferred filters and control matching-listing alerts.</p>
+      </div>
+      <div class="flex gap-3 text-[11px]">
+        <a href="{{ url_for('listings') }}" class="text-white/70 hover:text-ownerMint hover:underline">Create a search</a>
+        <a href="{{ url_for('buyer_saved_searches') }}" class="text-white/70 hover:text-ownerMint hover:underline">Manage all →</a>
+      </div>
+    </div>
+    {% if saved_searches %}
+      <div class="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+        {% for search in saved_searches %}
+          <a href="{{ url_for('listings', q=search.search_term or '', region=search.region or '', care_type=search.care_type or '') }}"
+             class="rounded-md border border-white/10 px-3 py-2 transition hover:border-ownerMint/70">
+            <div class="flex items-center justify-between gap-2">
+              <span class="text-xs font-semibold text-white/85">{{ search.name }}</span>
+              <span class="text-[10px] {{ 'text-ownerMint' if search.email_alerts else 'text-white/35' }}">
+                {{ 'Alerts on' if search.email_alerts else 'Alerts off' }}
+              </span>
+            </div>
+            <p class="mt-1 text-[10px] text-white/50">
+              {{ search.region or 'All regions' }} · {{ search.care_type or 'All sectors' }}
+            </p>
+          </a>
+        {% endfor %}
+      </div>
+    {% else %}
+      <p class="text-xs text-white/70">No saved searches yet. Filter the marketplace and save the criteria you want to revisit.</p>
+    {% endif %}
+  </section>
+
   <!-- TWO COLUMN: ENQUIRIES + SHORTLIST -->
   <div class="grid md:grid-cols-2 gap-4">
 
@@ -239,7 +273,7 @@
         </div>
       {% else %}
         <p class="text-xs text-white/70">
-          You haven’t shortlisted any homes yet. From listings, use “☆ Add to shortlist” to keep track of interesting opportunities.
+          You haven’t shortlisted any opportunities yet. Use “☆ Add to shortlist” on a listing to keep it here across devices.
         </p>
       {% endif %}
     </section>

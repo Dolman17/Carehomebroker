@@ -267,6 +267,51 @@ class ListingPhoto(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 
+class ShortlistItem(db.Model):
+    __tablename__ = "shortlist_item"
+
+    id = db.Column(db.Integer, primary_key=True)
+    buyer_id = db.Column(
+        db.Integer, db.ForeignKey("user.id"), nullable=False, index=True
+    )
+    listing_id = db.Column(
+        db.Integer, db.ForeignKey("listing.id"), nullable=False, index=True
+    )
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    buyer = db.relationship("User", backref="shortlist_items", lazy=True)
+    listing = db.relationship("Listing", backref="shortlist_items", lazy=True)
+
+    __table_args__ = (
+        db.UniqueConstraint(
+            "buyer_id", "listing_id", name="uq_shortlist_item_buyer_listing"
+        ),
+    )
+
+
+class SavedSearch(db.Model):
+    __tablename__ = "saved_search"
+
+    id = db.Column(db.Integer, primary_key=True)
+    buyer_id = db.Column(
+        db.Integer, db.ForeignKey("user.id"), nullable=False, index=True
+    )
+    name = db.Column(db.String(120), nullable=False)
+    search_term = db.Column(db.String(120))
+    region = db.Column(db.String(100))
+    care_type = db.Column(db.String(100))
+    email_alerts = db.Column(db.Boolean, default=True, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    buyer = db.relationship("User", backref="saved_searches", lazy=True)
+
+    __table_args__ = (
+        db.UniqueConstraint(
+            "buyer_id", "name", name="uq_saved_search_buyer_name"
+        ),
+    )
+
+
 class Enquiry(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     listing_id = db.Column(
@@ -1258,8 +1303,42 @@ REGION_COORDS = {
 }
 
 
-# Shortlist stored in session for buyers
 def get_shortlist_ids():
+    """Return a buyer's persistent shortlist, importing legacy session items once."""
+    if current_user.is_authenticated and current_user.role == "buyer":
+        legacy_ids = session.pop("shortlist", [])
+        imported_legacy_item = False
+        if isinstance(legacy_ids, list):
+            existing_ids = {
+                row.listing_id
+                for row in ShortlistItem.query.filter_by(
+                    buyer_id=current_user.id
+                ).all()
+            }
+            for raw_id in legacy_ids:
+                try:
+                    listing_id = int(raw_id)
+                except (TypeError, ValueError):
+                    continue
+                if listing_id not in existing_ids and db.session.get(Listing, listing_id):
+                    db.session.add(
+                        ShortlistItem(
+                            buyer_id=current_user.id,
+                            listing_id=listing_id,
+                        )
+                    )
+                    existing_ids.add(listing_id)
+                    imported_legacy_item = True
+            if imported_legacy_item:
+                db.session.commit()
+
+        return {
+            row[0]
+            for row in db.session.query(ShortlistItem.listing_id)
+            .filter_by(buyer_id=current_user.id)
+            .all()
+        }
+
     ids = session.get("shortlist", [])
     if not isinstance(ids, list):
         ids = []
@@ -1267,6 +1346,22 @@ def get_shortlist_ids():
         return {int(i) for i in ids}
     except Exception:
         return set()
+
+
+def listing_matches_saved_search(listing, saved_search):
+    """Return whether a live listing satisfies every populated saved-search filter."""
+    if listing.status != "live":
+        return False
+    if saved_search.region and listing.region != saved_search.region:
+        return False
+    if saved_search.care_type and listing.care_type != saved_search.care_type:
+        return False
+    if saved_search.search_term:
+        haystack = f"{listing.title or ''} {listing.short_description or ''}".lower()
+        if saved_search.search_term.lower() not in haystack:
+            return False
+    return True
+
 
 def compute_matches_for_buyer(buyer, limit=None):
     """
@@ -3187,7 +3282,7 @@ def buyer_dashboard():
     Buyer dashboard:
     - Shows recent enquiries
     - Shows recommended live listings based on buyer profile
-    - Shows shortlist listings from session
+    - Shows a persistent shortlist and saved searches
     """
     # Recent enquiries for this buyer
     enquiries = (
@@ -3245,7 +3340,7 @@ def buyer_dashboard():
     match_results = compute_matches_for_buyer(current_user, limit=6)
     top_matches = [listing for listing, _score, _reasons in match_results]
 
-    # Shortlist listings (session-based)
+    # Persistent buyer tools
     shortlist_ids = get_shortlist_ids()
     shortlist_listings = []
     if shortlist_ids:
@@ -3258,6 +3353,12 @@ def buyer_dashboard():
             .order_by(Listing.created_at.desc())
             .all()
         )
+    saved_searches = (
+        SavedSearch.query.filter_by(buyer_id=current_user.id)
+        .order_by(SavedSearch.created_at.desc())
+        .limit(5)
+        .all()
+    )
 
     return render_template(
         "buyer/dashboard.html",   # <-- key fix vs buyer_dashboard.html
@@ -3270,6 +3371,7 @@ def buyer_dashboard():
         active_sub=active_sub,
         current_plan_label=current_plan_label,
         profile_complete=profile_complete,
+        saved_searches=saved_searches,
     )
 
 
@@ -3474,31 +3576,100 @@ def buyer_shortlist():
 @role_required("buyer")
 def toggle_shortlist(listing_id):
     """
-    Add/remove a listing from the buyer's shortlist (stored in session).
+    Add/remove a listing from the buyer's persistent shortlist.
     Expects a POST from listing_detail or listings views.
     """
     listing = Listing.query.get_or_404(listing_id)
+    item = ShortlistItem.query.filter_by(
+        buyer_id=current_user.id, listing_id=listing.id
+    ).first()
 
-    # Get current shortlist from session (list of IDs)
-    shortlist = session.get("shortlist", [])
-    try:
-        listing_id_int = int(listing_id)
-    except (TypeError, ValueError):
-        listing_id_int = listing_id
-
-    if listing_id_int in shortlist:
-        shortlist.remove(listing_id_int)
+    if item:
+        db.session.delete(item)
         flash("Listing removed from your shortlist.", "info")
     else:
-        shortlist.append(listing_id_int)
+        db.session.add(
+            ShortlistItem(buyer_id=current_user.id, listing_id=listing.id)
+        )
         flash("Listing added to your shortlist.", "success")
-
-    session["shortlist"] = shortlist
+    db.session.commit()
 
     # Go back to where the user came from, or fallback to shortlist page
     requested_next = request.form.get("next") or request.referrer
     next_url = requested_next if is_safe_redirect_target(requested_next) else url_for("buyer_shortlist")
     return redirect(next_url)
+
+
+@app.route("/buyer/saved-searches")
+@login_required
+@role_required("buyer")
+def buyer_saved_searches():
+    searches = (
+        SavedSearch.query.filter_by(buyer_id=current_user.id)
+        .order_by(SavedSearch.created_at.desc())
+        .all()
+    )
+    return render_template("buyer/saved_searches.html", searches=searches)
+
+
+@app.route("/buyer/saved-searches", methods=["POST"])
+@login_required
+@role_required("buyer")
+def save_buyer_search():
+    search_term = (request.form.get("search_q") or "").strip()[:120] or None
+    region = (request.form.get("region") or "").strip()[:100] or None
+    care_type = (request.form.get("care_type") or "").strip()[:100] or None
+    supplied_name = (request.form.get("name") or "").strip()[:120]
+    parts = [part for part in (search_term, region, care_type) if part]
+    name = supplied_name or (" · ".join(parts) if parts else "All live opportunities")
+
+    existing = SavedSearch.query.filter_by(
+        buyer_id=current_user.id, name=name
+    ).first()
+    if existing:
+        flash("You already have a saved search with that name.", "info")
+    else:
+        db.session.add(
+            SavedSearch(
+                buyer_id=current_user.id,
+                name=name,
+                search_term=search_term,
+                region=region,
+                care_type=care_type,
+                email_alerts=bool(request.form.get("email_alerts")),
+            )
+        )
+        db.session.commit()
+        flash("Search saved. You can manage it from your buyer dashboard.", "success")
+
+    return redirect(url_for("buyer_saved_searches"))
+
+
+@app.route("/buyer/saved-searches/<int:search_id>/alerts", methods=["POST"])
+@login_required
+@role_required("buyer")
+def toggle_saved_search_alerts(search_id):
+    saved_search = SavedSearch.query.filter_by(
+        id=search_id, buyer_id=current_user.id
+    ).first_or_404()
+    saved_search.email_alerts = not saved_search.email_alerts
+    db.session.commit()
+    state = "on" if saved_search.email_alerts else "off"
+    flash(f"Email alerts turned {state} for {saved_search.name}.", "success")
+    return redirect(url_for("buyer_saved_searches"))
+
+
+@app.route("/buyer/saved-searches/<int:search_id>/delete", methods=["POST"])
+@login_required
+@role_required("buyer")
+def delete_saved_search(search_id):
+    saved_search = SavedSearch.query.filter_by(
+        id=search_id, buyer_id=current_user.id
+    ).first_or_404()
+    db.session.delete(saved_search)
+    db.session.commit()
+    flash("Saved search deleted.", "info")
+    return redirect(url_for("buyer_saved_searches"))
 
 
 @app.route("/valuers/<int:profile_id>")
@@ -4579,42 +4750,49 @@ def send_weekly_digest():
     if not new_listings:
         return "No new listings in last 7 days.", 200
 
-    buyer_matches = {}  # User -> list[Listing with match attrs]
+    buyer_matches = {}  # User -> list[(Listing, score, label, reasons)]
 
-    # Buyers that actually have a BuyerProfile
-    buyers_with_profile = (
-        User.query.filter_by(role="buyer")
-        .join(BuyerProfile, BuyerProfile.user_id == User.id)
-        .all()
-    )
-
-    for buyer in buyers_with_profile:
+    for buyer in User.query.filter_by(role="buyer").all():
         profile = BuyerProfile.query.filter_by(user_id=buyer.id).first()
-        if not profile:
+        active_searches = SavedSearch.query.filter_by(
+            buyer_id=buyer.id, email_alerts=True
+        ).all()
+        if not profile and not active_searches:
             continue
 
-        # Score all new listings for this buyer
+        # Include profile matches and exact matches to opted-in saved searches.
         scored = []
         for listing in new_listings:
             if listing.status != "live":
                 continue
 
-            score, label, reasons = compute_buyer_listing_match(listing, profile)
-            if score <= 0:
+            score, label, reasons = (0, "Saved search match", [])
+            if profile:
+                score, label, reasons = compute_buyer_listing_match(listing, profile)
+
+            matching_searches = [
+                saved_search.name
+                for saved_search in active_searches
+                if listing_matches_saved_search(listing, saved_search)
+            ]
+            if score <= 0 and not matching_searches:
                 continue
 
-            # attach temp attrs for this digest only
-            listing._match_score = score
-            listing._match_label = label
-            listing._match_reasons = reasons
-            scored.append(listing)
+            if matching_searches:
+                reasons = list(reasons or [])
+                reasons.insert(0, f"Saved search: {', '.join(matching_searches[:2])}")
+
+            scored.append((listing, max(score, 1), label, reasons))
 
         if not scored:
             continue
 
         # Sort by score (desc) then newest first
         scored.sort(
-            key=lambda l: (getattr(l, "_match_score", 0), l.created_at or datetime.min),
+            key=lambda match: (
+                match[1],
+                match[0].created_at or datetime.min,
+            ),
             reverse=True,
         )
 
@@ -4633,15 +4811,24 @@ def send_weekly_digest():
             "Here are new business opportunities from the last 7 days that match your profile:\n"
         )
 
-        for l in matches:
+        is_premium = has_active_subscription(buyer, "buyer", "premium")
+        for l, _score, label, reasons in matches:
             code = l.listing_code or "Ref pending"
-            title = l.title or "Confidential business"
+            can_view_sensitive = can_view_listing_sensitive(buyer, l)
+            title = (
+                l.title or "Confidential business"
+                if can_view_sensitive
+                else "Confidential business opportunity"
+            )
             region = l.region or "Region"
             care_type = l.care_type or "Sector / industry"
             beds = l.beds or "?"
-            price = l.guide_price_band or "On request"
-            label = getattr(l, "_match_label", "Match")
-            reasons = getattr(l, "_match_reasons", []) or []
+            price = (
+                l.guide_price_band or "On request"
+                if can_view_sensitive
+                else "Premium only"
+            )
+            reasons = reasons or []
 
             lines.append(f"- {code} – {title}")
             lines.append(
@@ -4654,7 +4841,6 @@ def send_weekly_digest():
             lines.append("")
 
         # Premium vs basic CTA
-        is_premium = has_active_subscription(buyer, "buyer", "premium")
         if is_premium:
             lines.append(
                 "You have Buyer Premium access – log in to view full details and send enquiries directly."
