@@ -55,6 +55,10 @@ Personalised recommendations
 
 Buyer profile preferences
 
+Private qualification and proof-of-funds submission
+
+Reviewed identity, business and funding trust badges
+
 ## Marketplace tools
 
 Weekly digest task endpoint

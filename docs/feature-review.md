@@ -9,7 +9,7 @@ This is a product-readiness review of the current application, not a security ce
 | Area | What works today | Readiness | Main gap |
 |---|---|---:|---|
 | Marketplace discovery | Public live listings, confidentiality gating, keyword/region/sector/price filters, price sorting, list and map views, pagination | 8/10 | More sector-specific filters and search analytics |
-| Buyer workflow | Detailed profile, rules-based matches, persistent shortlist, saved searches, event-driven alerts, enquiries, dashboard and subscriptions | 8/10 | Buyer verification and richer qualification evidence |
+| Buyer workflow | Detailed profile, reviewed qualification, proof-of-funds evidence, trust badges, matches, shortlist, saved searches, alerts, enquiries and subscriptions | 9/10 | Team buying groups and mandate approval |
 | Authentication | Verified-email registration, expiring one-time password resets, persistent login throttling and stricter admin sessions | 8/10 | Optional admin MFA and security-event audit views |
 | Seller workflow | Profile, listing creation/editing, photos, status changes, enquiries, buyer matches, introductions, staged data rooms and valuation requests | 8/10 | Listing analytics and offer workflow |
 | Confidentiality | Blurred restricted data, premium access rules, NDAs, staged disclosure permissions and audited private downloads | 9/10 | Retention controls and external storage hardening |
@@ -46,6 +46,8 @@ This is a product-readiness review of the current application, not a security ce
 - Added a privacy-safe activity and audit log for authentication, sensitive listing access, document downloads, notifications and administrator actions.
 - Added staged listing data rooms with document categories, retained version history and per-introduction disclosure permissions.
 - Added immediate access revocation, secure audited downloads and buyer notifications for new documents and access changes.
+- Added buyer qualification with private proof-of-funds evidence, administrator review decisions and seller-visible trust badges.
+- Added declared acquisition track records without exposing private evidence to sellers.
 
 Saved-search matches are included in the protected weekly digest task. Immediate delivery is available for transaction and data-room events when selected in notification preferences.
 
@@ -62,7 +64,7 @@ Saved-search matches are included in the protected weekly digest task. Immediate
 ### P1 — transaction workflow
 
 1. **Staged data room — delivered.** Documents are organised by disclosure stage with version history, per-introduction permissions and audited access.
-2. **Buyer qualification.** Add identity/business checks, proof-of-funds status, acquisition track record and seller-visible verification badges.
+2. **Buyer qualification — delivered.** Identity, business and proof-of-funds review plus acquisition track records and seller-visible trust badges are in place.
 3. **Deal workspace.** Add private messaging, Q&A, tasks, owners, due dates, milestones and reminders around each introduction.
 4. **Offers and negotiation.** Capture structured offers, conditions, expiry, counter-offers and accepted-offer history.
 5. **Seller analytics.** Show listing views, shortlist counts, enquiry conversion, matched-buyer quality and time in each stage.
@@ -78,4 +80,4 @@ Saved-search matches are included in the protected weekly digest task. Immediate
 
 ## Suggested next build
 
-Build buyer qualification next: verification state, proof-of-funds review, acquisition track record and seller-visible trust badges. This adds the evidence sellers need before granting deeper data-room access.
+Build the deal workspace next: private introduction messaging, Q&A, tasks, owners, due dates, milestones and reminders. This creates the shared operating layer needed before structured offers and counter-offers.

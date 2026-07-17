@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}Buyer verifications – Ownerlane{% endblock %}
+{% block content %}
+<div class="mb-6 flex items-end justify-between gap-3"><div><p class="text-[11px] uppercase tracking-[0.2em] text-ownerMint">Administration</p><h1 class="mt-2 text-2xl font-semibold">Buyer verifications</h1><p class="mt-2 text-sm text-white/60">Review identity, business and funding evidence before sellers rely on trust badges.</p></div><a href="{{ url_for('admin_buyers') }}" class="text-xs text-white/60 hover:text-ownerMint">Buyer directory →</a></div>
+<div class="space-y-3">
+  {% for item in qualifications %}
+  <a href="{{ url_for('admin_buyer_qualification', buyer_id=item.user_id) }}" class="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-white/10 bg-black/25 p-4 hover:border-ownerMint/60">
+    <div><p class="text-sm font-medium">{{ item.legal_name or item.user.email }}</p><p class="mt-1 text-xs text-white/45">{{ item.user.email }} · Submitted {{ item.submitted_at.strftime('%d %b %Y %H:%M') if item.submitted_at else 'not yet' }}</p></div>
+    <span class="rounded-full border px-3 py-1 text-[10px] {{ 'border-ownerMint/60 text-ownerMint' if item.overall_status == 'verified' else 'border-ownerCoral/60 text-ownerCoral' if item.overall_status == 'action_required' else 'border-white/20 text-white/60' }}">{{ item.overall_status|replace('_', ' ')|title }}</span>
+  </a>
+  {% else %}<p class="rounded-xl border border-white/10 p-6 text-sm text-white/55">No buyer qualifications have been submitted.</p>{% endfor %}
+</div>
+{% endblock %}

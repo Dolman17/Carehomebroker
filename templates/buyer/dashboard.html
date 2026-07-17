@@ -95,6 +95,11 @@
 
   </div>
 
+  <section class="rounded-lg border border-ownerMint/25 bg-ownerMint/5 p-4 text-xs sm:flex sm:items-center sm:justify-between sm:gap-4">
+    <div><h2 class="text-sm font-semibold">Buyer qualification</h2><p class="mt-1 text-white/60">Status: <span class="font-semibold {{ 'text-ownerMint' if qualification and qualification.overall_status == 'verified' else 'text-white/80' }}">{{ qualification.overall_status|replace('_', ' ')|title if qualification else 'Not submitted' }}</span>. Build seller confidence with reviewed identity, business and funding evidence.</p></div>
+    <a href="{{ url_for('buyer_qualification') }}" class="mt-3 inline-flex whitespace-nowrap rounded bg-ownerMint px-3 py-2 font-semibold text-ownerInk hover:bg-white sm:mt-0">{{ 'View qualification' if qualification else 'Start qualification' }}</a>
+  </section>
+
   <!-- MATCHES -->
   <section class="rounded-lg border border-white/10 bg-black/30 p-4">
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3">

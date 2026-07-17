@@ -8,6 +8,7 @@
     <p class="text-xs text-white/70">
       All registered buyers, with profile and subscription status.
     </p>
+    <a href="{{ url_for('admin_buyer_verifications') }}" class="mt-2 inline-flex text-[11px] text-ownerMint hover:text-white">Open verification queue →</a>
   </div>
   <a href="{{ url_for('admin_dashboard') }}"
      class="text-xs border border-white/20 text-white/70 px-3 py-1.5 rounded hover:bg-white/10">
@@ -26,12 +27,14 @@
         <th class="px-4 py-2">Budget</th>
         <th class="px-4 py-2">Timeline</th>
         <th class="px-4 py-2">Tier</th>
+        <th class="px-4 py-2">Verification</th>
         <th class="px-4 py-2 text-right">Joined</th>
       </tr>
     </thead>
     <tbody>
     {% for u in buyers %}
       {% set p = profile_map.get(u.id) %}
+      {% set q = qualification_map.get(u.id) %}
       <tr class="border-t border-white/5 hover:bg-white/5">
         <td class="px-4 py-2 align-top">
           <div class="text-white text-xs">{{ u.email }}</div>
@@ -87,13 +90,14 @@
             <span class="text-white/40">No active sub</span>
           {% endif %}
         </td>
+        <td class="px-4 py-2 align-top text-[11px]"><a href="{{ url_for('admin_buyer_qualification', buyer_id=u.id) if q else url_for('admin_buyers') }}" class="{{ 'text-ownerMint' if q and q.overall_status == 'verified' else 'text-ownerCoral' if q and q.overall_status == 'action_required' else 'text-white/45' }}">{{ q.overall_status|replace('_', ' ')|title if q else 'Not submitted' }}</a></td>
         <td class="px-4 py-2 align-top text-right text-[11px] text-white/60">
           {{ u.created_at.strftime("%d %b %Y") if u.created_at else "–" }}
         </td>
       </tr>
     {% else %}
       <tr>
-        <td colspan="8" class="px-4 py-4 text-center text-[11px] text-white/60">
+        <td colspan="9" class="px-4 py-4 text-center text-[11px] text-white/60">
           No buyers found.
         </td>
       </tr>

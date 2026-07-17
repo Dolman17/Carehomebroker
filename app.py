@@ -215,6 +215,10 @@ DATA_ROOM_FOLDER = os.path.join(PRIVATE_UPLOAD_ROOT, "data_room")
 os.makedirs(DATA_ROOM_FOLDER, exist_ok=True)
 app.config["DATA_ROOM_FOLDER"] = DATA_ROOM_FOLDER
 
+BUYER_EVIDENCE_FOLDER = os.path.join(PRIVATE_UPLOAD_ROOT, "buyer_evidence")
+os.makedirs(BUYER_EVIDENCE_FOLDER, exist_ok=True)
+app.config["BUYER_EVIDENCE_FOLDER"] = BUYER_EVIDENCE_FOLDER
+
 # -------------------------------------------------------------------
 # Deal / introduction status pipeline
 # -------------------------------------------------------------------
@@ -809,6 +813,47 @@ class BuyerProfile(db.Model):
             return False
         return True
 
+
+class BuyerQualification(db.Model):
+    __tablename__ = "buyer_qualification"
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), unique=True, nullable=False)
+    legal_name = db.Column(db.String(255))
+    company_number = db.Column(db.String(50))
+    website = db.Column(db.String(255))
+    acquisitions_completed = db.Column(db.Integer, nullable=False, default=0)
+    track_record_summary = db.Column(db.Text)
+    identity_status = db.Column(db.String(20), nullable=False, default="not_submitted", index=True)
+    business_status = db.Column(db.String(20), nullable=False, default="not_submitted", index=True)
+    funds_status = db.Column(db.String(20), nullable=False, default="not_submitted", index=True)
+    funds_filename = db.Column(db.String(255))
+    funds_original_filename = db.Column(db.String(255))
+    funds_mime_type = db.Column(db.String(100))
+    funds_size_bytes = db.Column(db.Integer)
+    submitted_at = db.Column(db.DateTime)
+    reviewed_at = db.Column(db.DateTime)
+    reviewed_by_id = db.Column(db.Integer, db.ForeignKey("user.id"))
+    review_notes = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+    user = db.relationship(
+        "User", foreign_keys=[user_id],
+        backref=db.backref("buyer_qualification", uselist=False),
+    )
+    reviewed_by = db.relationship("User", foreign_keys=[reviewed_by_id])
+
+    @property
+    def overall_status(self):
+        statuses = {self.identity_status, self.business_status, self.funds_status}
+        if statuses == {"verified"}:
+            return "verified"
+        if "rejected" in statuses:
+            return "action_required"
+        if statuses & {"pending", "verified"}:
+            return "in_review"
+        return "not_submitted"
 
 
 class Lead(db.Model):
@@ -3814,6 +3859,7 @@ def seller_buyers():
                 "region_match": region_match,
                 "care_match": care_match,
                 "score": score,
+                "qualification": BuyerQualification.query.filter_by(user_id=bp.user_id).first(),
             }
         )
 
@@ -4766,6 +4812,114 @@ def buyer_profile():
         selected_dd=selected_dd,
     )
 
+
+@app.route("/buyer/qualification", methods=["GET", "POST"])
+@login_required
+@role_required("buyer")
+def buyer_qualification():
+    qualification = BuyerQualification.query.filter_by(user_id=current_user.id).first()
+    if request.method == "POST":
+        if not qualification:
+            qualification = BuyerQualification(user_id=current_user.id)
+            db.session.add(qualification)
+        legal_name = (request.form.get("legal_name") or "").strip()
+        if not legal_name:
+            flash("Enter your legal name or the legal name of the acquiring entity.", "error")
+            return redirect(request.url)
+        try:
+            acquisitions_completed = max(
+                0, int(request.form.get("acquisitions_completed") or 0)
+            )
+        except ValueError:
+            flash("Completed acquisitions must be a whole number.", "error")
+            return redirect(request.url)
+        qualification.legal_name = legal_name[:255]
+        qualification.company_number = (
+            (request.form.get("company_number") or "").strip()[:50] or None
+        )
+        qualification.website = (
+            (request.form.get("website") or "").strip()[:255] or None
+        )
+        qualification.acquisitions_completed = acquisitions_completed
+        qualification.track_record_summary = (
+            (request.form.get("track_record_summary") or "").strip()[:3000] or None
+        )
+        qualification.identity_status = "pending"
+        qualification.business_status = (
+            "pending" if qualification.company_number or qualification.website else "not_submitted"
+        )
+        evidence = request.files.get("funds_evidence")
+        if evidence and evidence.filename:
+            if (
+                not allowed_document(evidence.filename)
+                or evidence.mimetype not in app.config["ALLOWED_DOCUMENT_MIME_TYPES"]
+            ):
+                flash("Proof of funds must be a PDF, Word or Excel document.", "error")
+                return redirect(request.url)
+            original = secure_filename(evidence.filename)
+            extension = os.path.splitext(original)[1].lower()
+            filename = f"{uuid.uuid4().hex}{extension}"
+            path = os.path.join(app.config["BUYER_EVIDENCE_FOLDER"], filename)
+            evidence.save(path)
+            qualification.funds_filename = filename
+            qualification.funds_original_filename = original
+            qualification.funds_mime_type = evidence.mimetype[:100]
+            qualification.funds_size_bytes = os.path.getsize(path)
+            qualification.funds_status = "pending"
+        elif qualification.funds_filename:
+            # A resubmission can change the acquiring entity, so prior funding
+            # approval must be reviewed again even when the file is unchanged.
+            qualification.funds_status = "pending"
+        qualification.submitted_at = utcnow()
+        qualification.updated_at = utcnow()
+        qualification.reviewed_at = None
+        qualification.reviewed_by_id = None
+        db.session.commit()
+        record_audit_event(
+            "buyer.qualification_submitted", "Buyer qualification submitted for review",
+            subject_user_id=current_user.id, resource_type="buyer_qualification",
+            resource_id=qualification.id,
+            details={"has_funds_evidence": bool(qualification.funds_filename)},
+        )
+        publish_role_notification(
+            "admin", event_type="buyer_qualification",
+            title="Buyer qualification awaiting review",
+            body=f"Buyer {current_user.id} submitted qualification evidence.",
+            target_url=url_for("admin_buyer_qualification", buyer_id=current_user.id),
+            dedupe_key=f"buyer-qualification:{qualification.id}:{int(qualification.submitted_at.timestamp())}",
+        )
+        flash("Qualification submitted for review.", "success")
+        return redirect(url_for("buyer_qualification"))
+    return render_template("buyer/qualification.html", qualification=qualification)
+
+
+@app.route("/buyer/qualification/evidence")
+@login_required
+@role_required("buyer")
+def buyer_qualification_evidence():
+    qualification = BuyerQualification.query.filter_by(user_id=current_user.id).first_or_404()
+    return _send_buyer_evidence(qualification)
+
+
+def _send_buyer_evidence(qualification):
+    if not qualification.funds_filename:
+        abort(404)
+    path = os.path.join(app.config["BUYER_EVIDENCE_FOLDER"], qualification.funds_filename)
+    if not os.path.isfile(path):
+        abort(404)
+    record_audit_event(
+        "buyer.qualification_evidence_downloaded",
+        "Private proof-of-funds evidence downloaded",
+        subject_user_id=qualification.user_id,
+        resource_type="buyer_qualification", resource_id=qualification.id,
+        details={"access_role": current_user.role},
+    )
+    return send_from_directory(
+        app.config["BUYER_EVIDENCE_FOLDER"], qualification.funds_filename,
+        as_attachment=True,
+        download_name=qualification.funds_original_filename or "proof-of-funds",
+    )
+
 @app.route("/buyer/dashboard")
 @login_required
 @role_required("buyer")
@@ -4798,6 +4952,7 @@ def buyer_dashboard():
 
     # Apply buyer profile filters if present
     profile = BuyerProfile.query.filter_by(user_id=current_user.id).first()
+    qualification = BuyerQualification.query.filter_by(user_id=current_user.id).first()
     is_premium = is_premium_buyer(current_user)
     active_sub = get_active_subscription_for_role(current_user, "buyer")
     current_plan_label = None
@@ -4868,6 +5023,7 @@ def buyer_dashboard():
         active_sub=active_sub,
         current_plan_label=current_plan_label,
         profile_complete=profile_complete,
+        qualification=qualification,
         saved_searches=saved_searches,
         data_room_introductions=data_room_introductions,
     )
@@ -5545,9 +5701,80 @@ def admin_buyers():
         "admin/buyers.html",
         buyers=buyers,
         profile_map={p.user_id: p for p in BuyerProfile.query.all()},
+        qualification_map={q.user_id: q for q in BuyerQualification.query.all()},
         premium_ids=premium_ids,
         basic_ids=basic_ids,
     )
+
+
+@app.route("/admin/buyer-verifications")
+@login_required
+@role_required("admin")
+def admin_buyer_verifications():
+    qualifications = BuyerQualification.query.order_by(
+        BuyerQualification.submitted_at.desc()
+    ).all()
+    return render_template(
+        "admin/buyer_verifications.html", qualifications=qualifications
+    )
+
+
+@app.route("/admin/buyer-verifications/<int:buyer_id>", methods=["GET", "POST"])
+@login_required
+@role_required("admin")
+def admin_buyer_qualification(buyer_id):
+    buyer = User.query.filter_by(id=buyer_id, role="buyer").first_or_404()
+    qualification = BuyerQualification.query.filter_by(user_id=buyer.id).first_or_404()
+    if request.method == "POST":
+        allowed = {"not_submitted", "pending", "verified", "rejected"}
+        identity_status = (request.form.get("identity_status") or "").strip()
+        business_status = (request.form.get("business_status") or "").strip()
+        funds_status = (request.form.get("funds_status") or "").strip()
+        if {identity_status, business_status, funds_status} - allowed:
+            flash("Choose valid review decisions.", "error")
+            return redirect(request.url)
+        if funds_status == "verified" and not qualification.funds_filename:
+            flash("Proof of funds cannot be verified without private evidence.", "error")
+            return redirect(request.url)
+        previous = qualification.overall_status
+        qualification.identity_status = identity_status
+        qualification.business_status = business_status
+        qualification.funds_status = funds_status
+        qualification.review_notes = (
+            (request.form.get("review_notes") or "").strip()[:3000] or None
+        )
+        qualification.reviewed_at = utcnow()
+        qualification.reviewed_by_id = current_user.id
+        qualification.updated_at = utcnow()
+        db.session.commit()
+        record_audit_event(
+            "admin.buyer_qualification_reviewed", "Buyer qualification reviewed",
+            subject_user_id=buyer.id, resource_type="buyer_qualification",
+            resource_id=qualification.id,
+            details={"previous_status": previous, "status": qualification.overall_status},
+        )
+        publish_notification(
+            buyer, event_type="buyer_qualification",
+            title="Buyer verification updated",
+            body=f"Your qualification review is now {qualification.overall_status.replace('_', ' ')}.",
+            target_url=url_for("buyer_qualification"),
+            dedupe_key=f"buyer-qualification-review:{qualification.id}:{int(qualification.reviewed_at.timestamp())}",
+        )
+        flash("Buyer qualification review saved.", "success")
+        return redirect(url_for("admin_buyer_qualification", buyer_id=buyer.id))
+    profile = BuyerProfile.query.filter_by(user_id=buyer.id).first()
+    return render_template(
+        "admin/buyer_qualification.html", buyer=buyer,
+        qualification=qualification, profile=profile,
+    )
+
+
+@app.route("/admin/buyer-verifications/<int:buyer_id>/evidence")
+@login_required
+@role_required("admin")
+def admin_buyer_qualification_evidence(buyer_id):
+    qualification = BuyerQualification.query.filter_by(user_id=buyer_id).first_or_404()
+    return _send_buyer_evidence(qualification)
 
 
 @app.route("/admin/sellers")
@@ -5741,6 +5968,9 @@ def admin_introduction_detail(intro_id):
     deal = Deal.query.filter_by(introduction_id=intro.id).first()
     buyer_profile = BuyerProfile.query.filter_by(user_id=intro.buyer_id).first()
     seller_profile = SellerProfile.query.filter_by(user_id=intro.seller_id).first()
+    buyer_qualification = BuyerQualification.query.filter_by(
+        user_id=intro.buyer_id
+    ).first()
 
     return render_template(
         "admin/introduction_detail.html",
@@ -5748,6 +5978,7 @@ def admin_introduction_detail(intro_id):
         deal=deal,
         buyer_profile=buyer_profile,
         seller_profile=seller_profile,
+        buyer_qualification=buyer_qualification,
         statuses=INTRO_STATUSES,
     )
 
