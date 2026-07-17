@@ -38,36 +38,33 @@
 
       <div>
         <label class="text-xs text-white/70">Sector / industry</label>
-        <select name="care_type"
+        <select name="sector" id="sector-select" required
                 class="w-full border border-white/20 bg-black/40 text-sm text-white rounded px-3 py-2">
           <option value="">Select</option>
-          {% set sector_options = ['Healthcare & Social Care', 'Hospitality & Leisure', 'Professional Services', 'Retail & E-commerce', 'Technology & Software', 'Manufacturing', 'Construction & Property', 'Recruitment', 'Other'] %}
-          {% if listing.care_type and listing.care_type not in sector_options %}
+          {% if listing.care_type and not listing.sector %}
             <option value="{{ listing.care_type }}" selected>{{ listing.care_type }} (existing)</option>
           {% endif %}
-          {% for ct in sector_options %}
-            <option value="{{ ct }}" {% if listing.care_type == ct %}selected{% endif %}>{{ ct }}</option>
+          {% for sector in sector_options %}
+            <option value="{{ sector.slug }}" {% if listing.sector and listing.sector_id == sector.id %}selected{% endif %}>{{ sector.name }}</option>
           {% endfor %}
         </select>
       </div>
     </div>
 
-    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-      <div>
-        <label class="text-xs text-white/70">Business size / units</label>
-        <input type="number" name="beds" value="{{ listing.beds or '' }}"
-               class="w-full border border-white/20 bg-black/40 text-sm text-white rounded px-3 py-2">
-      </div>
-      <div>
-        <label class="text-xs text-white/70">Capacity utilisation (%)</label>
-        <input type="number" name="occupancy_percent" value="{{ listing.occupancy_percent or '' }}"
-               class="w-full border border-white/20 bg-black/40 text-sm text-white rounded px-3 py-2">
-      </div>
-      <div>
-        <label class="text-xs text-white/70">Regulatory / accreditation</label>
-        <input type="text" name="cqc_rating" value="{{ listing.cqc_rating or '' }}"
-               class="w-full border border-white/20 bg-black/40 text-sm text-white rounded px-3 py-2">
-      </div>
+    <div id="sector-attributes" class="space-y-3">
+      {% for sector in sector_options %}
+        <div data-sector-fields="{{ sector.slug }}" class="hidden grid grid-cols-1 sm:grid-cols-3 gap-3 rounded border border-white/10 bg-black/20 p-3">
+          {% for field in sector.attribute_schema %}
+            <label class="text-xs text-white/70">{{ field.label }}
+              <input name="attribute_{{ field.key }}"
+                     type="{{ 'number' if field.type in ['integer', 'percent'] else 'text' }}"
+                     value="{{ (listing.attributes or {}).get(field.key, '') }}"
+                     {% if field.type == 'percent' %}min="0" max="100"{% elif field.type == 'integer' %}min="0"{% endif %}
+                     class="mt-1 w-full border border-white/20 bg-black/40 text-sm text-white rounded px-3 py-2">
+            </label>
+          {% endfor %}
+        </div>
+      {% endfor %}
     </div>
 
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -83,29 +80,34 @@
       </div>
 
       <div>
-        <label class="text-xs text-white/70">Guide Price Band</label>
-        <select name="guide_price_band"
-                class="w-full border border-white/20 bg-black/40 text-sm text-white rounded px-3 py-2">
-          <option value="">Select</option>
-          {% for b in ['<£500k','£500k–£1m','£1m–£3m','£3m+','On request'] %}
-            <option value="{{ b }}" {% if listing.guide_price_band == b %}selected{% endif %}>{{ b }}</option>
-          {% endfor %}
-        </select>
+        <label class="text-xs text-white/70">Guide price</label>
+        <input type="number" name="asking_price" min="0" step="0.01"
+               value="{{ listing.asking_price_minor / 100 if listing.asking_price_minor is not none else '' }}"
+               class="w-full border border-white/20 bg-black/40 text-sm text-white rounded px-3 py-2">
       </div>
     </div>
 
-    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
       <div>
-        <label class="text-xs text-white/70">Revenue Band</label>
-        <input type="text" name="revenue_band" value="{{ listing.revenue_band or '' }}"
+        <label class="text-xs text-white/70">Annual revenue</label>
+        <input type="number" name="annual_revenue" min="0" step="0.01"
+               value="{{ listing.revenue_minor / 100 if listing.revenue_minor is not none else '' }}"
                class="w-full border border-white/20 bg-black/40 text-sm text-white rounded px-3 py-2">
       </div>
 
       <div>
-        <label class="text-xs text-white/70">EBITDA Band</label>
-        <input type="text" name="ebitda_band" value="{{ listing.ebitda_band or '' }}"
+        <label class="text-xs text-white/70">Annual EBITDA</label>
+        <input type="number" name="annual_ebitda" min="0" step="0.01"
+               value="{{ listing.ebitda_minor / 100 if listing.ebitda_minor is not none else '' }}"
                class="w-full border border-white/20 bg-black/40 text-sm text-white rounded px-3 py-2">
       </div>
+      <label class="text-xs text-white/70">Currency
+        <select name="currency" class="w-full border border-white/20 bg-black/40 text-sm text-white rounded px-3 py-2">
+          {% for code, label in [('GBP','GBP (£)'),('EUR','EUR (€)'),('USD','USD ($)')] %}
+            <option value="{{ code }}" {% if listing.currency == code %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </label>
     </div>
 
     <div>
@@ -157,4 +159,14 @@
 
   </form>
 </div>
+<script>
+  const sectorSelect = document.getElementById('sector-select');
+  function showSectorFields() {
+    document.querySelectorAll('[data-sector-fields]').forEach((panel) => {
+      panel.classList.toggle('hidden', panel.dataset.sectorFields !== sectorSelect.value);
+    });
+  }
+  sectorSelect.addEventListener('change', showSectorFields);
+  showSectorFields();
+</script>
 {% endblock %}

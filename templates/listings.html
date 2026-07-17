@@ -156,7 +156,7 @@
    ------------------------------------------------------------------ #}
 <section class="mb-5 rounded-lg border border-white/10 bg-black/30 p-4">
   <form method="GET" action="{{ url_for('listings') }}"
-        class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 lg:items-end">
+        class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-6 lg:items-end">
     <label class="block text-[11px] text-white/70 lg:col-span-2">
       Keyword
       <input type="search" name="q" value="{{ search_q }}"
@@ -175,12 +175,27 @@
     </label>
     <label class="block text-[11px] text-white/70">
       Sector / industry
-      <select name="care_type"
+      <select name="sector"
               class="mt-1 w-full rounded border border-white/15 bg-ownerNavy px-3 py-2 text-sm text-white focus:border-ownerMint focus:outline-none">
         <option value="">All sectors</option>
-        {% for care_type in care_types %}
-          <option value="{{ care_type }}" {% if selected_care_type == care_type %}selected{% endif %}>{{ care_type }}</option>
+        {% for value, label in sector_options %}
+          <option value="{{ value }}" {% if selected_sector == value %}selected{% endif %}>{{ label }}</option>
         {% endfor %}
+      </select>
+    </label>
+    <label class="block text-[11px] text-white/70">Minimum price
+      <input type="number" name="min_price" min="0" step="1" value="{{ min_price }}" placeholder="Any"
+             class="mt-1 w-full rounded border border-white/15 bg-black/40 px-3 py-2 text-sm text-white focus:border-ownerMint focus:outline-none">
+    </label>
+    <label class="block text-[11px] text-white/70">Maximum price
+      <input type="number" name="max_price" min="0" step="1" value="{{ max_price }}" placeholder="Any"
+             class="mt-1 w-full rounded border border-white/15 bg-black/40 px-3 py-2 text-sm text-white focus:border-ownerMint focus:outline-none">
+    </label>
+    <label class="block text-[11px] text-white/70">Sort by
+      <select name="sort" class="mt-1 w-full rounded border border-white/15 bg-ownerNavy px-3 py-2 text-sm text-white focus:border-ownerMint focus:outline-none">
+        <option value="newest" {% if sort == 'newest' %}selected{% endif %}>Newest</option>
+        <option value="price_low" {% if sort == 'price_low' %}selected{% endif %}>Price: low to high</option>
+        <option value="price_high" {% if sort == 'price_high' %}selected{% endif %}>Price: high to low</option>
       </select>
     </label>
     <div class="flex flex-wrap items-center gap-2 lg:col-span-4">
@@ -188,7 +203,7 @@
               class="rounded bg-ownerMint px-4 py-2 text-xs font-semibold text-black transition hover:bg-white">
         Search opportunities
       </button>
-      {% if search_q or selected_region or selected_care_type %}
+      {% if search_q or selected_region or selected_sector or min_price or max_price or sort != 'newest' %}
         <a href="{{ url_for('listings') }}"
            class="rounded border border-white/20 px-4 py-2 text-xs text-white/80 transition hover:bg-white/10">
           Clear filters
@@ -203,7 +218,7 @@
           class="mt-4 flex flex-col gap-3 border-t border-white/10 pt-4 sm:flex-row sm:items-end">
       <input type="hidden" name="search_q" value="{{ search_q }}">
       <input type="hidden" name="region" value="{{ selected_region }}">
-      <input type="hidden" name="care_type" value="{{ selected_care_type }}">
+      <input type="hidden" name="care_type" value="{{ selected_sector }}">
       <label class="block min-w-0 flex-1 text-[11px] text-white/70">
         Save this search
         <input type="text" name="name" maxlength="120"
@@ -293,8 +308,8 @@
           {# Meta #}
           <p class="text-[11px] text-white/60 mb-1">
             {{ l.region or "Region confidential" }} •
-            {{ l.care_type or "Sector / industry confidential" }} •
-            {{ l.beds or "?" }} units
+            {{ l.sector_name or "Sector / industry confidential" }}
+            {% if l.headline_metric %} • {{ l.headline_metric }}{% endif %}
           </p>
 
           {# GUIDE PRICE – blur for non-premium buyers + public #}
@@ -308,7 +323,7 @@
 
             {% if can_view_this_listing %}
               <span class="text-ownerMint">
-                {{ l.guide_price_band or "On request" }}
+                {{ l.guide_price_display or "On request" }}
               </span>
             {% else %}
               {% set slug = "listings_card_guide_price_placeholder" %}

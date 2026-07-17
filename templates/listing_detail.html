@@ -21,8 +21,8 @@
       </h1>
       <p class="text-xs text-white/60 mt-1">
         {{ listing.region or "Region tbc" }} •
-        {{ listing.care_type or "Sector / industry tbc" }} •
-        {{ listing.beds or "?" }} units
+        {{ listing.sector_name or "Sector / industry tbc" }}
+        {% if listing.headline_metric %} • {{ listing.headline_metric }}{% endif %}
       </p>
     </div>
 
@@ -104,7 +104,7 @@
             <dt class="text-white/40">Guide price</dt>
             <dd class="mt-0.5">
               {% if can_see_price %}
-                {{ listing.guide_price_band or "On request" }}
+                {{ listing.guide_price_display or "On request" }}
               {% else %}
                 <span class="blur-sm select-none">£X,XXX,XXX</span>
                 <span class="ml-1 text-[10px] text-ownerMint">Premium only</span>
@@ -112,15 +112,22 @@
             </dd>
           </div>
 
-          <div>
-            <dt class="text-white/40">Capacity utilisation</dt>
-            <dd class="mt-0.5">{% if can_view_sensitive %}{{ listing.occupancy_percent or "n/a" }}%{% else %}Premium only{% endif %}</dd>
-          </div>
+          <div><dt class="text-white/40">Annual revenue</dt><dd class="mt-0.5">{% if can_view_sensitive %}{{ listing.revenue_display or "Not disclosed" }}{% else %}Premium only{% endif %}</dd></div>
+          <div><dt class="text-white/40">Annual EBITDA</dt><dd class="mt-0.5">{% if can_view_sensitive %}{{ listing.ebitda_display or "Not disclosed" }}{% else %}Premium only{% endif %}</dd></div>
 
-          <div>
-            <dt class="text-white/40">Regulatory / accreditation</dt>
-            <dd class="mt-0.5">{% if can_view_sensitive %}{{ listing.cqc_rating or "Not disclosed" }}{% else %}Premium only{% endif %}</dd>
-          </div>
+          {% if listing.sector and listing.attributes %}
+            {% for field in listing.sector.attribute_schema %}
+              {% if (listing.attributes or {}).get(field.key) is not none %}
+                <div>
+                  <dt class="text-white/40">{{ field.label }}</dt>
+                  <dd class="mt-0.5">{% if can_view_sensitive %}{{ (listing.attributes or {}).get(field.key) }}{% if field.type == 'percent' %}%{% endif %}{% else %}Premium only{% endif %}</dd>
+                </div>
+              {% endif %}
+            {% endfor %}
+          {% else %}
+            <div><dt class="text-white/40">Capacity utilisation</dt><dd class="mt-0.5">{% if can_view_sensitive %}{{ listing.occupancy_percent or "n/a" }}{% if listing.occupancy_percent is not none %}%{% endif %}{% else %}Premium only{% endif %}</dd></div>
+            <div><dt class="text-white/40">Regulatory / accreditation</dt><dd class="mt-0.5">{% if can_view_sensitive %}{{ listing.cqc_rating or "Not disclosed" }}{% else %}Premium only{% endif %}</dd></div>
+          {% endif %}
 
           <div>
             <dt class="text-white/40">Tenure</dt>

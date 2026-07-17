@@ -253,7 +253,7 @@
           <h3 class="mt-6 text-base font-semibold transition group-hover:text-ownerMint">
             {% if can_see_full %}{{ l.title or 'Confidential business' }}{% else %}Confidential business opportunity{% endif %}
           </h3>
-          <p class="mt-2 text-xs text-white/50">{{ l.region or 'United Kingdom' }} · {{ l.care_type or 'Sector confidential' }}</p>
+          <p class="mt-2 text-xs text-white/50">{{ l.region or 'United Kingdom' }} · {{ l.sector_name or 'Sector confidential' }}</p>
           <div class="mt-6 flex items-center justify-between border-t border-white/10 pt-4 text-xs">
             <span class="text-white/40">Guide price</span>
             {% if can_see_full %}

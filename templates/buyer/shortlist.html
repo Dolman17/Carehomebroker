@@ -24,8 +24,8 @@
               <p class="font-semibold text-white text-lg">{{ l.title }}</p>
               <p class="text-sm text-white/80 mt-1">
                 {{ l.region or "Region" }} •
-                {{ l.care_type or "Sector / industry" }} •
-                {{ l.beds or "?" }} units
+                {{ l.sector_name or "Sector / industry" }}
+                {% if l.headline_metric %} • {{ l.headline_metric }}{% endif %}
               </p>
               <p class="text-sm text-ownerMint mt-1">
                 Guide price: {{ l.guide_price_band or "On request" }}

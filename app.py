@@ -3,6 +3,7 @@ import re
 import uuid
 import smtplib
 import math
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from urllib.parse import urljoin, urlparse
 from email.message import EmailMessage
 from datetime import datetime, timedelta
@@ -33,7 +34,7 @@ from flask_login import (
 
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
-from sqlalchemy import func, desc
+from sqlalchemy import func, desc, or_
 
 from flask import current_app
 
@@ -186,6 +187,121 @@ INTRO_STATUSES = [
 # -------------------------------------------------------------------
 
 
+DEFAULT_SECTORS = (
+    {
+        "slug": "healthcare-social-care",
+        "name": "Healthcare & Social Care",
+        "attributes": [
+            {"key": "unit_count", "label": "Beds / registered places", "type": "integer"},
+            {"key": "capacity_utilisation", "label": "Occupancy / utilisation (%)", "type": "percent"},
+            {"key": "regulatory_rating", "label": "Regulatory rating", "type": "text"},
+        ],
+    },
+    {
+        "slug": "hospitality-leisure",
+        "name": "Hospitality & Leisure",
+        "attributes": [
+            {"key": "unit_count", "label": "Rooms / trading units", "type": "integer"},
+            {"key": "capacity_utilisation", "label": "Occupancy / utilisation (%)", "type": "percent"},
+            {"key": "location_count", "label": "Number of locations", "type": "integer"},
+        ],
+    },
+    {
+        "slug": "professional-services",
+        "name": "Professional Services",
+        "attributes": [
+            {"key": "employee_count", "label": "Employees", "type": "integer"},
+            {"key": "location_count", "label": "Number of offices", "type": "integer"},
+            {"key": "recurring_revenue_percent", "label": "Recurring revenue (%)", "type": "percent"},
+        ],
+    },
+    {
+        "slug": "retail-ecommerce",
+        "name": "Retail & E-commerce",
+        "attributes": [
+            {"key": "employee_count", "label": "Employees", "type": "integer"},
+            {"key": "location_count", "label": "Stores / locations", "type": "integer"},
+            {"key": "online_revenue_percent", "label": "Online revenue (%)", "type": "percent"},
+        ],
+    },
+    {
+        "slug": "technology-software",
+        "name": "Technology & Software",
+        "attributes": [
+            {"key": "employee_count", "label": "Employees", "type": "integer"},
+            {"key": "recurring_revenue_percent", "label": "Recurring revenue (%)", "type": "percent"},
+            {"key": "customer_count", "label": "Active customers", "type": "integer"},
+        ],
+    },
+    {
+        "slug": "manufacturing",
+        "name": "Manufacturing",
+        "attributes": [
+            {"key": "employee_count", "label": "Employees", "type": "integer"},
+            {"key": "location_count", "label": "Production sites", "type": "integer"},
+            {"key": "capacity_utilisation", "label": "Capacity utilisation (%)", "type": "percent"},
+        ],
+    },
+    {
+        "slug": "construction-property",
+        "name": "Construction & Property",
+        "attributes": [
+            {"key": "employee_count", "label": "Employees", "type": "integer"},
+            {"key": "location_count", "label": "Operating locations", "type": "integer"},
+            {"key": "contracted_revenue_percent", "label": "Contracted revenue (%)", "type": "percent"},
+        ],
+    },
+    {
+        "slug": "recruitment",
+        "name": "Recruitment",
+        "attributes": [
+            {"key": "employee_count", "label": "Employees", "type": "integer"},
+            {"key": "location_count", "label": "Offices", "type": "integer"},
+            {"key": "contract_revenue_percent", "label": "Contract revenue (%)", "type": "percent"},
+        ],
+    },
+    {"slug": "other", "name": "Other", "attributes": []},
+)
+
+
+class Sector(db.Model):
+    __tablename__ = "sector"
+
+    id = db.Column(db.Integer, primary_key=True)
+    slug = db.Column(db.String(100), unique=True, nullable=False, index=True)
+    name = db.Column(db.String(120), unique=True, nullable=False)
+    attribute_schema = db.Column(db.JSON, nullable=False, default=list)
+    is_active = db.Column(db.Boolean, nullable=False, default=True)
+    sort_order = db.Column(db.Integer, nullable=False, default=0)
+
+
+def format_minor_units(value, currency="GBP"):
+    if value is None:
+        return None
+    symbols = {"GBP": "£", "EUR": "€", "USD": "$"}
+    code = (currency or "GBP").upper()
+    amount = Decimal(value) / Decimal(100)
+    formatted = (
+        f"{amount:,.0f}"
+        if amount == amount.to_integral_value()
+        else f"{amount:,.2f}"
+    )
+    return f"{symbols.get(code, code + ' ')}{formatted}"
+
+
+def parse_major_units(value):
+    raw = (value or "").strip().replace(",", "")
+    if not raw:
+        return None
+    try:
+        amount = Decimal(raw)
+    except InvalidOperation as exc:
+        raise ValueError("Enter a valid monetary amount.") from exc
+    if amount < 0:
+        raise ValueError("Monetary amounts cannot be negative.")
+    return int((amount * 100).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
+
+
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     email = db.Column(db.String(255), unique=True, nullable=False)
@@ -225,6 +341,12 @@ class Listing(db.Model):
     listing_code = db.Column(db.String(20), unique=True)
     title = db.Column(db.String(255), nullable=False)
     region = db.Column(db.String(100))
+    sector_id = db.Column(db.Integer, db.ForeignKey("sector.id"), index=True)
+    attributes = db.Column(db.JSON, nullable=False, default=dict)
+    asking_price_minor = db.Column(db.BigInteger)
+    revenue_minor = db.Column(db.BigInteger)
+    ebitda_minor = db.Column(db.BigInteger)
+    currency = db.Column(db.String(3), nullable=False, default="GBP")
     care_type = db.Column(db.String(100))
     beds = db.Column(db.Integer)
     occupancy_percent = db.Column(db.Integer)
@@ -244,6 +366,7 @@ class Listing(db.Model):
     photo_filename = db.Column(db.String(255))
 
     seller = db.relationship("User", backref="listings", lazy=True)
+    sector = db.relationship("Sector", backref="listings", lazy=True)
 
     photos = db.relationship(
         "ListingPhoto",
@@ -252,6 +375,122 @@ class Listing(db.Model):
         cascade="all, delete-orphan",
         order_by="ListingPhoto.created_at",
     )
+
+    @property
+    def sector_name(self):
+        return self.sector.name if self.sector else self.care_type
+
+    @property
+    def guide_price_display(self):
+        return format_minor_units(self.asking_price_minor, self.currency) or self.guide_price_band
+
+    @property
+    def revenue_display(self):
+        return format_minor_units(self.revenue_minor, self.currency) or self.revenue_band
+
+    @property
+    def ebitda_display(self):
+        return format_minor_units(self.ebitda_minor, self.currency) or self.ebitda_band
+
+    @property
+    def headline_metric(self):
+        values = self.attributes or {}
+        for key in ("unit_count", "employee_count", "location_count", "customer_count"):
+            if values.get(key) not in (None, ""):
+                labels = {
+                    "unit_count": "units",
+                    "employee_count": "employees",
+                    "location_count": "locations",
+                    "customer_count": "customers",
+                }
+                return f"{values[key]} {labels[key]}"
+        if self.beds is not None:
+            return f"{self.beds} units"
+        return None
+
+
+def get_sector_options():
+    rows = Sector.query.filter_by(is_active=True).order_by(
+        Sector.sort_order.asc(), Sector.name.asc()
+    ).all()
+    if rows:
+        return rows
+    return [
+        {
+            "slug": item["slug"],
+            "name": item["name"],
+            "attribute_schema": item["attributes"],
+        }
+        for item in DEFAULT_SECTORS
+    ]
+
+
+def resolve_sector(value):
+    value = (value or "").strip()[:120]
+    if not value:
+        return None
+    sector = Sector.query.filter(
+        (Sector.slug == value) | (Sector.name == value)
+    ).first()
+    if sector:
+        return sector
+    default = next(
+        (item for item in DEFAULT_SECTORS if value in (item["slug"], item["name"])),
+        None,
+    )
+    name = default["name"] if default else value
+    slug = default["slug"] if default else re.sub(r"[^a-z0-9]+", "-", value.lower()).strip("-")
+    sector = Sector(
+        slug=slug[:100] or f"sector-{uuid.uuid4().hex[:8]}",
+        name=name,
+        attribute_schema=(default or {}).get("attributes", []),
+        sort_order=len(DEFAULT_SECTORS),
+    )
+    db.session.add(sector)
+    db.session.flush()
+    return sector
+
+
+def parse_listing_attributes(form, sector):
+    values = {}
+    for field in (sector.attribute_schema if sector else []):
+        key = field.get("key")
+        raw = (form.get(f"attribute_{key}") or "").strip()
+        if not key or raw == "":
+            continue
+        if field.get("type") in ("integer", "percent"):
+            try:
+                number = int(raw)
+            except ValueError as exc:
+                raise ValueError(f"{field.get('label', key)} must be a whole number.") from exc
+            if number < 0 or (field.get("type") == "percent" and number > 100):
+                raise ValueError(f"Enter a valid value for {field.get('label', key)}.")
+            values[key] = number
+        else:
+            values[key] = raw[:255]
+    return values
+
+
+def merge_legacy_listing_attributes(form, values):
+    """Accept the old care-focused form fields during the transition."""
+    for form_key, attribute_key, is_percent in (
+        ("beds", "unit_count", False),
+        ("occupancy_percent", "capacity_utilisation", True),
+    ):
+        raw = (form.get(form_key) or "").strip()
+        if not raw or attribute_key in values:
+            continue
+        try:
+            number = int(raw)
+        except ValueError as exc:
+            raise ValueError(f"{form_key.replace('_', ' ').title()} must be a whole number.") from exc
+        if number < 0 or (is_percent and number > 100):
+            raise ValueError(f"Enter a valid {form_key.replace('_', ' ')}.")
+        values[attribute_key] = number
+    legacy_rating = (form.get("cqc_rating") or "").strip()
+    if legacy_rating and "regulatory_rating" not in values:
+        values["regulatory_rating"] = legacy_rating[:255]
+    return values
 
 
 class ListingPhoto(db.Model):
@@ -1354,7 +1593,11 @@ def listing_matches_saved_search(listing, saved_search):
         return False
     if saved_search.region and listing.region != saved_search.region:
         return False
-    if saved_search.care_type and listing.care_type != saved_search.care_type:
+    if saved_search.care_type and saved_search.care_type not in {
+        listing.care_type,
+        listing.sector_name,
+        listing.sector.slug if listing.sector else None,
+    }:
         return False
     if saved_search.search_term:
         haystack = f"{listing.title or ''} {listing.short_description or ''}".lower()
@@ -1786,7 +2029,10 @@ def listings():
 
     search_q = (request.args.get("q") or "").strip()
     selected_region = request.args.get("region") or ""
-    selected_care_type = request.args.get("care_type") or ""
+    selected_sector = request.args.get("sector") or request.args.get("care_type") or ""
+    min_price = (request.args.get("min_price") or "").strip()
+    max_price = (request.args.get("max_price") or "").strip()
+    sort = request.args.get("sort") or "newest"
     view_mode = request.args.get("view") or "list"
     page = max(int(request.args.get("page", 1) or 1), 1)
     per_page = 6
@@ -1799,16 +2045,39 @@ def listings():
 
     if selected_region:
         query = query.filter(Listing.region == selected_region)
-    if selected_care_type:
-        query = query.filter(Listing.care_type == selected_care_type)
+    if selected_sector:
+        query = query.outerjoin(Sector).filter(
+            or_(
+                Sector.slug == selected_sector,
+                Sector.name == selected_sector,
+                Listing.care_type == selected_sector,
+            )
+        )
+    try:
+        min_price_minor = parse_major_units(min_price)
+        max_price_minor = parse_major_units(max_price)
+    except ValueError:
+        min_price_minor = max_price_minor = None
+        flash("Price filters must be valid positive amounts.")
+    if min_price_minor is not None:
+        query = query.filter(Listing.asking_price_minor >= min_price_minor)
+    if max_price_minor is not None:
+        query = query.filter(Listing.asking_price_minor <= max_price_minor)
 
     total = query.count()
     pages = max(1, math.ceil(total / per_page)) if total else 1
     if page > pages:
         page = pages
 
+    if sort == "price_low":
+        ordering = (Listing.asking_price_minor.is_(None), Listing.asking_price_minor.asc())
+    elif sort == "price_high":
+        ordering = (Listing.asking_price_minor.is_(None), Listing.asking_price_minor.desc())
+    else:
+        ordering = (Listing.created_at.desc(),)
+
     listings_data = (
-        query.order_by(Listing.created_at.desc())
+        query.order_by(*ordering)
         .offset((page - 1) * per_page)
         .limit(per_page)
         .all()
@@ -1823,13 +2092,11 @@ def listings():
             if r[0] is not None and r[0] != ""
         }
     )
-    care_types = sorted(
-        {
-            c[0]
-            for c in base_live.with_entities(Listing.care_type).distinct()
-            if c[0] is not None and c[0] != ""
-        }
-    )
+    sector_options = {}
+    for listing in base_live.all():
+        name = listing.sector_name
+        if name:
+            sector_options[listing.sector.slug if listing.sector else name] = name
 
     # Shortlist IDs for this buyer
     shortlist_ids = set()
@@ -1856,10 +2123,10 @@ def listings():
                     "lat": lat,
                     "lng": lng,
                     "region": l.region or "",
-                    "care_type": l.care_type or "",
-                    "beds": l.beds or "",
+                    "care_type": l.sector_name or "",
+                    "beds": l.headline_metric or "",
                     "guide_price": (
-                        l.guide_price_band or "On request"
+                        l.guide_price_display or "On request"
                         if can_view_map_sensitive
                         else "Premium only"
                     ),
@@ -1872,13 +2139,18 @@ def listings():
         listings=listings_data,
         search_q=search_q,
         selected_region=selected_region,
-        selected_care_type=selected_care_type,
+        selected_care_type=selected_sector,
+        selected_sector=selected_sector,
+        min_price=min_price,
+        max_price=max_price,
+        sort=sort,
         view_mode=view_mode,
         page=page,
         pages=pages,
         total=total,
         regions=regions,
-        care_types=care_types,
+        care_types=sorted(sector_options.values()),
+        sector_options=sorted(sector_options.items(), key=lambda item: item[1]),
         shortlist_ids=shortlist_ids,
         map_data=map_data,
         is_premium_buyer=is_premium_buyer,   # <-- ADDED
@@ -2602,6 +2874,8 @@ def seller_buyers():
             seller_regions.add(l.region)
         if l.care_type:
             seller_care_types.add(l.care_type)
+        if l.sector_name:
+            seller_care_types.add(l.sector_name)
 
     # If still totally empty, we can show all premium buyers, but it's noisy
     # We'll still compute matches, just with no extra filter.
@@ -2687,15 +2961,42 @@ def seller_new_listing():
             flash("Title is required.")
             return redirect(url_for("seller_new_listing"))
 
+        try:
+            sector = resolve_sector(
+                request.form.get("sector") or request.form.get("care_type")
+            )
+            attributes = merge_legacy_listing_attributes(
+                request.form, parse_listing_attributes(request.form, sector)
+            )
+            asking_price_minor = parse_major_units(request.form.get("asking_price"))
+            revenue_minor = parse_major_units(request.form.get("annual_revenue"))
+            ebitda_minor = parse_major_units(request.form.get("annual_ebitda"))
+        except ValueError as exc:
+            db.session.rollback()
+            flash(str(exc))
+            return redirect(url_for("seller_new_listing"))
+
+        currency = (request.form.get("currency") or "GBP").upper()
+        if currency not in {"GBP", "EUR", "USD"}:
+            currency = "GBP"
+
+        listing_code = generate_listing_code()
         listing = Listing(
             seller_id=current_user.id,
+            listing_code=listing_code,
             title=title,
             region=request.form.get("region") or None,
-            care_type=request.form.get("care_type") or None,
-            beds=request.form.get("beds") or None,
-            occupancy_percent=request.form.get("occupancy_percent") or None,
-            cqc_rating=request.form.get("cqc_rating") or None,
+            sector=sector,
+            care_type=sector.name if sector else None,
+            attributes=attributes,
+            beds=attributes.get("unit_count"),
+            occupancy_percent=attributes.get("capacity_utilisation"),
+            cqc_rating=attributes.get("regulatory_rating"),
             tenure=request.form.get("tenure") or None,
+            asking_price_minor=asking_price_minor,
+            revenue_minor=revenue_minor,
+            ebitda_minor=ebitda_minor,
+            currency=currency,
             revenue_band=request.form.get("revenue_band") or None,
             ebitda_band=request.form.get("ebitda_band") or None,
             guide_price_band=request.form.get("guide_price_band") or None,
@@ -2703,8 +3004,6 @@ def seller_new_listing():
             is_confidential=bool(request.form.get("is_confidential")),
             status="draft",
         )
-        listing.listing_code = generate_listing_code()
-
         db.session.add(listing)
         db.session.flush()  # ensure listing.id available before adding photos
 
@@ -2744,7 +3043,10 @@ def seller_new_listing():
         flash("Listing created.")
         return redirect(url_for("seller_dashboard"))
 
-    return render_template("seller/new_listing.html")
+    return render_template(
+        "seller/new_listing.html",
+        sector_options=get_sector_options(),
+    )
 
 
 @app.route("/seller/listings/<int:listing_id>/edit", methods=["GET", "POST"])
@@ -2758,14 +3060,37 @@ def seller_edit_listing(listing_id):
         return redirect(url_for("seller_dashboard"))
 
     if request.method == "POST":
+        try:
+            sector = resolve_sector(
+                request.form.get("sector") or request.form.get("care_type")
+            )
+            attributes = merge_legacy_listing_attributes(
+                request.form, parse_listing_attributes(request.form, sector)
+            )
+            asking_price_minor = parse_major_units(request.form.get("asking_price"))
+            revenue_minor = parse_major_units(request.form.get("annual_revenue"))
+            ebitda_minor = parse_major_units(request.form.get("annual_ebitda"))
+        except ValueError as exc:
+            db.session.rollback()
+            flash(str(exc))
+            return redirect(url_for("seller_edit_listing", listing_id=listing.id))
+
         # Core fields
         listing.title = request.form.get("title") or listing.title
         listing.short_description = request.form.get("short_description") or ""
         listing.region = request.form.get("region") or None
-        listing.care_type = request.form.get("care_type") or None
-        listing.beds = request.form.get("beds") or None
-        listing.occupancy_percent = request.form.get("occupancy_percent") or None
-        listing.cqc_rating = request.form.get("cqc_rating") or None
+        listing.sector = sector
+        listing.care_type = sector.name if sector else None
+        listing.attributes = attributes
+        listing.beds = attributes.get("unit_count")
+        listing.occupancy_percent = attributes.get("capacity_utilisation")
+        listing.cqc_rating = attributes.get("regulatory_rating")
+        listing.asking_price_minor = asking_price_minor
+        listing.revenue_minor = revenue_minor
+        listing.ebitda_minor = ebitda_minor
+        listing.currency = (request.form.get("currency") or "GBP").upper()
+        if listing.currency not in {"GBP", "EUR", "USD"}:
+            listing.currency = "GBP"
         listing.tenure = request.form.get("tenure") or None
         listing.guide_price_band = request.form.get("guide_price_band") or None
         listing.revenue_band = request.form.get("revenue_band") or None
@@ -2806,7 +3131,11 @@ def seller_edit_listing(listing_id):
         return redirect(url_for("seller_edit_listing", listing_id=listing.id))
 
     # GET → render the edit page
-    return render_template("seller/edit_listing.html", listing=listing)
+    return render_template(
+        "seller/edit_listing.html",
+        listing=listing,
+        sector_options=get_sector_options(),
+    )
 
 
 @app.route("/seller/listings/<int:listing_id>/status", methods=["POST"])

@@ -42,40 +42,33 @@
 
       <div>
         <label class="text-xs text-white/70">Sector / industry</label>
-        <select name="care_type"
+        <select name="sector" id="sector-select" required
                 class="w-full border border-white/20 bg-black/40 text-sm text-white rounded px-3 py-2">
           <option value="">Select</option>
-          <option>Healthcare &amp; Social Care</option>
-          <option>Hospitality &amp; Leisure</option>
-          <option>Professional Services</option>
-          <option>Retail &amp; E-commerce</option>
-          <option>Technology &amp; Software</option>
-          <option>Manufacturing</option>
-          <option>Construction &amp; Property</option>
-          <option>Recruitment</option>
-          <option>Other</option>
+          {% for sector in sector_options %}
+            <option value="{{ sector.slug }}">{{ sector.name }}</option>
+          {% endfor %}
         </select>
       </div>
     </div>
 
-    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-      <div>
-        <label class="text-xs text-white/70">Business size / units</label>
-        <input type="number" name="beds"
-               class="w-full border border-white/20 bg-black/40 text-sm text-white rounded px-3 py-2">
-      </div>
-
-      <div>
-        <label class="text-xs text-white/70">Capacity utilisation (%)</label>
-        <input type="number" name="occupancy_percent"
-               class="w-full border border-white/20 bg-black/40 text-sm text-white rounded px-3 py-2">
-      </div>
-
-      <div>
-        <label class="text-xs text-white/70">Regulatory / accreditation</label>
-        <input type="text" name="cqc_rating"
-               class="w-full border border-white/20 bg-black/40 text-sm text-white rounded px-3 py-2">
-      </div>
+    <div id="sector-attributes" class="space-y-3">
+      {% for sector in sector_options %}
+        <div data-sector-fields="{{ sector.slug }}" class="hidden grid grid-cols-1 sm:grid-cols-3 gap-3 rounded border border-white/10 bg-black/20 p-3">
+          {% for field in sector.attribute_schema %}
+            <label class="text-xs text-white/70">
+              {{ field.label }}
+              <input name="attribute_{{ field.key }}"
+                     type="{{ 'number' if field.type in ['integer', 'percent'] else 'text' }}"
+                     {% if field.type == 'percent' %}min="0" max="100"{% elif field.type == 'integer' %}min="0"{% endif %}
+                     class="mt-1 w-full border border-white/20 bg-black/40 text-sm text-white rounded px-3 py-2">
+            </label>
+          {% endfor %}
+          {% if not sector.attribute_schema %}
+            <p class="text-xs text-white/55 sm:col-span-3">No additional sector fields are required.</p>
+          {% endif %}
+        </div>
+      {% endfor %}
     </div>
 
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -91,31 +84,29 @@
       </div>
 
       <div>
-        <label class="text-xs text-white/70">Guide Price Band</label>
-        <select name="guide_price_band"
-                class="w-full border border-white/20 bg-black/40 text-sm text-white rounded px-3 py-2">
-          <option value="">Select</option>
-          <option>&lt;£500k</option>
-          <option>£500k–£1m</option>
-          <option>£1m–£3m</option>
-          <option>£3m+</option>
-          <option>On request</option>
-        </select>
+        <label class="text-xs text-white/70">Guide price</label>
+        <input type="number" name="asking_price" min="0" step="0.01" placeholder="e.g. 2500000"
+               class="w-full border border-white/20 bg-black/40 text-sm text-white rounded px-3 py-2">
       </div>
     </div>
 
-    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
       <div>
-        <label class="text-xs text-white/70">Revenue Band</label>
-        <input type="text" name="revenue_band"
+        <label class="text-xs text-white/70">Annual revenue</label>
+        <input type="number" name="annual_revenue" min="0" step="0.01"
                class="w-full border border-white/20 bg-black/40 text-sm text-white rounded px-3 py-2">
       </div>
 
       <div>
-        <label class="text-xs text-white/70">EBITDA Band</label>
-        <input type="text" name="ebitda_band"
+        <label class="text-xs text-white/70">Annual EBITDA</label>
+        <input type="number" name="annual_ebitda" min="0" step="0.01"
                class="w-full border border-white/20 bg-black/40 text-sm text-white rounded px-3 py-2">
       </div>
+      <label class="text-xs text-white/70">Currency
+        <select name="currency" class="w-full border border-white/20 bg-black/40 text-sm text-white rounded px-3 py-2">
+          <option value="GBP">GBP (£)</option><option value="EUR">EUR (€)</option><option value="USD">USD ($)</option>
+        </select>
+      </label>
     </div>
 
     <div>
@@ -145,4 +136,14 @@
 
   </form>
 </div>
+<script>
+  const sectorSelect = document.getElementById('sector-select');
+  function showSectorFields() {
+    document.querySelectorAll('[data-sector-fields]').forEach((panel) => {
+      panel.classList.toggle('hidden', panel.dataset.sectorFields !== sectorSelect.value);
+    });
+  }
+  sectorSelect.addEventListener('change', showSectorFields);
+  showSectorFields();
+</script>
 {% endblock %}

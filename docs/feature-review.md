@@ -8,7 +8,7 @@ This is a product-readiness review of the current application, not a security ce
 
 | Area | What works today | Readiness | Main gap |
 |---|---|---:|---|
-| Marketplace discovery | Public live listings, confidentiality gating, keyword/region/sector filters, list and map views, pagination | 7/10 | Price sorting and richer sector-specific filters |
+| Marketplace discovery | Public live listings, confidentiality gating, keyword/region/sector/price filters, price sorting, list and map views, pagination | 8/10 | More sector-specific filters and search analytics |
 | Buyer workflow | Detailed profile, rules-based matches, persistent shortlist, saved searches, enquiries, dashboard, subscriptions | 7/10 | Automated alert delivery and buyer verification |
 | Seller workflow | Profile, listing creation/editing, photos, status changes, enquiries, buyer matches, introductions and valuation requests | 7/10 | Listing analytics, document room and offer workflow |
 | Confidentiality | Blurred restricted data, premium access rules, NDAs and private seller documents | 8/10 | Staged disclosure permissions and audit trail |
@@ -19,7 +19,7 @@ This is a product-readiness review of the current application, not a security ce
 | Admin | Role directories, listing approval, enquiries, matches, introductions, deals, subscriptions, content and impersonation | 7/10 | Activity log, operational reporting and bulk actions |
 | Notifications | Email helpers and weekly digest task | 4/10 | In-app notification centre and event-driven alerts |
 | Reporting | Deal/commission records and dashboard counts | 3/10 | Funnel, time-to-stage, listing engagement and revenue analytics |
-| Multi-sector data model | Generic Ownerlane copy over a legacy care-focused schema | 4/10 | First-class sector model and configurable sector attributes |
+| Multi-sector data model | First-class sectors, configurable attributes and legacy compatibility | 7/10 | Admin-managed sector schemas and buyer criteria migration |
 
 ## Improvements delivered in this release
 
@@ -30,6 +30,10 @@ This is a product-readiness review of the current application, not a security ce
 - Migrated any legacy session shortlist into the buyer's persistent shortlist on first use.
 - Removed remaining care-home-specific empty-shortlist copy.
 - Added ownership checks, uniqueness constraints, migration coverage and workflow tests for the new buyer tools.
+- Added a first-class sector catalogue with configurable listing attributes.
+- Migrated legacy care listings into compatible normalized sectors without dropping the old fields.
+- Added exact minor-unit guide price, revenue and EBITDA values with currency support.
+- Added marketplace price filtering and low/high price sorting.
 
 Saved-search matches are included in the existing protected weekly digest task. Immediate event-triggered alerts remain a later notification-centre enhancement.
 
@@ -37,10 +41,10 @@ Saved-search matches are included in the existing protected weekly digest task. 
 
 ### P0 — launch confidence and conversion
 
-1. **Normalised sector model.** Replace legacy `care_type`, `beds` and CQC-shaped assumptions with sectors and configurable attributes while maintaining compatibility during migration.
+1. **Normalised sector model — delivered.** First-class sectors, configurable attributes and compatibility migration are now in place.
 2. **Authentication hardening.** Add verified email, password reset, login throttling and optional MFA for admins.
 3. **Notification centre and saved-search delivery.** Create persisted notifications, deduplicate matching-listing alerts and send digest or immediate email according to buyer preference.
-4. **Money data migration.** Store prices, revenue and EBITDA as integer minor units plus currency instead of display strings, enabling reliable filtering and reporting.
+4. **Money data migration — delivered.** Listings now store price, revenue and EBITDA in integer minor units plus currency, with legacy display fallbacks.
 5. **Activity and audit log.** Record sensitive access, status changes, admin actions and document downloads.
 
 ### P1 — transaction workflow
@@ -62,4 +66,4 @@ Saved-search matches are included in the existing protected weekly digest task. 
 
 ## Suggested next build
 
-Build the normalised sector model first, because it removes the largest constraint created by the original care-home mock-up. Pair it with money fields and compatibility adapters so existing routes and data continue to work while new sectors gain appropriate fields and filters.
+Build authentication hardening next: verified email, secure password-reset links, login throttling and stronger admin sessions. Follow it with the persisted notification centre so saved searches and marketplace events can be delivered reliably without relying only on the weekly digest task.

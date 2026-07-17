@@ -132,8 +132,8 @@
 
             <p class="text-[11px] text-white/70 mb-1">
               {{ l.region or "Region tbc" }} •
-              {{ l.care_type or "Sector / industry tbc" }} •
-              {{ l.beds or "?" }} units
+              {{ l.sector_name or "Sector / industry tbc" }}
+              {% if l.headline_metric %} • {{ l.headline_metric }}{% endif %}
             </p>
 
             <p class="text-[11px] text-white/60">
@@ -266,7 +266,7 @@
                 {% endif %}
               </p>
               <p class="text-white/60">
-                {{ l.care_type or "Sector / industry" }} • {{ l.beds or "?" }} units
+                {{ l.sector_name or "Sector / industry" }}{% if l.headline_metric %} • {{ l.headline_metric }}{% endif %}
               </p>
             </a>
           {% endfor %}
