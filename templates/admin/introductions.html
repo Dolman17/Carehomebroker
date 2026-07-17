@@ -49,8 +49,9 @@
 
                 <p class="text-[10px] text-white/60 mt-1">
                   Buyer: {{ intro.buyer.email }}
-                  {% if intro.buyer.buyer_profile and intro.buyer.buyer_profile.business_name %}
-                    · {{ intro.buyer.buyer_profile.business_name }}
+                  {% set buyer_profile = buyer_profile_map.get(intro.buyer_id) %}
+                  {% if buyer_profile and buyer_profile.business_name %}
+                    · {{ buyer_profile.business_name }}
                   {% endif %}
                 </p>
 
@@ -58,10 +59,11 @@
                   Seller: {{ intro.seller.email }}
                 </p>
 
-                {% if intro.deal %}
+                {% set deal = deal_map.get(intro.id) %}
+                {% if deal %}
                   <div class="mt-2 text-[10px] text-kaijoYellow/90">
-                    Deal: {{ intro.deal.agreed_price or "TBC" }}
-                    {% if intro.deal.status == "completed" %}
+                    Deal: {{ deal.agreed_price or "TBC" }}
+                    {% if deal.status == "completed" %}
                       · <span class="text-green-300">Completed</span>
                     {% endif %}
                   </div>

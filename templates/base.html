@@ -33,6 +33,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="csrf-token" content="{{ csrf_token() }}">
   {% block extra_head %}{% endblock %}
 </head>
 
@@ -229,6 +230,20 @@
   <!-- SIMPLE JS FOR MOBILE MENU -->
   <script>
     (function() {
+      const csrfMeta = document.querySelector('meta[name="csrf-token"]');
+      const csrfToken = csrfMeta ? csrfMeta.getAttribute('content') : '';
+      if (csrfToken) {
+        document.querySelectorAll('form').forEach(function(form) {
+          if ((form.method || '').toLowerCase() !== 'post') return;
+          if (form.querySelector('input[name="csrf_token"]')) return;
+          const input = document.createElement('input');
+          input.type = 'hidden';
+          input.name = 'csrf_token';
+          input.value = csrfToken;
+          form.appendChild(input);
+        });
+      }
+
       const toggle = document.getElementById('mobile-menu-toggle');
       const closeBtn = document.getElementById('mobile-menu-close');
       const panel = document.getElementById('mobile-menu');

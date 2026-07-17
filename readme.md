@@ -64,7 +64,7 @@ project/
 │ Dockerfile
 │ runtime.txt
 │ .env.example
-│ care_broker.db  (auto-created in dev)
+│ care_broker.db
 │
 ├── static/
 │   └── uploads/   (listing photo uploads)
@@ -100,6 +100,8 @@ cp .env.example .env
 At minimum set:
 
 SECRET_KEY=change-this
+
+The application now fails closed in production if `SECRET_KEY` is missing.
 
 5. Run the app in development mode
 flask --app app.py run --debug
@@ -157,11 +159,12 @@ SECRET_KEY=your-secret
 DATABASE_URL=sqlite:///care_broker.db
 DIGEST_TASK_TOKEN=your-token
 
-SMTP_HOST=smtp.gmail.com
+SMTP_SERVER=smtp.gmail.com
 SMTP_PORT=587
-SMTP_USER=your-email@example.com
-SMTP_PASS=your-app-password
-SMTP_FROM=your-email@example.com
+SMTP_USERNAME=your-email@example.com
+SMTP_PASSWORD=your-app-password
+SMTP_USE_TLS=1
+SMTP_DEFAULT_FROM=your-email@example.com
 
 Production Deployment Tips
 

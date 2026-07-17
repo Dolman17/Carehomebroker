@@ -131,11 +131,12 @@
       <h2 class="text-lg font-semibold mb-3 text-kaijoYellow">Documents</h2>
 
       <p class="text-xs text-white/60 mb-3">
-        Upload accounts, business summaries or supporting documents (PDF, DOCX, XLSX, images).
+        Upload accounts, business summaries or supporting documents (PDF, DOC, DOCX, XLS or XLSX).
       </p>
 
       <input type="file"
              name="documents"
+             accept=".pdf,.doc,.docx,.xls,.xlsx"
              multiple
              class="text-xs text-white mb-4">
 
@@ -145,11 +146,7 @@
             <div class="flex items-center justify-between bg-black/30 p-2 rounded border border-white/10">
               <span>{{ doc.original_filename }}</span>
 
-              <form method="POST"
-                    action="{{ url_for('delete_seller_document', doc_id=doc.id) }}"
-                    onsubmit="return confirm('Delete this document?');">
-                <button class="text-red-400 hover:text-red-200">Delete</button>
-              </form>
+              <span class="text-[10px] text-white/40">Stored</span>
             </div>
           {% endfor %}
         </div>
