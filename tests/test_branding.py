@@ -31,6 +31,19 @@ def test_landing_page_has_conversion_paths_and_confidentiality_copy(client):
     assert 'href="/pricing?role=buyer"' in page
 
 
+def test_landing_page_explains_the_full_marketplace(client):
+    page = client.get("/").get_data(as_text=True)
+
+    assert "One marketplace, multiple sectors" in page
+    assert "The tools to move from interest to introduction" in page
+    assert "A structured journey after the match" in page
+    assert "Bring in specialist support when the deal needs it" in page
+    assert "What to expect from Ownerlane" in page
+    assert "Will my business name be shown publicly?" in page
+    assert "How are buyers matched to opportunities?" in page
+    assert 'href="/register/valuer"' in page
+
+
 def test_landing_page_respects_listing_access(client):
     anonymous_page = client.get("/").get_data(as_text=True)
     assert "SECRET BUSINESS NAME" not in anonymous_page
