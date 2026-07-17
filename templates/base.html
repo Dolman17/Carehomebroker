@@ -82,6 +82,10 @@
               <span class="ml-1 inline-flex min-w-5 items-center justify-center rounded-full bg-ownerCoral px-1.5 py-0.5 text-[10px] font-semibold text-white">{{ unread_notification_count if unread_notification_count < 100 else '99+' }}</span>
             {% endif %}
           </a>
+          <a href="{{ url_for('security_activity') }}"
+             class="text-white/80 hover:text-ownerMint transition-colors">
+            Security
+          </a>
           <a href="{{ url_for('my_dashboard') }}"
              class="text-white/80 hover:text-ownerMint transition-colors">
             My Dashboard
@@ -116,7 +120,7 @@
     <div class="bg-ownerCoral/25 border-b border-ownerCoral/70 sticky top-[52px] sm:top-[56px] z-20">
       <div class="max-w-6xl mx-auto px-4 py-2 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-[11px] text-white">
         <span>
-          You are currently impersonating another user. Actions will be recorded as them.
+          You are currently impersonating another user. Actions remain attributed to your admin account.
         </span>
         <form method="post" action="{{ url_for('stop_impersonating') }}">
           <button class="px-3 py-1 rounded bg-ownerCoral text-white hover:bg-ownerMint hover:text-black transition">
@@ -224,6 +228,9 @@
           <span>Notifications</span>
           {% if unread_notification_count %}<span class="rounded-full bg-ownerCoral px-2 py-0.5 text-[10px] text-white">{{ unread_notification_count if unread_notification_count < 100 else '99+' }}</span>{% endif %}
         </a>
+
+        <a href="{{ url_for('security_activity') }}"
+           class="py-1 text-white/80 hover:text-ownerMint">Security activity</a>
 
         <a href="{{ url_for('my_dashboard') }}"
            class="py-1 text-white/80 hover:text-ownerMint">

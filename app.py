@@ -22,6 +22,7 @@ from flask import (
     session,
     abort,
     make_response,
+    send_from_directory,
 )
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
@@ -650,6 +651,26 @@ class Notification(db.Model):
         ),
         db.Index("ix_notification_user_unread", "user_id", "read_at"),
     )
+
+
+class AuditEvent(db.Model):
+    """Append-only record of security and operational activity."""
+
+    __tablename__ = "audit_event"
+
+    id = db.Column(db.Integer, primary_key=True)
+    actor_id = db.Column(db.Integer, db.ForeignKey("user.id"), index=True)
+    subject_user_id = db.Column(db.Integer, db.ForeignKey("user.id"), index=True)
+    event_type = db.Column(db.String(80), nullable=False, index=True)
+    resource_type = db.Column(db.String(50), index=True)
+    resource_id = db.Column(db.String(100))
+    summary = db.Column(db.String(255), nullable=False)
+    details = db.Column(db.JSON, nullable=False, default=dict)
+    ip_hash = db.Column(db.String(64))
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, index=True)
+
+    actor = db.relationship("User", foreign_keys=[actor_id])
+    subject_user = db.relationship("User", foreign_keys=[subject_user_id])
 
 
 class Enquiry(db.Model):
@@ -1893,6 +1914,52 @@ def utcnow():
     return datetime.now(UTC).replace(tzinfo=None)
 
 
+def _audit_ip_hash() -> str | None:
+    """Create a stable, non-reversible network identifier without storing an IP."""
+    address = request.headers.get("X-Forwarded-For", request.remote_addr or "")
+    address = address.split(",", 1)[0].strip()
+    if not address:
+        return None
+    return hmac.new(
+        app.config["SECRET_KEY"].encode(), address.encode(), hashlib.sha256
+    ).hexdigest()
+
+
+def record_audit_event(
+    event_type: str,
+    summary: str,
+    *,
+    subject_user_id: int | None = None,
+    resource_type: str | None = None,
+    resource_id=None,
+    details: dict | None = None,
+    actor_id: int | None = None,
+) -> AuditEvent | None:
+    """Append an audit record after a completed action; never break that action."""
+    try:
+        if actor_id is None:
+            actor_id = session.get("impersonator_id")
+            if actor_id is None and current_user.is_authenticated:
+                actor_id = current_user.id
+        event = AuditEvent(
+            actor_id=actor_id,
+            subject_user_id=subject_user_id,
+            event_type=event_type[:80],
+            resource_type=(resource_type or "")[:50] or None,
+            resource_id=str(resource_id)[:100] if resource_id is not None else None,
+            summary=summary[:255],
+            details=details or {},
+            ip_hash=_audit_ip_hash(),
+        )
+        db.session.add(event)
+        db.session.commit()
+        return event
+    except Exception:
+        db.session.rollback()
+        current_app.logger.exception("Could not append audit event")
+        return None
+
+
 def _auth_serializer():
     return URLSafeTimedSerializer(app.config["SECRET_KEY"])
 
@@ -1985,6 +2052,15 @@ def deliver_notification_email(notification: Notification) -> bool:
     if sent:
         notification.email_sent_at = utcnow()
         db.session.commit()
+        record_audit_event(
+            "notification.email_delivered",
+            "Immediate notification email delivered",
+            subject_user_id=notification.user_id,
+            resource_type="notification",
+            resource_id=notification.id,
+            actor_id=None,
+            details={"delivery": "immediate", "event_type": notification.event_type},
+        )
     return sent
 
 
@@ -2181,6 +2257,12 @@ def enforce_admin_session_limits():
         or now - started > app.config["ADMIN_ABSOLUTE_TIMEOUT"]
     )
     if expired:
+        user_id = current_user.id
+        record_audit_event(
+            "auth.admin_session_expired", "Admin session expired",
+            subject_user_id=user_id, resource_type="user", resource_id=user_id,
+            details={"reason": "idle_or_absolute_timeout"},
+        )
         logout_user()
         session.clear()
         flash("Your admin session expired. Please log in again.", "warning")
@@ -2567,6 +2649,21 @@ def listing_detail(listing_id):
         and is_premium_buyer
     )
     can_view_sensitive = can_view_listing_sensitive(current_user, listing)
+
+    if (
+        request.method == "GET"
+        and listing.is_confidential
+        and can_view_sensitive
+        and current_user.is_authenticated
+    ):
+        record_audit_event(
+            "listing.sensitive_viewed",
+            "Confidential listing details viewed",
+            subject_user_id=current_user.id,
+            resource_type="listing",
+            resource_id=listing.id,
+            details={"listing_code": listing.listing_code},
+        )
 
     # ---- Handle enquiry POST (inline form on detail page) ----
     if request.method == "POST":
@@ -3082,6 +3179,10 @@ def verify_email(token):
     if not user.email_verified_at:
         user.email_verified_at = utcnow()
         db.session.commit()
+        record_audit_event(
+            "auth.email_verified", "Email address verified", subject_user_id=user.id,
+            resource_type="user", resource_id=user.id, actor_id=user.id,
+        )
     flash("Email verified. You can now log in.", "success")
     return redirect(url_for("login"))
 
@@ -3144,6 +3245,10 @@ def reset_password(token):
         user.password_changed_at = utcnow()
         user.security_stamp = (user.security_stamp or 0) + 1
         db.session.commit()
+        record_audit_event(
+            "auth.password_changed", "Password changed", subject_user_id=user.id,
+            resource_type="user", resource_id=user.id, actor_id=user.id,
+        )
         logout_user()
         session.clear()
         send_email(
@@ -3172,6 +3277,13 @@ def login():
             return render_template("auth/login.html")
 
         if login_is_blocked(email):
+            user = User.query.filter_by(email=email).first()
+            record_audit_event(
+                "auth.login_blocked", "Login blocked after repeated failures",
+                subject_user_id=user.id if user else None,
+                resource_type="user", resource_id=user.id if user else None,
+                actor_id=None,
+            )
             lockout_minutes = max(
                 1, math.ceil(app.config["LOGIN_LOCKOUT_SECONDS"] / 60)
             )
@@ -3191,6 +3303,12 @@ def login():
         if user is None or not password_is_valid:
             flash("Invalid email or password.", "danger")
             blocked = record_login_failure(email)
+            record_audit_event(
+                "auth.login_failed", "Unsuccessful login attempt",
+                subject_user_id=user.id if user else None,
+                resource_type="user", resource_id=user.id if user else None,
+                actor_id=None, details={"lockout_triggered": blocked},
+            )
             return render_template("auth/login.html"), (429 if blocked else 200)
 
         if not getattr(user, "is_active", True):
@@ -3217,6 +3335,11 @@ def login():
             session["admin_last_activity"] = now
             session.permanent = False
         db.session.commit()
+        record_audit_event(
+            "auth.login_succeeded", "Signed in", subject_user_id=user.id,
+            resource_type="user", resource_id=user.id, actor_id=user.id,
+            details={"role": user.role},
+        )
 
         # Honour ?next=... if present
         if is_safe_redirect_target(next_page):
@@ -3244,9 +3367,33 @@ def login():
 @app.route("/logout", methods=["POST"])
 @login_required
 def logout():
+    user_id = current_user.id
+    record_audit_event(
+        "auth.logout", "Signed out", subject_user_id=user_id,
+        resource_type="user", resource_id=user_id,
+    )
     logout_user()
     flash("Logged out.")
     return redirect(url_for("index"))
+
+
+@app.route("/account/security-activity")
+@login_required
+def security_activity():
+    events = (
+        AuditEvent.query.filter(
+            AuditEvent.subject_user_id == current_user.id,
+            or_(
+                AuditEvent.event_type.like("auth.%"),
+                AuditEvent.event_type.like("document.%"),
+                AuditEvent.event_type.like("admin.impersonation%"),
+            ),
+        )
+        .order_by(AuditEvent.created_at.desc())
+        .limit(100)
+        .all()
+    )
+    return render_template("account/security_activity.html", events=events)
 
 
 @app.route("/notifications")
@@ -3958,6 +4105,7 @@ def seller_profile():
 
         # Handle uploaded documents
         files = request.files.getlist("documents")
+        uploaded_documents = []
         upload_folder = app.config["SELLER_DOCS_FOLDER"]
         os.makedirs(upload_folder, exist_ok=True)
 
@@ -3979,8 +4127,16 @@ def seller_profile():
                 original_filename=original,
             )
             db.session.add(doc)
+            uploaded_documents.append(doc)
 
         db.session.commit()
+        for doc in uploaded_documents:
+            record_audit_event(
+                "document.uploaded", "Seller profile document uploaded",
+                subject_user_id=current_user.id,
+                resource_type="seller_profile_document", resource_id=doc.id,
+                details={"file_type": os.path.splitext(doc.original_filename or "")[1].lower()},
+            )
 
         # --- EMAIL NOTIFICATION TO BROKER ---
         try:
@@ -4016,6 +4172,29 @@ def seller_profile():
     return render_template(
         "seller/profile.html",
         profile=profile,
+    )
+
+
+@app.route("/seller/documents/<int:document_id>/download")
+@login_required
+def download_seller_document(document_id):
+    document = SellerProfileDocument.query.get_or_404(document_id)
+    owner_id = document.profile.user_id
+    if current_user.role != "admin" and current_user.id != owner_id:
+        abort(404)
+    path = os.path.join(app.config["SELLER_DOCS_FOLDER"], document.filename)
+    if not os.path.isfile(path):
+        abort(404)
+    record_audit_event(
+        "document.downloaded", "Seller profile document downloaded",
+        subject_user_id=owner_id,
+        resource_type="seller_profile_document", resource_id=document.id,
+        details={"access_role": current_user.role},
+    )
+    return send_from_directory(
+        app.config["SELLER_DOCS_FOLDER"], document.filename,
+        as_attachment=True,
+        download_name=document.original_filename or "document",
     )
 
 
@@ -4847,6 +5026,11 @@ def admin_approve_listing(listing_id):
     if not listing.listing_code:
         listing.listing_code = generate_listing_code()
     db.session.commit()
+    record_audit_event(
+        "admin.listing_approved", "Listing approved and published",
+        subject_user_id=listing.seller_id, resource_type="listing",
+        resource_id=listing.id, details={"previous_status": previous_status},
+    )
     if previous_status != "live":
         publish_listing_match_notifications(listing)
     flash("Listing approved and set live.")
@@ -4860,6 +5044,11 @@ def admin_archive_listing(listing_id):
     listing = Listing.query.get_or_404(listing_id)
     listing.status = "archived"
     db.session.commit()
+    record_audit_event(
+        "admin.listing_archived", "Listing archived",
+        subject_user_id=listing.seller_id, resource_type="listing",
+        resource_id=listing.id,
+    )
     flash("Listing archived.")
     return redirect(url_for("admin_listings"))
 
@@ -4909,6 +5098,11 @@ def admin_approve_intro_request(intro_id):
     intro.status = "initiated"
     intro.updated_at = datetime.utcnow()
     db.session.commit()
+    record_audit_event(
+        "admin.introduction_approved", "Introduction request approved",
+        subject_user_id=intro.seller_id, resource_type="introduction",
+        resource_id=intro.id, details={"buyer_id": intro.buyer_id},
+    )
 
     for recipient in (intro.buyer, intro.seller):
         publish_notification(
@@ -4931,6 +5125,11 @@ def admin_decline_intro_request(intro_id):
     intro = Introduction.query.get_or_404(intro_id)
     intro.status = "declined"
     db.session.commit()
+    record_audit_event(
+        "admin.introduction_declined", "Introduction request declined",
+        subject_user_id=intro.seller_id, resource_type="introduction",
+        resource_id=intro.id, details={"buyer_id": intro.buyer_id},
+    )
 
     for recipient in (intro.buyer, intro.seller):
         publish_notification(
@@ -5108,6 +5307,11 @@ def admin_create_introduction_from_enquiry(enquiry_id):
     )
     db.session.add(intro)
     db.session.commit()
+    record_audit_event(
+        "admin.introduction_created", "Introduction created from enquiry",
+        subject_user_id=seller.id, resource_type="introduction", resource_id=intro.id,
+        details={"buyer_id": buyer.id, "enquiry_id": enquiry.id},
+    )
     for recipient in (intro.buyer, intro.seller):
         publish_notification(
             recipient,
@@ -5224,6 +5428,12 @@ def admin_update_introduction_status(intro_id):
     db.session.add(history)
 
     db.session.commit()
+    record_audit_event(
+        "admin.introduction_status_changed", "Introduction status changed",
+        subject_user_id=intro.seller_id, resource_type="introduction",
+        resource_id=intro.id,
+        details={"old_status": old_status, "new_status": new_status},
+    )
 
     new_label = _label_for_intro_status(new_status)
     for recipient in (intro.buyer, intro.seller):
@@ -5423,6 +5633,11 @@ def admin_deal_detail(deal_id):
             )
 
         db.session.commit()
+        record_audit_event(
+            "admin.deal_updated", "Deal details updated",
+            subject_user_id=seller.id, resource_type="deal", resource_id=deal.id,
+            details={"status": deal.status},
+        )
         flash("Deal updated.", "success")
         return redirect(url_for("admin_deal_detail", deal_id=deal.id))
 
@@ -5542,6 +5757,11 @@ def admin_grant_subscription():
         return redirect(url_for("admin_subscriptions"))
 
     upsert_subscription(user.id, role=role, tier=tier, months=1)
+    record_audit_event(
+        "admin.subscription_granted", "Subscription granted or refreshed",
+        subject_user_id=user.id, resource_type="user", resource_id=user.id,
+        details={"role": role, "tier": tier},
+    )
     flash(f"{tier.capitalize()} subscription granted for {user.email} ({role}).", "success")
     return redirect(url_for("admin_subscriptions"))
 
@@ -5571,6 +5791,11 @@ def admin_cancel_subscription():
 
     sub.is_active = False
     db.session.commit()
+    record_audit_event(
+        "admin.subscription_cancelled", "Subscription cancelled",
+        subject_user_id=sub.user_id, resource_type="subscription", resource_id=sub.id,
+        details={"role": sub.role, "tier": sub.tier},
+    )
     flash("Subscription cancelled.", "success")
     return redirect(url_for("admin_subscriptions"))
 
@@ -5594,6 +5819,11 @@ def admin_clear_subscription(user_id):
     # sub.ends_at = datetime.utcnow()
 
     db.session.commit()
+    record_audit_event(
+        "admin.subscription_cleared", "Active subscription cleared",
+        subject_user_id=user.id, resource_type="subscription", resource_id=sub.id,
+        details={"role": sub.role, "tier": sub.tier},
+    )
     flash(f"Active subscription cleared for {user.email}.", "success")
     return redirect(url_for("admin_subscriptions"))
 
@@ -5621,6 +5851,11 @@ def admin_edit_content(slug):
         block.content = content
         block.updated_by = current_user
         db.session.commit()
+        record_audit_event(
+            "admin.content_updated", "Marketplace content updated",
+            resource_type="page_content", resource_id=block.id,
+            details={"slug": block.slug},
+        )
 
         flash("Content updated.", "success")
 
@@ -5646,6 +5881,47 @@ def admin_users():
     return render_template("admin/users.html", users=users)
 
 
+@app.route("/admin/audit-log")
+@login_required
+@role_required("admin")
+def admin_audit_log():
+    query = AuditEvent.query
+    event_type = (request.args.get("event_type") or "").strip()
+    resource_type = (request.args.get("resource_type") or "").strip()
+    user_id = request.args.get("user_id", type=int)
+    search = (request.args.get("q") or "").strip()
+    if event_type:
+        query = query.filter(AuditEvent.event_type == event_type)
+    if resource_type:
+        query = query.filter(AuditEvent.resource_type == resource_type)
+    if user_id:
+        query = query.filter(
+            or_(AuditEvent.actor_id == user_id, AuditEvent.subject_user_id == user_id)
+        )
+    if search:
+        like = f"%{search[:100]}%"
+        query = query.filter(
+            or_(AuditEvent.summary.ilike(like), AuditEvent.event_type.ilike(like))
+        )
+    page = max(request.args.get("page", 1, type=int), 1)
+    pagination = query.order_by(AuditEvent.created_at.desc()).paginate(
+        page=page, per_page=50, error_out=False
+    )
+    event_types = [
+        row[0] for row in db.session.query(AuditEvent.event_type)
+        .distinct().order_by(AuditEvent.event_type).all()
+    ]
+    resource_types = [
+        row[0] for row in db.session.query(AuditEvent.resource_type)
+        .filter(AuditEvent.resource_type.isnot(None))
+        .distinct().order_by(AuditEvent.resource_type).all()
+    ]
+    return render_template(
+        "admin/audit_log.html", pagination=pagination,
+        event_types=event_types, resource_types=resource_types,
+    )
+
+
 @app.route("/admin/impersonate/<int:user_id>", methods=["POST"])
 @login_required
 @role_required("admin")
@@ -5658,6 +5934,11 @@ def admin_impersonate(user_id):
 
     if not session.get("impersonator_id"):
         session["impersonator_id"] = current_user.id
+
+    record_audit_event(
+        "admin.impersonation_started", "Administrator started impersonating a user",
+        subject_user_id=target.id, resource_type="user", resource_id=target.id,
+    )
 
     login_user(target)
     flash(f"You are now impersonating {target.email}")
@@ -5678,6 +5959,12 @@ def stop_impersonating():
         flash("Original admin account could not be found.")
         return redirect(url_for("index"))
 
+    impersonated_user_id = current_user.id
+    record_audit_event(
+        "admin.impersonation_stopped", "Administrator stopped impersonating a user",
+        subject_user_id=impersonated_user_id, resource_type="user",
+        resource_id=impersonated_user_id, actor_id=admin.id,
+    )
     session.pop("impersonator_id", None)
     login_user(admin)
     flash("Stopped impersonating and returned to your admin account.")
@@ -5749,6 +6036,11 @@ def send_weekly_digest():
         for notification in queued:
             notification.digest_sent_at = sent_at
         db.session.commit()
+        record_audit_event(
+            "notification.digest_delivered", "Weekly notification digest delivered",
+            subject_user_id=user.id, resource_type="user", resource_id=user.id,
+            details={"notification_count": len(queued), "delivery": "weekly"},
+        )
         total_emails += 1
         total_notifications += len(queued)
 
@@ -5784,6 +6076,11 @@ def admin_set_subscription():
     )
     db.session.add(new_sub)
     db.session.commit()
+    record_audit_event(
+        "admin.subscription_set", "Subscription replaced",
+        subject_user_id=user.id, resource_type="subscription", resource_id=new_sub.id,
+        details={"role": role, "tier": tier},
+    )
 
     flash(f"{user.email} is now {role.capitalize()} {tier.capitalize()}.", "success")
     return redirect(url_for("admin_subscriptions"))

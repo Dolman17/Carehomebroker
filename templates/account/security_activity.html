@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Security activity – Ownerlane{% endblock %}
+{% block content %}
+<div class="mx-auto max-w-3xl">
+  <div class="mb-6">
+    <p class="text-[11px] uppercase tracking-[0.2em] text-ownerMint">Your account</p>
+    <h1 class="mt-2 text-2xl font-semibold">Security activity</h1>
+    <p class="mt-2 text-sm text-white/60">Recent sign-ins, password changes and protected-document access linked to your account.</p>
+  </div>
+  <div class="overflow-hidden rounded-xl border border-white/10 bg-black/25">
+    {% for event in events %}
+      <div class="border-b border-white/10 p-4 last:border-0 sm:flex sm:items-start sm:justify-between sm:gap-4">
+        <div>
+          <p class="text-sm font-medium text-white">{{ event.summary }}</p>
+          <p class="mt-1 text-xs text-white/45">{{ event.event_type|replace('.', ' ')|title }}</p>
+        </div>
+        <time class="mt-2 block whitespace-nowrap text-xs text-white/45 sm:mt-0">{{ event.created_at.strftime('%d %b %Y, %H:%M') }} UTC</time>
+      </div>
+    {% else %}
+      <p class="p-6 text-sm text-white/60">No security activity has been recorded yet.</p>
+    {% endfor %}
+  </div>
+  <p class="mt-4 text-xs text-white/45">Ownerlane stores a one-way network identifier for security analysis, not your raw IP address.</p>
+</div>
+{% endblock %}

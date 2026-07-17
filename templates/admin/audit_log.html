@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}Audit log – Ownerlane{% endblock %}
+{% block content %}
+<div class="mb-6 flex flex-wrap items-end justify-between gap-3">
+  <div>
+    <p class="text-[11px] uppercase tracking-[0.2em] text-ownerMint">Administration</p>
+    <h1 class="mt-2 text-2xl font-semibold">Audit log</h1>
+    <p class="mt-2 text-sm text-white/60">A read-only record of security, access, delivery and administrative activity.</p>
+  </div>
+  <a href="{{ url_for('admin_dashboard') }}" class="text-xs text-white/60 hover:text-ownerMint">Back to dashboard →</a>
+</div>
+
+<form method="get" class="mb-5 grid gap-3 rounded-xl border border-white/10 bg-black/25 p-4 md:grid-cols-5">
+  <input name="q" value="{{ request.args.get('q', '') }}" placeholder="Search activity" class="rounded border border-white/15 bg-black/30 px-3 py-2 text-xs text-white">
+  <select name="event_type" class="rounded border border-white/15 bg-ownerInk px-3 py-2 text-xs text-white">
+    <option value="">All events</option>
+    {% for value in event_types %}<option value="{{ value }}" {% if request.args.get('event_type') == value %}selected{% endif %}>{{ value }}</option>{% endfor %}
+  </select>
+  <select name="resource_type" class="rounded border border-white/15 bg-ownerInk px-3 py-2 text-xs text-white">
+    <option value="">All resources</option>
+    {% for value in resource_types %}<option value="{{ value }}" {% if request.args.get('resource_type') == value %}selected{% endif %}>{{ value }}</option>{% endfor %}
+  </select>
+  <input name="user_id" type="number" min="1" value="{{ request.args.get('user_id', '') }}" placeholder="Actor or user ID" class="rounded border border-white/15 bg-black/30 px-3 py-2 text-xs text-white">
+  <button class="rounded bg-ownerMint px-3 py-2 text-xs font-semibold text-ownerInk hover:bg-white">Apply filters</button>
+</form>
+
+<div class="overflow-x-auto rounded-xl border border-white/10 bg-black/25">
+  <table class="min-w-full text-left text-xs">
+    <thead class="border-b border-white/10 text-[10px] uppercase tracking-wider text-white/45"><tr><th class="p-3">When</th><th class="p-3">Event</th><th class="p-3">Actor</th><th class="p-3">Subject</th><th class="p-3">Resource</th></tr></thead>
+    <tbody class="divide-y divide-white/10">
+      {% for event in pagination.items %}
+      <tr class="align-top">
+        <td class="whitespace-nowrap p-3 text-white/50">{{ event.created_at.strftime('%d %b %Y %H:%M') }}</td>
+        <td class="p-3"><div class="font-medium text-white">{{ event.summary }}</div><div class="mt-1 text-white/40">{{ event.event_type }}</div></td>
+        <td class="p-3 text-white/65">{{ event.actor.email if event.actor else 'System / anonymous' }}</td>
+        <td class="p-3 text-white/65">{{ event.subject_user.email if event.subject_user else '—' }}</td>
+        <td class="p-3 text-white/50">{{ event.resource_type or '—' }}{% if event.resource_id %} #{{ event.resource_id }}{% endif %}</td>
+      </tr>
+      {% else %}<tr><td colspan="5" class="p-6 text-center text-white/55">No audit events match these filters.</td></tr>{% endfor %}
+    </tbody>
+  </table>
+</div>
+{% if pagination.pages > 1 %}
+<div class="mt-4 flex justify-between text-xs">
+  {% if pagination.has_prev %}<a class="text-ownerMint" href="{{ url_for('admin_audit_log', page=pagination.prev_num, q=request.args.get('q'), event_type=request.args.get('event_type'), resource_type=request.args.get('resource_type'), user_id=request.args.get('user_id')) }}">← Previous</a>{% else %}<span></span>{% endif %}
+  <span class="text-white/45">Page {{ pagination.page }} of {{ pagination.pages }}</span>
+  {% if pagination.has_next %}<a class="text-ownerMint" href="{{ url_for('admin_audit_log', page=pagination.next_num, q=request.args.get('q'), event_type=request.args.get('event_type'), resource_type=request.args.get('resource_type'), user_id=request.args.get('user_id')) }}">Next →</a>{% endif %}
+</div>
+{% endif %}
+{% endblock %}

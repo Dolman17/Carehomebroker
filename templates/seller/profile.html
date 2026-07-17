@@ -146,7 +146,8 @@
             <div class="flex items-center justify-between bg-black/30 p-2 rounded border border-white/10">
               <span>{{ doc.original_filename }}</span>
 
-              <span class="text-[10px] text-white/40">Stored</span>
+              <a href="{{ url_for('download_seller_document', document_id=doc.id) }}"
+                 class="text-[10px] text-ownerMint hover:text-white">Download</a>
             </div>
           {% endfor %}
         </div>
