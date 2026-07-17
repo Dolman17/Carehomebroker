@@ -12,7 +12,7 @@
 {% set is_buyer = current_user.is_authenticated and current_user.role == "buyer" %}
 
 {% if current_user.is_authenticated %}
-  {% if current_user.role in ["seller", "admin", "valuer"] %}
+  {% if current_user.role == "admin" %}
     {% set can_view_sensitive = true %}
   {% elif current_user.role == "buyer" and is_premium_buyer %}
     {% set can_view_sensitive = true %}
@@ -157,6 +157,11 @@
 {% if listings %}
   <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
     {% for l in listings %}
+      {% set can_view_this_listing = can_view_sensitive
+         or (current_user.is_authenticated
+             and current_user.role == "seller"
+             and l.seller_id == current_user.id)
+         or not l.is_confidential %}
       <a href="{{ url_for('listing_detail', listing_id=l.id) }}"
          class="block rounded-lg
                 bg-white/5 border border-white/10
@@ -166,7 +171,7 @@
         {# Thumbnail / primary photo #}
         {% set photos = l.photos or [] %}
         <div class="w-full h-40 bg-black/30 overflow-hidden">
-          {% if photos %}
+          {% if photos and can_view_this_listing %}
             {% set first_photo = photos[0] %}
             {% set photo_filename = first_photo.file_name
                                      or first_photo.filename
@@ -198,7 +203,7 @@
           </p>
 
           {# TITLE – confidential gating #}
-          {% if can_view_sensitive %}
+          {% if can_view_this_listing %}
             <p class="font-semibold text-sm text-white mb-1">
               {{ l.title }}
             </p>
@@ -229,14 +234,14 @@
                  class="ml-1 text-[9px] text-kaijoYellow underline">Edit</a>
             {% endif %}
 
-            {% if can_view_sensitive %}
+            {% if can_view_this_listing %}
               <span class="text-kaijoYellow">
                 {{ l.guide_price_band or "On request" }}
               </span>
             {% else %}
               {% set slug = "listings_card_guide_price_placeholder" %}
               <span class="blur-sm select-none">
-                {{ l.guide_price_band or page_text(slug, "£X,XXX,XXX") }}
+                {{ page_text(slug, "£X,XXX,XXX") }}
               </span>
               <span class="ml-1 text-[10px] text-kaijoYellow/90">
                 Premium only

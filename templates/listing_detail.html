@@ -1,25 +1,12 @@
 {% extends "base.html" %}
-{% block title %}{{ listing.title }} – Listing{% endblock %}
+{% block title %}{% if can_view_sensitive %}{{ listing.title }}{% else %}Confidential opportunity{% endif %} – Listing{% endblock %}
 
 {% block content %}
 <div class="max-w-5xl mx-auto py-8 text-white">
 
   {# Compute gating flags #}
-  {% set can_see_full_title = false %}
-  {% set can_see_price = false %}
-
-  {% if current_user.is_authenticated %}
-    {% if current_user.role == "admin" %}
-      {% set can_see_full_title = true %}
-      {% set can_see_price = true %}
-    {% elif current_user.role == "seller" and listing.seller_id == current_user.id %}
-      {% set can_see_full_title = true %}
-      {% set can_see_price = true %}
-    {% elif current_user.role == "buyer" and is_premium_buyer %}
-      {% set can_see_full_title = true %}
-      {% set can_see_price = true %}
-    {% endif %}
-  {% endif %}
+  {% set can_see_full_title = can_view_sensitive %}
+  {% set can_see_price = can_view_sensitive %}
 
   <!-- HEADER -->
   <div class="flex items-center justify-between mb-4">
@@ -98,7 +85,11 @@
       <div class="rounded-lg border border-white/10 bg-white/5 p-4 text-sm">
         <h2 class="text-sm font-semibold mb-2">Overview</h2>
         <p class="text-xs text-white/80">
-          {{ listing.short_description or "No description provided by the seller yet." }}
+          {% if can_view_sensitive %}
+            {{ listing.short_description or "No description provided by the seller yet." }}
+          {% else %}
+            Full business overview available to authorised premium buyers.
+          {% endif %}
         </p>
       </div>
 
@@ -123,17 +114,17 @@
 
           <div>
             <dt class="text-white/40">Occupancy</dt>
-            <dd class="mt-0.5">{{ listing.occupancy_percent or "n/a" }}%</dd>
+            <dd class="mt-0.5">{% if can_view_sensitive %}{{ listing.occupancy_percent or "n/a" }}%{% else %}Premium only{% endif %}</dd>
           </div>
 
           <div>
             <dt class="text-white/40">CQC Rating</dt>
-            <dd class="mt-0.5">{{ listing.cqc_rating or "Not disclosed" }}</dd>
+            <dd class="mt-0.5">{% if can_view_sensitive %}{{ listing.cqc_rating or "Not disclosed" }}{% else %}Premium only{% endif %}</dd>
           </div>
 
           <div>
             <dt class="text-white/40">Tenure</dt>
-            <dd class="mt-0.5">{{ listing.tenure or "Not disclosed" }}</dd>
+            <dd class="mt-0.5">{% if can_view_sensitive %}{{ listing.tenure or "Not disclosed" }}{% else %}Premium only{% endif %}</dd>
           </div>
 
         </dl>

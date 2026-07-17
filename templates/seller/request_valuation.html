@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}Request a Valuation – Seller{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto text-white">
+  <div class="flex items-center justify-between gap-3 mb-6">
+    <div>
+      <h1 class="text-xl font-semibold">Request a valuation</h1>
+      <p class="text-xs text-white/70">
+        {{ listing.listing_code or "Ref" }} – {{ listing.title }}
+      </p>
+    </div>
+    <a href="{{ url_for('seller_dashboard') }}"
+       class="text-[11px] border border-white/20 px-3 py-1.5 rounded hover:bg-white/10">
+      ← Back to dashboard
+    </a>
+  </div>
+
+  <form method="post" class="rounded-lg border border-white/10 bg-black/30 p-5 space-y-4">
+    <div>
+      <label for="valuer_id" class="block text-xs font-medium mb-1">Preferred valuer</label>
+      <select id="valuer_id" name="valuer_id"
+              class="w-full rounded border border-white/20 bg-black/30 px-3 py-2 text-xs text-white">
+        <option value="">Broker to assign</option>
+        {% for valuer, profile in valuers %}
+          <option value="{{ valuer.id }}">
+            {{ profile.company_name or valuer.email }}{% if profile.regions %} – {{ profile.regions }}{% endif %}
+          </option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div>
+      <label for="notes" class="block text-xs font-medium mb-1">Brief for the valuer</label>
+      <textarea id="notes" name="notes" rows="5"
+                class="w-full rounded border border-white/20 bg-black/30 px-3 py-2 text-xs text-white"
+                placeholder="Timing, purpose, known issues, or other context…"></textarea>
+    </div>
+
+    <div class="flex items-center justify-end">
+      <button type="submit"
+              class="px-4 py-2 rounded bg-kaijoPink text-xs font-semibold hover:bg-kaijoYellow hover:text-black">
+        Submit valuation request
+      </button>
+    </div>
+  </form>
+</div>
+{% endblock %}

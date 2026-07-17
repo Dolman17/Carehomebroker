@@ -3,6 +3,7 @@ import re
 import uuid
 import smtplib
 import math
+from urllib.parse import urljoin, urlparse
 from email.message import EmailMessage
 from datetime import datetime, timedelta
 import stripe
@@ -20,6 +21,7 @@ from flask import (
 )
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
+from flask_wtf.csrf import CSRFProtect
 from flask_login import (
     LoginManager,
     login_user,
@@ -42,7 +44,18 @@ from flask import current_app
 app = Flask(__name__)
 
 # Secret key
-app.config["SECRET_KEY"] = os.getenv("SECRET_KEY", "change-me-in-production")
+is_production = (
+    os.getenv("FLASK_ENV", "").lower() == "production"
+    or bool(os.getenv("RAILWAY_ENVIRONMENT"))
+    or bool(os.getenv("RAILWAY_ENVIRONMENT_NAME"))
+)
+secret_key = os.getenv("SECRET_KEY")
+if is_production and not secret_key:
+    raise RuntimeError("SECRET_KEY must be configured in production.")
+app.config["SECRET_KEY"] = secret_key or "development-only-secret-key"
+app.config["MAX_CONTENT_LENGTH"] = int(
+    os.getenv("MAX_CONTENT_LENGTH", str(16 * 1024 * 1024))
+)
 
 # -------------------------------------------------------------------
 # Database (SQLite fallback, pg8000 for Railway/Postgres)
@@ -60,6 +73,7 @@ app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
 db = SQLAlchemy(app)
 migrate = Migrate(app, db)
+csrf = CSRFProtect(app)
 
 
 
@@ -67,7 +81,7 @@ login_manager = LoginManager(app)
 login_manager.login_view = "login"
 
 # Task token & email config
-app.config["DIGEST_TASK_TOKEN"] = os.getenv("DIGEST_TASK_TOKEN", "super-secret-token")
+app.config["DIGEST_TASK_TOKEN"] = os.getenv("DIGEST_TASK_TOKEN")
 
 # SMTP / email config
 app.config["SMTP_SERVER"] = os.getenv("SMTP_SERVER", "localhost")
@@ -114,14 +128,19 @@ UPLOAD_FOLDER = os.path.join(app.root_path, "static", "uploads")
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 app.config["ALLOWED_EXTENSIONS"] = {"png", "jpg", "jpeg", "gif", "webp"}
+app.config["ALLOWED_DOCUMENT_EXTENSIONS"] = {"pdf", "doc", "docx", "xls", "xlsx"}
 
-# Seller document upload folder
-SELLER_DOCS_FOLDER = os.path.join(app.root_path, "static", "seller_docs")
+# Private seller and deal-document storage. These files must never be served by
+# Flask's public static route.
+PRIVATE_UPLOAD_ROOT = os.path.join(app.instance_path, "private_uploads")
+os.makedirs(PRIVATE_UPLOAD_ROOT, exist_ok=True)
+
+SELLER_DOCS_FOLDER = os.path.join(PRIVATE_UPLOAD_ROOT, "seller_docs")
 os.makedirs(SELLER_DOCS_FOLDER, exist_ok=True)
 app.config["SELLER_DOCS_FOLDER"] = SELLER_DOCS_FOLDER
 
 # Heads of Terms / deal docs upload folder
-OFFER_DOCS_FOLDER = os.path.join(app.root_path, "static", "offer_docs")
+OFFER_DOCS_FOLDER = os.path.join(PRIVATE_UPLOAD_ROOT, "offer_docs")
 os.makedirs(OFFER_DOCS_FOLDER, exist_ok=True)
 app.config["OFFER_DOCS_FOLDER"] = OFFER_DOCS_FOLDER
 
@@ -130,12 +149,14 @@ app.config["OFFER_DOCS_FOLDER"] = OFFER_DOCS_FOLDER
 # -------------------------------------------------------------------
 
 INTRO_STATUSES = [
+    ("pending_seller_request", "Pending seller request"),
     ("initiated", "Initiated"),
     ("nda_signed", "NDA signed"),
     ("viewing", "Viewing"),
     ("offer_made", "Offer made"),
     ("offer_accepted", "Offer accepted"),
     ("completed", "Completed"),
+    ("declined", "Declined"),
     ("failed", "Failed"),
 ]
 
@@ -177,7 +198,12 @@ class User(db.Model):
 
 class Listing(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    seller_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
+    seller_id = db.Column(
+        db.Integer,
+        db.ForeignKey("user.id"),
+        nullable=False,
+        index=True,
+    )
     listing_code = db.Column(db.String(20), unique=True)
     title = db.Column(db.String(255), nullable=False)
     region = db.Column(db.String(100))
@@ -192,7 +218,7 @@ class Listing(db.Model):
     short_description = db.Column(db.Text)
     is_confidential = db.Column(db.Boolean, default=True)
     status = db.Column(
-        db.String(20), default="draft"
+        db.String(20), default="draft", index=True
     )  # 'draft','live','under_offer','sold','archived'
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
@@ -212,7 +238,12 @@ class Listing(db.Model):
 
 class ListingPhoto(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    listing_id = db.Column(db.Integer, db.ForeignKey("listing.id"), nullable=False)
+    listing_id = db.Column(
+        db.Integer,
+        db.ForeignKey("listing.id"),
+        nullable=False,
+        index=True,
+    )
     filename = db.Column(db.String(255), nullable=False)
     is_cover = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -220,8 +251,18 @@ class ListingPhoto(db.Model):
 
 class Enquiry(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    listing_id = db.Column(db.Integer, db.ForeignKey("listing.id"), nullable=False)
-    buyer_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
+    listing_id = db.Column(
+        db.Integer,
+        db.ForeignKey("listing.id"),
+        nullable=False,
+        index=True,
+    )
+    buyer_id = db.Column(
+        db.Integer,
+        db.ForeignKey("user.id"),
+        nullable=False,
+        index=True,
+    )
     message = db.Column(db.Text, nullable=False)
     nda_accepted = db.Column(db.Boolean, default=False)
     status = db.Column(db.String(20), default="new")  # 'new','read','archived'
@@ -287,7 +328,10 @@ class BuyerProfile(db.Model):
 
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-    user = db.relationship("User", backref="buyer_profile", uselist=False)
+    user = db.relationship(
+        "User",
+        backref=db.backref("buyer_profile", uselist=False),
+    )
 
     def is_complete(self) -> bool:
         """
@@ -321,6 +365,7 @@ class Lead(db.Model):
         db.Integer,
         db.ForeignKey("listing.id"),
         nullable=False,
+        index=True,
     )
     buyer_name = db.Column(db.String(200), nullable=False)
     buyer_email = db.Column(db.String(200), nullable=False)
@@ -355,7 +400,10 @@ class ValuerProfile(db.Model):
 
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-    user = db.relationship("User", backref="valuer_profile", uselist=False)
+    user = db.relationship(
+        "User",
+        backref=db.backref("valuer_profile", uselist=False),
+    )
 
 # -------------------------------------------------------------------
 # Seller Profile Models (Business-Level Seller Information)
@@ -393,14 +441,22 @@ class SellerProfile(db.Model):
         onupdate=datetime.utcnow,
     )
 
-    user = db.relationship("User", backref="seller_profile", uselist=False)
+    user = db.relationship(
+        "User",
+        backref=db.backref("seller_profile", uselist=False),
+    )
 
 
 class SellerProfileDocument(db.Model):
     __tablename__ = "seller_profile_documents"
 
     id = db.Column(db.Integer, primary_key=True)
-    profile_id = db.Column(db.Integer, db.ForeignKey("seller_profiles.id"), nullable=False)
+    profile_id = db.Column(
+        db.Integer,
+        db.ForeignKey("seller_profiles.id"),
+        nullable=False,
+        index=True,
+    )
     filename = db.Column(db.String(255), nullable=False)
     original_filename = db.Column(db.String(255))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -412,7 +468,12 @@ class Subscription(db.Model):
     __tablename__ = "subscriptions"
 
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
+    user_id = db.Column(
+        db.Integer,
+        db.ForeignKey("user.id"),
+        nullable=False,
+        index=True,
+    )
 
     # "basic" or "premium"
     tier = db.Column(db.String(20), nullable=False)
@@ -425,7 +486,7 @@ class Subscription(db.Model):
     is_active = db.Column(db.Boolean, default=True)
 
     # Stripe integration
-    stripe_subscription_id = db.Column(db.String(255))
+    stripe_subscription_id = db.Column(db.String(255), unique=True)
     stripe_customer_id = db.Column(db.String(255))
 
     user = db.relationship("User", backref="subscriptions")
@@ -435,13 +496,18 @@ class Payment(db.Model):
     __tablename__ = "payments"
 
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
+    user_id = db.Column(
+        db.Integer,
+        db.ForeignKey("user.id"),
+        nullable=False,
+        index=True,
+    )
 
     amount = db.Column(db.Integer)  # pence
     currency = db.Column(db.String(10), default="GBP")
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)
 
-    stripe_payment_id = db.Column(db.String(255))
+    stripe_payment_id = db.Column(db.String(255), unique=True)
     description = db.Column(db.String(255))
 
     user = db.relationship("User", backref="payments")
@@ -492,7 +558,12 @@ class Financials(db.Model):
     __tablename__ = "financials"
 
     id = db.Column(db.Integer, primary_key=True)
-    listing_id = db.Column(db.Integer, db.ForeignKey("listing.id"), nullable=False)
+    listing_id = db.Column(
+        db.Integer,
+        db.ForeignKey("listing.id"),
+        unique=True,
+        nullable=False,
+    )
 
     turnover = db.Column(db.String(100))
     ebitda = db.Column(db.String(100))
@@ -504,14 +575,22 @@ class Financials(db.Model):
 
     year_end = db.Column(db.String(50))  # e.g. "YE Mar 2024"
 
-    listing = db.relationship("Listing", backref="financials", uselist=False)
+    listing = db.relationship(
+        "Listing",
+        backref=db.backref("financials", uselist=False),
+    )
 
 
 class BuyerCriteria(db.Model):
     __tablename__ = "buyer_criteria"
 
     id = db.Column(db.Integer, primary_key=True)
-    buyer_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
+    buyer_id = db.Column(
+        db.Integer,
+        db.ForeignKey("user.id"),
+        unique=True,
+        nullable=False,
+    )
 
     regions = db.Column(db.String(255))  # comma-separated
     care_types = db.Column(db.String(255))  # comma-separated
@@ -524,22 +603,49 @@ class BuyerCriteria(db.Model):
     funding_ready = db.Column(db.Boolean, default=False)
     notes = db.Column(db.Text)
 
-    buyer = db.relationship("User", backref="criteria", uselist=False)
+    buyer = db.relationship(
+        "User",
+        backref=db.backref("criteria", uselist=False),
+    )
 
 
 class Introduction(db.Model):
     __tablename__ = "introductions"
+    __table_args__ = (
+        db.UniqueConstraint(
+            "buyer_id",
+            "seller_id",
+            "listing_id",
+            name="uq_introduction_parties_listing",
+        ),
+    )
 
     id = db.Column(db.Integer, primary_key=True)
 
-    buyer_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
-    seller_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
-    listing_id = db.Column(db.Integer, db.ForeignKey("listing.id"), nullable=False)
+    buyer_id = db.Column(
+        db.Integer,
+        db.ForeignKey("user.id"),
+        nullable=False,
+        index=True,
+    )
+    seller_id = db.Column(
+        db.Integer,
+        db.ForeignKey("user.id"),
+        nullable=False,
+        index=True,
+    )
+    listing_id = db.Column(
+        db.Integer,
+        db.ForeignKey("listing.id"),
+        nullable=False,
+        index=True,
+    )
 
     # Deal status pipeline
     status = db.Column(
         db.String(20),
-        default="initiated"
+        default="initiated",
+        index=True,
         # initiated → nda_signed → viewing → offer_made → offer_accepted → completed → failed
     )
 
@@ -564,7 +670,10 @@ class IntroductionStatusHistory(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     introduction_id = db.Column(
-        db.Integer, db.ForeignKey("introductions.id"), nullable=False
+        db.Integer,
+        db.ForeignKey("introductions.id"),
+        nullable=False,
+        index=True,
     )
     old_status = db.Column(db.String(20))
     new_status = db.Column(db.String(20))
@@ -583,13 +692,29 @@ class ValuationRequest(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
 
-    listing_id = db.Column(db.Integer, db.ForeignKey("listing.id"), nullable=False)
-    seller_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
-    valuer_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True)
+    listing_id = db.Column(
+        db.Integer,
+        db.ForeignKey("listing.id"),
+        nullable=False,
+        index=True,
+    )
+    seller_id = db.Column(
+        db.Integer,
+        db.ForeignKey("user.id"),
+        nullable=False,
+        index=True,
+    )
+    valuer_id = db.Column(
+        db.Integer,
+        db.ForeignKey("user.id"),
+        nullable=True,
+        index=True,
+    )
 
     status = db.Column(
         db.String(20),
-        default="pending"
+        default="pending",
+        index=True,
         # pending → accepted → completed → declined
     )
 
@@ -606,7 +731,10 @@ class Deal(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     introduction_id = db.Column(
-        db.Integer, db.ForeignKey("introductions.id"), nullable=False
+        db.Integer,
+        db.ForeignKey("introductions.id"),
+        unique=True,
+        nullable=False,
     )
 
     agreed_price = db.Column(db.String(100))      # e.g. "£3,500,000"
@@ -621,7 +749,10 @@ class Deal(db.Model):
 
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-    introduction = db.relationship("Introduction", backref="deal")
+    introduction = db.relationship(
+        "Introduction",
+        backref=db.backref("deal", uselist=False),
+    )
 
 
 class PageContent(db.Model):
@@ -696,9 +827,14 @@ def has_active_subscription(user, role: str, tier: str = "premium") -> bool:
     if not getattr(user, "is_authenticated", False):
         return False
 
+    now = datetime.utcnow()
     sub = (
         SubscriptionModel.query
         .filter_by(user_id=user.id, role=role, tier=tier, is_active=True)
+        .filter(
+            (SubscriptionModel.renews_at.is_(None))
+            | (SubscriptionModel.renews_at > now)
+        )
         .first()
     )
     return sub is not None
@@ -718,6 +854,9 @@ def get_active_subscription(user, role: str | None = None) -> Subscription | Non
     query = SubscriptionModel.query.filter_by(
         user_id=user.id,
         is_active=True,
+    ).filter(
+        (SubscriptionModel.renews_at.is_(None))
+        | (SubscriptionModel.renews_at > datetime.utcnow())
     )
 
     if role:
@@ -752,6 +891,10 @@ def get_active_subscription_for_role(user, role: str):
     q = (
         SubscriptionModel.query
         .filter_by(user_id=user.id, role=role, is_active=True)
+        .filter(
+            (SubscriptionModel.renews_at.is_(None))
+            | (SubscriptionModel.renews_at > datetime.utcnow())
+        )
     )
 
     # Prefer premium if both exist
@@ -839,6 +982,45 @@ def upsert_subscription(user_id: int, role: str, tier: str = "premium", months: 
 
 def is_premium_seller(user) -> bool:
     return has_active_subscription(user, "seller", "premium")
+
+
+def is_premium_buyer(user) -> bool:
+    return has_active_subscription(user, "buyer", "premium")
+
+
+def can_view_listing_sensitive(user, listing: Listing) -> bool:
+    """Central disclosure policy for confidential listing fields."""
+    if not listing.is_confidential and listing.status == "live":
+        return True
+    if not getattr(user, "is_authenticated", False):
+        return False
+    if user.role == "admin":
+        return True
+    if user.role == "seller" and listing.seller_id == user.id:
+        return True
+    return user.role == "buyer" and is_premium_buyer(user)
+
+
+def can_access_listing(user, listing: Listing) -> bool:
+    """Allow public live listings plus owners/admins for non-live records."""
+    if listing.status == "live":
+        return True
+    if not getattr(user, "is_authenticated", False):
+        return False
+    return user.role == "admin" or (
+        user.role == "seller" and listing.seller_id == user.id
+    )
+
+
+def is_safe_redirect_target(target: str | None) -> bool:
+    if not target:
+        return False
+    host_url = urlparse(request.host_url)
+    redirect_url = urlparse(urljoin(request.host_url, target))
+    return (
+        redirect_url.scheme in {"http", "https"}
+        and host_url.netloc == redirect_url.netloc
+    )
 
 
 def generate_listing_code():
@@ -1033,6 +1215,13 @@ def allowed_file(filename: str) -> bool:
     return ext in app.config["ALLOWED_EXTENSIONS"]
 
 
+def allowed_document(filename: str) -> bool:
+    if "." not in filename:
+        return False
+    ext = filename.rsplit(".", 1)[1].lower()
+    return ext in app.config["ALLOWED_DOCUMENT_EXTENSIONS"]
+
+
 # Simple UK-ish region coordinates for map view
 DEFAULT_COORD = (53.5, -2.5)  # Roughly North England
 
@@ -1153,6 +1342,50 @@ def compute_matches_for_buyer(buyer, limit=None):
     return results
 
 
+def compute_buyer_listing_match(listing: Listing, profile: BuyerProfile):
+    """Score one listing using the same profile signals used by matching views."""
+    score = 0
+    reasons = []
+    regions = parse_csv(profile.preferred_regions)
+    care_types = parse_csv(profile.care_types)
+
+    if regions:
+        if listing.region not in regions:
+            return 0, "No match", ["Region outside buyer mandate"]
+        score += 30
+        reasons.append("Region match")
+
+    if care_types:
+        if listing.care_type not in care_types:
+            return 0, "No match", ["Care type outside buyer mandate"]
+        score += 30
+        reasons.append("Care type match")
+
+    if profile.beds_min is not None:
+        if listing.beds is None or listing.beds < profile.beds_min:
+            return 0, "No match", ["Below minimum size"]
+        score += 10
+        reasons.append("Meets minimum size")
+
+    if profile.beds_max is not None:
+        if listing.beds is None or listing.beds > profile.beds_max:
+            return 0, "No match", ["Above maximum size"]
+        score += 10
+        reasons.append("Within maximum size")
+
+    if profile.quality_preference and listing.cqc_rating:
+        if profile.quality_preference.lower() in listing.cqc_rating.lower():
+            score += 10
+            reasons.append("Quality preference match")
+
+    if score == 0:
+        score = 5
+        reasons.append("General live opportunity")
+
+    label = "Strong match" if score >= 60 else "Good match" if score >= 30 else "Possible match"
+    return score, label, reasons
+
+
 
 def parse_csv(value: str | None) -> set[str]:
     """
@@ -1241,10 +1474,12 @@ def seed_admin_user(email: str | None = None, password: str | None = None):
     Email/password can be passed in or taken from env:
       ADMIN_EMAIL, ADMIN_PASSWORD
     """
-    email = (
-        email or os.environ.get("ADMIN_EMAIL") or "admin@carebroker.local"
-    ).strip().lower()
-    password = password or os.environ.get("ADMIN_PASSWORD") or "Admin123!"
+    email = (email or os.environ.get("ADMIN_EMAIL") or "").strip().lower()
+    password = password or os.environ.get("ADMIN_PASSWORD") or ""
+    if not email or not password:
+        raise RuntimeError(
+            "ADMIN_EMAIL and ADMIN_PASSWORD must be configured before seeding."
+        )
 
     existing = User.query.filter_by(email=email).first()
     if existing:
@@ -1253,8 +1488,7 @@ def seed_admin_user(email: str | None = None, password: str | None = None):
 
     ok, msg = validate_password_strength(password)
     if not ok:
-        print(f"[seed-admin] Weak admin password: {msg}")
-        print("[seed-admin] WARNING: Using a weak admin password. Change ADMIN_PASSWORD!")
+        raise ValueError(f"ADMIN_PASSWORD is not strong enough: {msg}")
 
     admin = User(
         email=email,
@@ -1449,16 +1683,21 @@ def listings():
     if view_mode == "map":
         for l in query.order_by(Listing.created_at.desc()).all():
             lat, lng = REGION_COORDS.get(l.region or "", DEFAULT_COORD)
+            can_view_map_sensitive = can_view_listing_sensitive(current_user, l)
             map_data.append(
                 {
                     "id": l.id,
-                    "title": l.title,
+                    "title": l.title if can_view_map_sensitive else "Confidential opportunity",
                     "lat": lat,
                     "lng": lng,
                     "region": l.region or "",
                     "care_type": l.care_type or "",
                     "beds": l.beds or "",
-                    "guide_price": l.guide_price_band or "On request",
+                    "guide_price": (
+                        l.guide_price_band or "On request"
+                        if can_view_map_sensitive
+                        else "Premium only"
+                    ),
                     "code": l.listing_code or "",
                 }
             )
@@ -1485,6 +1724,8 @@ def listings():
 @app.route("/listings/<int:listing_id>", methods=["GET", "POST"])
 def listing_detail(listing_id):
     listing = Listing.query.get_or_404(listing_id)
+    if not can_access_listing(current_user, listing):
+        abort(404)
 
     # ---- Work out buyer flags for the template ----
     is_premium_buyer = False
@@ -1504,6 +1745,7 @@ def listing_detail(listing_id):
         and current_user.role == "buyer"
         and is_premium_buyer
     )
+    can_view_sensitive = can_view_listing_sensitive(current_user, listing)
 
     # ---- Handle enquiry POST (inline form on detail page) ----
     if request.method == "POST":
@@ -1552,12 +1794,22 @@ def listing_detail(listing_id):
         is_premium_buyer=is_premium_buyer,
         is_shortlisted=is_shortlisted,
         can_enquire=can_enquire,
+        can_view_sensitive=can_view_sensitive,
     )
 
 
 @app.route("/listing/<int:listing_id>/enquire", methods=["GET", "POST"])
 def enquire(listing_id):
     listing = Listing.query.get_or_404(listing_id)
+
+    if listing.status != "live":
+        abort(404)
+    if not current_user.is_authenticated:
+        flash("Log in as a premium buyer to send an enquiry.", "warning")
+        return redirect(url_for("login", next=request.path))
+    if current_user.role != "buyer" or not is_premium_buyer(current_user):
+        flash("Buyer Premium is required to send an enquiry.", "warning")
+        return redirect(url_for("pricing", role="buyer"))
 
     if request.method == "POST":
         buyer_name = request.form.get("buyer_name", "").strip()
@@ -1993,7 +2245,7 @@ def login():
 
         # Honour ?next=... if present
         next_page = request.args.get("next")
-        if next_page:
+        if is_safe_redirect_target(next_page):
             return redirect(next_page)
 
         # Role-aware redirect
@@ -2207,10 +2459,9 @@ def seller_buyers():
         )
         premium_buyer_ids = {s.user_id for s in active_premium_buyers}
 
-        if premium_buyer_ids:
-            buyer_query = buyer_query.filter(
-                BuyerProfile.user_id.in_(premium_buyer_ids)
-            )
+        buyer_query = buyer_query.filter(
+            BuyerProfile.user_id.in_(premium_buyer_ids)
+        )
 
     buyer_profiles = (
         buyer_query
@@ -2253,6 +2504,8 @@ def seller_buyers():
         matches=matches,
         seller_regions=sorted(seller_regions),
         seller_care_types=sorted(seller_care_types),
+        profile=profile,
+        listings=listings,
     )
 
 
@@ -2426,6 +2679,8 @@ def seller_update_listing_status(listing_id):
 @role_required("seller")
 def request_valuation(listing_id):
     listing = Listing.query.get_or_404(listing_id)
+    if listing.seller_id != current_user.id:
+        abort(404)
 
     # Basic valuer list (all valuers with a profile)
     valuers = (
@@ -2445,6 +2700,15 @@ def request_valuation(listing_id):
                 selected_valuer_id = int(raw_valuer_id)
             except ValueError:
                 selected_valuer_id = None
+
+        if selected_valuer_id:
+            selected_valuer = User.query.filter_by(
+                id=selected_valuer_id,
+                role="valuer",
+            ).first()
+            if not selected_valuer:
+                flash("Please choose a valid valuer.", "error")
+                return redirect(request.url)
 
         notes = (request.form.get("notes") or "").strip() or None
 
@@ -2557,6 +2821,7 @@ def seller_profile():
         if profile is None:
             profile = SellerProfile(user_id=current_user.id)
             db.session.add(profile)
+            db.session.flush()
 
         # Basic fields
         profile.business_name = request.form.get("business_name") or None
@@ -2581,6 +2846,9 @@ def seller_profile():
 
         for file in files:
             if not file or not file.filename:
+                continue
+            if not allowed_document(file.filename):
+                flash(f"Unsupported document type: {file.filename}", "error")
                 continue
 
             original = secure_filename(file.filename)
@@ -2863,6 +3131,12 @@ def buyer_dashboard():
 
     # Apply buyer profile filters if present
     profile = BuyerProfile.query.filter_by(user_id=current_user.id).first()
+    is_premium = is_premium_buyer(current_user)
+    active_sub = get_active_subscription_for_role(current_user, "buyer")
+    current_plan_label = None
+    if active_sub:
+        current_plan_label = f"{active_sub.role.capitalize()} {active_sub.tier.capitalize()}"
+    profile_complete = bool(profile and profile.is_complete())
 
     if profile:
         # Legacy simple filters (keep for now so it "just works")
@@ -2888,6 +3162,8 @@ def buyer_dashboard():
         .limit(6)
         .all()
     )
+    match_results = compute_matches_for_buyer(current_user, limit=6)
+    top_matches = [listing for listing, _score, _reasons in match_results]
 
     # Shortlist listings (session-based)
     shortlist_ids = get_shortlist_ids()
@@ -2909,6 +3185,11 @@ def buyer_dashboard():
         recommendations=recommendations,
         shortlist_listings=shortlist_listings,
         profile=profile,
+        top_matches=top_matches,
+        is_premium_buyer=is_premium,
+        active_sub=active_sub,
+        current_plan_label=current_plan_label,
+        profile_complete=profile_complete,
     )
 
 
@@ -3020,7 +3301,7 @@ def valuer_decline_request(req_id):
         <p>Your chosen valuer ({current_user.email}) has declined the valuation request.</p>
 
         <p>You may send the request to another valuer.</p>
-        <p><a href="{url_for('valuers_directory', _external=True)}">Browse valuers</a></p>
+        <p><a href="{url_for('index', _external=True)}">Return to the marketplace</a></p>
     """
 
     send_email(
@@ -3135,7 +3416,8 @@ def toggle_shortlist(listing_id):
     session["shortlist"] = shortlist
 
     # Go back to where the user came from, or fallback to shortlist page
-    next_url = request.form.get("next") or request.referrer or url_for("buyer_shortlist")
+    requested_next = request.form.get("next") or request.referrer
+    next_url = requested_next if is_safe_redirect_target(requested_next) else url_for("buyer_shortlist")
     return redirect(next_url)
 
 
@@ -3411,6 +3693,8 @@ def admin_archive_listing(listing_id):
 
 
 @app.route("/admin/test-email")
+@login_required
+@role_required("admin")
 def test_email():
     ok = send_email(
         to_addresses="YOUR_REAL_ADDRESS@gmail.com",
@@ -3502,6 +3786,7 @@ def admin_buyers():
     return render_template(
         "admin/buyers.html",
         buyers=buyers,
+        profile_map={p.user_id: p for p in BuyerProfile.query.all()},
         premium_ids=premium_ids,
         basic_ids=basic_ids,
     )
@@ -3539,6 +3824,7 @@ def admin_sellers():
     return render_template(
         "admin/sellers.html",
         sellers=sellers,
+        profile_map={p.user_id: p for p in SellerProfile.query.all()},
         premium_ids=premium_ids,
         basic_ids=basic_ids,
     )
@@ -3575,6 +3861,7 @@ def admin_valuers():
     return render_template(
         "admin/valuers.html",
         valuers=valuers,
+        profile_map={p.user_id: p for p in ValuerProfile.query.all()},
         premium_ids=premium_ids,
         basic_ids=basic_ids,
     )
@@ -3659,6 +3946,8 @@ def admin_introductions():
         "admin/introductions.html",
         status_columns=status_columns,
         statuses=INTRO_STATUSES,
+        buyer_profile_map={p.user_id: p for p in BuyerProfile.query.all()},
+        deal_map={d.introduction_id: d for d in Deal.query.all()},
     )
 
 
@@ -3677,12 +3966,16 @@ def admin_introduction_detail(intro_id):
     intro = Introduction.query.get_or_404(intro_id)
 
     # Existing deal (if any)
-    deal = getattr(intro, "deal", None)
+    deal = Deal.query.filter_by(introduction_id=intro.id).first()
+    buyer_profile = BuyerProfile.query.filter_by(user_id=intro.buyer_id).first()
+    seller_profile = SellerProfile.query.filter_by(user_id=intro.seller_id).first()
 
     return render_template(
         "admin/introduction_detail.html",
         introduction=intro,
         deal=deal,
+        buyer_profile=buyer_profile,
+        seller_profile=seller_profile,
         statuses=INTRO_STATUSES,
     )
 
@@ -3713,11 +4006,12 @@ def admin_update_introduction_status(intro_id):
     intro.updated_at = datetime.utcnow()
 
     # Mirror onto deal if present
-    if intro.deal:
+    deal = Deal.query.filter_by(introduction_id=intro.id).first()
+    if deal:
         if new_status == "completed":
-            intro.deal.status = "completed"
+            deal.status = "completed"
         elif new_status == "failed":
-            intro.deal.status = "aborted"
+            deal.status = "aborted"
 
     # History row
     history = IntroductionStatusHistory(
@@ -3751,7 +4045,7 @@ def admin_introduction_deal(intro_id):
     """
     intro = Introduction.query.get_or_404(intro_id)
 
-    deal = getattr(intro, "deal", None)
+    deal = Deal.query.filter_by(introduction_id=intro.id).first()
     creating = deal is None
     if creating:
         deal = Deal(introduction_id=intro.id)
@@ -4185,7 +4479,10 @@ def stop_impersonating():
 @app.route("/tasks/send_weekly_digest")
 def send_weekly_digest():
     token = request.args.get("token")
-    if token != app.config["DIGEST_TASK_TOKEN"]:
+    configured_token = app.config.get("DIGEST_TASK_TOKEN")
+    if not configured_token:
+        return "Digest task is not configured", 503
+    if token != configured_token:
         return "Forbidden", 403
 
     now = datetime.utcnow()
@@ -4335,6 +4632,7 @@ def admin_set_subscription():
     return redirect(url_for("admin_subscriptions"))
 
 @app.route("/webhooks/stripe", methods=["POST"])
+@csrf.exempt
 def stripe_webhook():
     """
     Handle Stripe webhooks:
@@ -4455,5 +4753,3 @@ if __name__ == "__main__":
 
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
-
-

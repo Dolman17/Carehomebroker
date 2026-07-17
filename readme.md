@@ -64,7 +64,7 @@ project/
 │ Dockerfile
 │ runtime.txt
 │ .env.example
-│ care_broker.db  (auto-created in dev)
+│ care_broker.db
 │
 ├── static/
 │   └── uploads/   (listing photo uploads)
@@ -101,7 +101,28 @@ At minimum set:
 
 SECRET_KEY=change-this
 
-5. Run the app in development mode
+The application now fails closed in production if `SECRET_KEY` is missing.
+
+5. Create the database from the committed migration
+
+```bash
+flask --app app.py db upgrade
+```
+
+Do not use `db.create_all()` for application setup. Alembic migrations are the
+source of truth for both SQLite and PostgreSQL.
+
+6. Create the first administrator
+
+```bash
+ADMIN_EMAIL=admin@example.com \
+ADMIN_PASSWORD='choose-a-strong-password' \
+flask --app app.py seed-admin
+```
+
+Both values are required, and weak passwords are rejected.
+
+7. Run the app in development mode
 flask --app app.py run --debug
 
 
@@ -135,6 +156,10 @@ web: python run_prod.py
 
 Push your repository and both platforms will auto-detect Python + install requirements.
 
+Run `flask --app app.py db upgrade` as a release/deployment step before starting
+the web process. `RUN_MIGRATIONS_ON_START=1` is available for a single-instance
+deployment, but a dedicated release step is safer when multiple instances may start.
+
 🔹 Docker Deployment
 Build image
 docker build -t care-broker .
@@ -142,6 +167,7 @@ docker build -t care-broker .
 Run container with mounted uploads
 docker run -p 8000:8000 \
   -v $(pwd)/static/uploads:/app/static/uploads \
+  -v $(pwd)/instance/private_uploads:/app/instance/private_uploads \
   --env-file .env \
   care-broker
 
@@ -157,11 +183,12 @@ SECRET_KEY=your-secret
 DATABASE_URL=sqlite:///care_broker.db
 DIGEST_TASK_TOKEN=your-token
 
-SMTP_HOST=smtp.gmail.com
+SMTP_SERVER=smtp.gmail.com
 SMTP_PORT=587
-SMTP_USER=your-email@example.com
-SMTP_PASS=your-app-password
-SMTP_FROM=your-email@example.com
+SMTP_USERNAME=your-email@example.com
+SMTP_PASSWORD=your-app-password
+SMTP_USE_TLS=1
+SMTP_DEFAULT_FROM=your-email@example.com
 
 Production Deployment Tips
 

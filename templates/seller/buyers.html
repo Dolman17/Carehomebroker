@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}Matching Buyers – Seller{% endblock %}
+
+{% block content %}
+<div class="max-w-5xl mx-auto text-white">
+  <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
+    <div>
+      <h1 class="text-xl font-semibold">Matching buyers</h1>
+      <p class="text-xs text-white/70">
+        Premium buyers whose acquisition criteria overlap your regions and care types.
+      </p>
+    </div>
+    <a href="{{ url_for('seller_dashboard') }}"
+       class="text-[11px] border border-white/20 text-white/80 px-3 py-1.5 rounded hover:bg-white/10">
+      ← Back to seller dashboard
+    </a>
+  </div>
+
+  {% if not listings %}
+    <div class="rounded-lg border border-kaijoYellow/60 bg-black/20 p-4 text-xs text-white/80 mb-5">
+      Create and publish a listing before requesting a buyer introduction.
+    </div>
+  {% endif %}
+
+  {% if not matches %}
+    <div class="rounded-lg border border-white/10 bg-black/30 p-4 text-xs text-white/75">
+      <p class="font-semibold mb-1">No strong premium matches yet.</p>
+      <p>Matches will appear as qualified buyers complete compatible mandates.</p>
+    </div>
+  {% else %}
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {% for item in matches %}
+        {% set bp = item.profile %}
+        {% set buyer = item.user %}
+        <article class="rounded-lg border border-white/10 bg-black/30 p-4 space-y-3">
+          <div class="flex items-start justify-between gap-3">
+            <div>
+              <p class="text-[10px] font-mono text-white/40">Buyer {{ buyer.id }}</p>
+              <h2 class="text-sm font-semibold">{{ bp.business_name or "Confidential buyer" }}</h2>
+            </div>
+            <span class="text-[10px] px-2 py-0.5 rounded-full border border-kaijoYellow/60 text-kaijoYellow">
+              {{ item.score }}/2 match
+            </span>
+          </div>
+
+          <dl class="grid grid-cols-2 gap-2 text-[11px] text-white/70">
+            <div><dt class="text-white/40">Regions</dt><dd>{{ bp.preferred_regions or "Not specified" }}</dd></div>
+            <div><dt class="text-white/40">Care types</dt><dd>{{ bp.care_types or "Not specified" }}</dd></div>
+            <div><dt class="text-white/40">Budget</dt><dd>{{ bp.min_budget or "?" }} – {{ bp.max_budget or "?" }}</dd></div>
+            <div><dt class="text-white/40">Timeline</dt><dd>{{ bp.transaction_timeline or "Flexible" }}</dd></div>
+          </dl>
+
+          {% if listings %}
+            <form method="post" action="{{ url_for('seller_request_introduction', buyer_id=buyer.id) }}"
+                  class="pt-3 border-t border-white/10">
+              <label class="text-[10px] text-white/50" for="listing-{{ buyer.id }}">Choose your listing</label>
+              <select id="listing-{{ buyer.id }}" name="listing_id" required
+                      class="w-full mt-1 mb-2 text-[11px] bg-black/30 border border-white/10 rounded px-2 py-1">
+                {% for listing in listings if listing.status == 'live' %}
+                  <option value="{{ listing.id }}">{{ listing.title }} ({{ listing.listing_code }})</option>
+                {% endfor %}
+              </select>
+              <button type="submit"
+                      class="px-3 py-1.5 text-[11px] rounded bg-kaijoPink hover:bg-kaijoYellow hover:text-black">
+                Request introduction
+              </button>
+            </form>
+          {% endif %}
+        </article>
+      {% endfor %}
+    </div>
+  {% endif %}
+</div>
+{% endblock %}
