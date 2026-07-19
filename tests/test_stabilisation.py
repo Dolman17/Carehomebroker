@@ -119,7 +119,7 @@ def test_core_route_set_is_preserved_with_legal_pages(seeded_app):
     assert "/valuer/dashboard" in rules
     assert "/admin" in rules
     assert "/my/dashboard" in rules
-    assert len(route_rules) == 112
+    assert len(route_rules) == 114
 
 
 def test_buyer_shortlist_persists_in_database(client, seeded_app):

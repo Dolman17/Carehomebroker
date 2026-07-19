@@ -1218,6 +1218,45 @@ class WorkspaceMilestone(db.Model):
     created_by = db.relationship("User", foreign_keys=[created_by_id])
 
 
+class StructuredOffer(db.Model):
+    """Append-only commercial offer record for an introduction."""
+
+    __tablename__ = "structured_offer"
+    __table_args__ = (
+        db.UniqueConstraint(
+            "introduction_id", "sequence", name="uq_structured_offer_sequence"
+        ),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    introduction_id = db.Column(
+        db.Integer, db.ForeignKey("introductions.id"), nullable=False, index=True
+    )
+    parent_offer_id = db.Column(
+        db.Integer, db.ForeignKey("structured_offer.id"), index=True
+    )
+    sequence = db.Column(db.Integer, nullable=False)
+    created_by_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
+    recipient_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False, index=True)
+    amount_minor = db.Column(db.BigInteger, nullable=False)
+    currency = db.Column(db.String(3), nullable=False, default="GBP")
+    terms = db.Column(db.Text)
+    conditions = db.Column(db.Text)
+    expires_on = db.Column(db.Date, index=True)
+    status = db.Column(db.String(20), nullable=False, default="submitted", index=True)
+    responded_at = db.Column(db.DateTime)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, index=True)
+
+    introduction = db.relationship("Introduction", backref="structured_offers")
+    creator = db.relationship("User", foreign_keys=[created_by_id])
+    recipient = db.relationship("User", foreign_keys=[recipient_id])
+    parent = db.relationship("StructuredOffer", remote_side=[id], backref="counter_offers")
+
+    @property
+    def display_amount(self):
+        return format_minor_units(self.amount_minor, self.currency)
+
+
 class DataRoomDocument(db.Model):
     __tablename__ = "data_room_document"
 
@@ -1813,6 +1852,84 @@ def workspace_recipients(introduction: Introduction, exclude_user_id=None):
         user for user in (introduction.buyer, introduction.seller)
         if user.id != exclude_user_id
     ]
+
+
+def can_negotiate_offer(user, introduction: Introduction) -> bool:
+    return bool(
+        can_access_deal_workspace(user, introduction)
+        and user.role in {"buyer", "seller"}
+        and user.id in {introduction.buyer_id, introduction.seller_id}
+        and introduction.status != "completed"
+    )
+
+
+def _next_offer_sequence(introduction_id: int) -> int:
+    latest = db.session.query(func.max(StructuredOffer.sequence)).filter_by(
+        introduction_id=introduction_id
+    ).scalar()
+    return (latest or 0) + 1
+
+
+def _offer_recipient(introduction: Introduction, creator_id: int) -> User:
+    return introduction.seller if creator_id == introduction.buyer_id else introduction.buyer
+
+
+def _parse_offer_form():
+    currency = (request.form.get("currency") or "GBP").strip().upper()
+    if currency not in {"GBP", "EUR", "USD"}:
+        raise ValueError("Choose a supported currency.")
+    amount_minor = parse_major_units(request.form.get("amount"))
+    if not amount_minor:
+        raise ValueError("Enter an offer greater than zero.")
+    expires_on = None
+    expires_raw = (request.form.get("expires_on") or "").strip()
+    if expires_raw:
+        try:
+            expires_on = datetime.strptime(expires_raw, "%Y-%m-%d").date()
+        except ValueError as exc:
+            raise ValueError("Choose a valid expiry date.") from exc
+        if expires_on < utcnow().date():
+            raise ValueError("The expiry date cannot be in the past.")
+    return {
+        "amount_minor": amount_minor,
+        "currency": currency,
+        "terms": ((request.form.get("terms") or "").strip()[:5000] or None),
+        "conditions": ((request.form.get("conditions") or "").strip()[:5000] or None),
+        "expires_on": expires_on,
+    }
+
+
+def expire_structured_offers(introduction_id=None):
+    """Expire open offers and return them for post-commit notifications."""
+    query = StructuredOffer.query.filter(
+        StructuredOffer.status == "submitted",
+        StructuredOffer.expires_on.isnot(None),
+        StructuredOffer.expires_on < utcnow().date(),
+    )
+    if introduction_id is not None:
+        query = query.filter(StructuredOffer.introduction_id == introduction_id)
+    expired = query.all()
+    if not expired:
+        return []
+    now = utcnow()
+    for offer in expired:
+        offer.status = "expired"
+        offer.responded_at = now
+    db.session.commit()
+    for offer in expired:
+        record_audit_event(
+            "offer.expired", "Structured offer expired",
+            subject_user_id=offer.created_by_id, resource_type="structured_offer",
+            resource_id=offer.id, actor_id=None,
+            details={"introduction_id": offer.introduction_id, "sequence": offer.sequence},
+        )
+        publish_notification(
+            offer.creator, event_type="offer_expired", title="Offer expired",
+            body=f"Offer #{offer.sequence} for {offer.introduction.listing.listing_code or 'an introduction'} expired.",
+            target_url=url_for("deal_workspace", intro_id=offer.introduction_id),
+            dedupe_key=f"offer:{offer.id}:expired",
+        )
+    return expired
 
 
 def buyer_data_room_access(user, listing: Listing):
@@ -4689,6 +4806,7 @@ def deal_workspace(intro_id):
     intro = Introduction.query.get_or_404(intro_id)
     if not can_access_deal_workspace(current_user, intro):
         abort(404)
+    expire_structured_offers(intro.id)
     messages = WorkspaceMessage.query.filter_by(introduction_id=intro.id).order_by(
         WorkspaceMessage.created_at.asc()
     ).all()
@@ -4698,11 +4816,186 @@ def deal_workspace(intro_id):
     milestones = WorkspaceMilestone.query.filter_by(introduction_id=intro.id).order_by(
         WorkspaceMilestone.sort_order.asc(), WorkspaceMilestone.due_date.asc()
     ).all()
+    offers = StructuredOffer.query.filter_by(introduction_id=intro.id).order_by(
+        StructuredOffer.sequence.desc()
+    ).all()
     return render_template(
         "workspace/index.html", introduction=intro, messages=messages,
-        tasks=tasks, milestones=milestones,
+        tasks=tasks, milestones=milestones, offers=offers,
         participants=(intro.buyer, intro.seller),
+        can_negotiate=can_negotiate_offer(current_user, intro),
+        has_accepted_offer=any(offer.status == "accepted" for offer in offers),
     )
+
+
+@app.route("/introductions/<int:intro_id>/workspace/offers", methods=["POST"])
+@login_required
+def submit_structured_offer(intro_id):
+    intro = Introduction.query.get_or_404(intro_id)
+    if not can_negotiate_offer(current_user, intro):
+        abort(404)
+    expire_structured_offers(intro.id)
+    intro = Introduction.query.filter_by(id=intro.id).with_for_update().one()
+    if StructuredOffer.query.filter_by(
+        introduction_id=intro.id, status="accepted"
+    ).first():
+        flash("An offer has already been accepted for this introduction.", "error")
+        return redirect(url_for("deal_workspace", intro_id=intro.id))
+    try:
+        values = _parse_offer_form()
+    except ValueError as exc:
+        flash(str(exc), "error")
+        return redirect(url_for("deal_workspace", intro_id=intro.id))
+
+    offer = StructuredOffer(
+        introduction_id=intro.id,
+        sequence=_next_offer_sequence(intro.id),
+        created_by_id=current_user.id,
+        recipient_id=_offer_recipient(intro, current_user.id).id,
+        **values,
+    )
+    db.session.add(offer)
+    old_status = intro.status
+    if intro.status in {"initiated", "nda_signed", "viewing"}:
+        intro.status = "offer_made"
+        db.session.add(IntroductionStatusHistory(
+            introduction_id=intro.id, old_status=old_status, new_status="offer_made",
+            changed_by_user_id=current_user.id, note="Structured offer submitted",
+        ))
+    intro.updated_at = utcnow()
+    db.session.commit()
+    record_audit_event(
+        "offer.submitted", "Structured offer submitted",
+        subject_user_id=offer.recipient_id, resource_type="structured_offer",
+        resource_id=offer.id,
+        details={"introduction_id": intro.id, "sequence": offer.sequence, "currency": offer.currency},
+    )
+    publish_notification(
+        offer.recipient, event_type="offer_submitted", title="New structured offer",
+        body=f"Offer #{offer.sequence} was submitted for {intro.listing.listing_code or 'an introduction'}.",
+        target_url=url_for("deal_workspace", intro_id=intro.id),
+        dedupe_key=f"offer:{offer.id}:submitted",
+    )
+    flash("Offer submitted and added to the permanent history.", "success")
+    return redirect(url_for("deal_workspace", intro_id=intro.id))
+
+
+@app.route("/workspace/offers/<int:offer_id>/respond", methods=["POST"])
+@login_required
+def respond_to_structured_offer(offer_id):
+    offer = StructuredOffer.query.get_or_404(offer_id)
+    intro = offer.introduction
+    if not can_negotiate_offer(current_user, intro):
+        abort(404)
+    expire_structured_offers(intro.id)
+    intro = Introduction.query.filter_by(id=intro.id).with_for_update().one()
+    db.session.refresh(offer)
+    action = (request.form.get("action") or "").strip()
+    if offer.status != "submitted":
+        flash("This offer is no longer open.", "error")
+        return redirect(url_for("deal_workspace", intro_id=intro.id))
+
+    if action == "withdraw":
+        if current_user.id != offer.created_by_id:
+            abort(404)
+        offer.status = "withdrawn"
+        offer.responded_at = utcnow()
+        recipient = offer.recipient
+        event_type, title = "offer_withdrawn", "Offer withdrawn"
+    elif action in {"accept", "reject", "counter"}:
+        if current_user.id != offer.recipient_id:
+            abort(404)
+        if action == "counter":
+            try:
+                values = _parse_offer_form()
+            except ValueError as exc:
+                flash(str(exc), "error")
+                return redirect(url_for("deal_workspace", intro_id=intro.id))
+            offer.status = "countered"
+            offer.responded_at = utcnow()
+            counter = StructuredOffer(
+                introduction_id=intro.id, parent_offer_id=offer.id,
+                sequence=_next_offer_sequence(intro.id), created_by_id=current_user.id,
+                recipient_id=offer.created_by_id, **values,
+            )
+            db.session.add(counter)
+            intro.updated_at = utcnow()
+            db.session.commit()
+            record_audit_event(
+                "offer.countered", "Structured offer countered",
+                subject_user_id=counter.recipient_id, resource_type="structured_offer",
+                resource_id=counter.id,
+                details={"introduction_id": intro.id, "sequence": counter.sequence, "parent_offer_id": offer.id},
+            )
+            publish_notification(
+                counter.recipient, event_type="offer_countered", title="Counter-offer received",
+                body=f"Counter-offer #{counter.sequence} was submitted for {intro.listing.listing_code or 'an introduction'}.",
+                target_url=url_for("deal_workspace", intro_id=intro.id),
+                dedupe_key=f"offer:{counter.id}:countered",
+            )
+            flash("Counter-offer submitted.", "success")
+            return redirect(url_for("deal_workspace", intro_id=intro.id))
+        if action == "reject":
+            offer.status = "rejected"
+            offer.responded_at = utcnow()
+            recipient = offer.creator
+            event_type, title = "offer_rejected", "Offer declined"
+        else:
+            now = utcnow()
+            offer.status = "accepted"
+            offer.responded_at = now
+            for other in StructuredOffer.query.filter(
+                StructuredOffer.introduction_id == intro.id,
+                StructuredOffer.id != offer.id,
+                StructuredOffer.status == "submitted",
+            ).all():
+                other.status = "superseded"
+                other.responded_at = now
+            old_status = intro.status
+            intro.status = "offer_accepted"
+            intro.offer_amount = offer.display_amount
+            intro.offer_date = offer.created_at
+            intro.offer_terms = offer.terms
+            intro.updated_at = now
+            if old_status != "offer_accepted":
+                db.session.add(IntroductionStatusHistory(
+                    introduction_id=intro.id, old_status=old_status,
+                    new_status="offer_accepted", changed_by_user_id=current_user.id,
+                    note=f"Structured offer #{offer.sequence} accepted",
+                ))
+            deal = Deal.query.filter_by(introduction_id=intro.id).first()
+            if deal is None:
+                deal = Deal(introduction_id=intro.id, broker_commission_percent=2.0)
+                db.session.add(deal)
+            deal.agreed_price = offer.display_amount
+            if deal.status != "completed":
+                deal.status = "in_progress"
+            commission_percent = deal.broker_commission_percent
+            if commission_percent is not None:
+                deal.broker_commission_amount = int(round(
+                    offer.amount_minor * commission_percent / 100
+                ))
+            recipient = offer.creator
+            event_type, title = "offer_accepted", "Offer accepted"
+    else:
+        flash("Choose a valid offer action.", "error")
+        return redirect(url_for("deal_workspace", intro_id=intro.id))
+
+    intro.updated_at = utcnow()
+    db.session.commit()
+    record_audit_event(
+        f"offer.{offer.status}", f"Structured offer {offer.status}",
+        subject_user_id=recipient.id, resource_type="structured_offer", resource_id=offer.id,
+        details={"introduction_id": intro.id, "sequence": offer.sequence},
+    )
+    publish_notification(
+        recipient, event_type=event_type, title=title,
+        body=f"Offer #{offer.sequence} for {intro.listing.listing_code or 'an introduction'} was {offer.status}.",
+        target_url=url_for("deal_workspace", intro_id=intro.id),
+        dedupe_key=f"offer:{offer.id}:{offer.status}",
+    )
+    flash(f"Offer {offer.status}.", "success")
+    return redirect(url_for("deal_workspace", intro_id=intro.id))
 
 
 @app.route("/introductions/<int:intro_id>/workspace/messages", methods=["POST"])
@@ -6919,6 +7212,8 @@ def send_weekly_digest():
             target_url=url_for("deal_workspace", intro_id=task.introduction_id),
             dedupe_key=f"workspace-task-reminder:{task.id}:{task.due_date.isoformat()}",
         )
+
+    expire_structured_offers()
 
     # Retry immediate deliveries that previously failed.
     for notification in Notification.query.filter_by(

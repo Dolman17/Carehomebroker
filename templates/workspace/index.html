@@ -7,6 +7,54 @@
     <div class="flex gap-2"><a href="{{ url_for('introduction_data_room', intro_id=introduction.id) }}" class="rounded border border-white/20 px-3 py-2 text-xs hover:text-ownerMint">Data room</a><a href="{{ url_for('my_dashboard') }}" class="rounded border border-white/20 px-3 py-2 text-xs hover:text-ownerMint">Dashboard</a></div>
   </div>
 
+  <section class="rounded-xl border border-ownerMint/20 bg-black/25 p-5">
+    <div class="flex flex-wrap items-start justify-between gap-3">
+      <div><h2 class="text-sm font-semibold">Offers and negotiation</h2><p class="mt-1 text-xs text-white/50">Every offer and response is retained as a permanent transaction history.</p></div>
+      {% if has_accepted_offer %}<span class="rounded-full bg-ownerMint/15 px-3 py-1 text-[10px] font-semibold text-ownerMint">Offer accepted</span>{% endif %}
+    </div>
+
+    <div class="mt-4 grid gap-5 lg:grid-cols-[1.3fr_.7fr]">
+      <div class="space-y-3">
+        {% for offer in offers %}
+        <article class="rounded-lg border {{ 'border-ownerMint/40' if offer.status == 'accepted' else 'border-white/10' }} p-4">
+          <div class="flex flex-wrap items-start justify-between gap-3">
+            <div><p class="text-lg font-semibold">{{ offer.display_amount }}</p><p class="mt-1 text-[10px] text-white/40">Offer #{{ offer.sequence }} · {{ 'Buyer' if offer.created_by_id == introduction.buyer_id else 'Seller' }} · {{ offer.created_at.strftime('%d %b %Y %H:%M') }}{% if offer.parent_offer_id %} · Counter to #{{ offer.parent.sequence }}{% endif %}</p></div>
+            <span class="rounded-full border border-white/15 px-2 py-1 text-[10px] {{ 'text-ownerMint' if offer.status == 'accepted' else 'text-ownerCoral' if offer.status in ['rejected', 'withdrawn', 'expired'] else 'text-white/65' }}">{{ offer.status|replace('_', ' ')|title }}</span>
+          </div>
+          {% if offer.terms %}<div class="mt-3"><p class="text-[10px] uppercase tracking-wide text-white/35">Headline terms</p><p class="mt-1 whitespace-pre-line text-xs text-white/75">{{ offer.terms }}</p></div>{% endif %}
+          {% if offer.conditions %}<div class="mt-3"><p class="text-[10px] uppercase tracking-wide text-white/35">Conditions</p><p class="mt-1 whitespace-pre-line text-xs text-white/75">{{ offer.conditions }}</p></div>{% endif %}
+          {% if offer.expires_on %}<p class="mt-3 text-[10px] text-white/40">Expires {{ offer.expires_on.strftime('%d %b %Y') }}</p>{% endif %}
+
+          {% if can_negotiate and offer.status == 'submitted' %}
+            {% if current_user.id == offer.created_by_id %}
+            <form method="post" action="{{ url_for('respond_to_structured_offer', offer_id=offer.id) }}" class="mt-3"><input type="hidden" name="action" value="withdraw"><button class="text-[10px] text-ownerCoral">Withdraw offer</button></form>
+            {% elif current_user.id == offer.recipient_id %}
+            <div class="mt-3 flex flex-wrap gap-2">
+              <form method="post" action="{{ url_for('respond_to_structured_offer', offer_id=offer.id) }}"><input type="hidden" name="action" value="accept"><button class="rounded bg-ownerMint px-3 py-2 text-[10px] font-semibold text-ownerInk">Accept</button></form>
+              <form method="post" action="{{ url_for('respond_to_structured_offer', offer_id=offer.id) }}"><input type="hidden" name="action" value="reject"><button class="rounded border border-ownerCoral/50 px-3 py-2 text-[10px] text-ownerCoral">Decline</button></form>
+              <details class="w-full rounded border border-white/10 p-3"><summary class="cursor-pointer text-[10px] text-white/70">Make a counter-offer</summary>
+                <form method="post" action="{{ url_for('respond_to_structured_offer', offer_id=offer.id) }}" class="mt-3 grid gap-2 sm:grid-cols-[1fr_auto]"><input type="hidden" name="action" value="counter"><input required name="amount" inputmode="decimal" placeholder="Amount" class="rounded border border-white/15 bg-black/30 px-3 py-2 text-xs"><select name="currency" class="rounded border border-white/15 bg-ownerInk px-2 py-2 text-xs"><option>GBP</option><option>EUR</option><option>USD</option></select><textarea name="terms" maxlength="5000" rows="2" placeholder="Headline terms" class="sm:col-span-2 rounded border border-white/15 bg-black/30 px-3 py-2 text-xs"></textarea><textarea name="conditions" maxlength="5000" rows="2" placeholder="Conditions, funding or due-diligence requirements" class="sm:col-span-2 rounded border border-white/15 bg-black/30 px-3 py-2 text-xs"></textarea><input type="date" name="expires_on" class="rounded border border-white/15 bg-ownerInk px-3 py-2 text-xs"><button class="rounded bg-white px-3 py-2 text-xs font-semibold text-ownerInk">Submit counter</button></form>
+              </details>
+            </div>
+            {% endif %}
+          {% endif %}
+        </article>
+        {% else %}<p class="rounded-lg border border-dashed border-white/10 p-4 text-xs text-white/50">No offers yet. The first submitted offer will begin the negotiation history.</p>{% endfor %}
+      </div>
+
+      {% if can_negotiate and not has_accepted_offer %}
+      <form method="post" action="{{ url_for('submit_structured_offer', intro_id=introduction.id) }}" class="h-fit space-y-3 rounded-lg border border-white/10 bg-black/20 p-4">
+        <div><h3 class="text-xs font-semibold">Submit a new offer</h3><p class="mt-1 text-[10px] text-white/40">Amounts are recorded exactly; submitted terms cannot be edited.</p></div>
+        <div class="grid grid-cols-[1fr_auto] gap-2"><input required name="amount" inputmode="decimal" placeholder="Amount" class="rounded border border-white/15 bg-black/30 px-3 py-2 text-xs"><select name="currency" class="rounded border border-white/15 bg-ownerInk px-2 py-2 text-xs"><option>GBP</option><option>EUR</option><option>USD</option></select></div>
+        <textarea name="terms" maxlength="5000" rows="3" placeholder="Headline terms" class="w-full rounded border border-white/15 bg-black/30 px-3 py-2 text-xs"></textarea>
+        <textarea name="conditions" maxlength="5000" rows="3" placeholder="Conditions, funding or due-diligence requirements" class="w-full rounded border border-white/15 bg-black/30 px-3 py-2 text-xs"></textarea>
+        <label class="block text-[10px] text-white/45">Offer expiry (optional)<input type="date" name="expires_on" class="mt-1 w-full rounded border border-white/15 bg-ownerInk px-3 py-2 text-xs text-white"></label>
+        <button class="w-full rounded bg-ownerMint px-3 py-2 text-xs font-semibold text-ownerInk">Submit offer</button>
+      </form>
+      {% elif current_user.role == 'admin' %}<p class="text-xs text-white/45">Administrators can review the complete history but cannot negotiate on behalf of either party.</p>{% endif %}
+    </div>
+  </section>
+
   <div class="grid gap-6 lg:grid-cols-[1.25fr_.75fr]">
     <section class="rounded-xl border border-white/10 bg-black/25 p-5">
       <h2 class="text-sm font-semibold">Messages and Q&amp;A</h2>

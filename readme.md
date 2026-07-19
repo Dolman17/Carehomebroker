@@ -73,6 +73,10 @@ Private introduction workspaces with messaging, Q&A, tasks and milestones
 
 Due-date reminders through immediate or weekly notification delivery
 
+Structured monetary offers with conditions, expiry, counter-offers and permanent history
+
+Accepted-offer synchronisation into introduction and deal records
+
 Listing matching logic
 
 Confidential listing handling
