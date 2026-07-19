@@ -77,6 +77,10 @@ Structured monetary offers with conditions, expiry, counter-offers and permanent
 
 Accepted-offer synchronisation into introduction and deal records
 
+Privacy-safe seller analytics for listing views, unique visitors and shortlist activity
+
+Seller conversion funnels, buyer-quality summaries, stage timing and listing comparisons
+
 Listing matching logic
 
 Confidential listing handling

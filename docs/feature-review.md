@@ -1,6 +1,6 @@
 # Ownerlane feature review
 
-Reviewed: 17 July 2026
+Reviewed: 19 July 2026
 
 This is a product-readiness review of the current application, not a security certification. Scores reflect how complete each workflow feels for an early business marketplace.
 
@@ -11,7 +11,7 @@ This is a product-readiness review of the current application, not a security ce
 | Marketplace discovery | Public live listings, confidentiality gating, keyword/region/sector/price filters, price sorting, list and map views, pagination | 8/10 | More sector-specific filters and search analytics |
 | Buyer workflow | Detailed profile, reviewed qualification, proof-of-funds evidence, trust badges, matches, shortlist, saved searches, alerts, enquiries and subscriptions | 9/10 | Team buying groups and mandate approval |
 | Authentication | Verified-email registration, expiring one-time password resets, persistent login throttling and stricter admin sessions | 8/10 | Optional admin MFA and security-event audit views |
-| Seller workflow | Profile, listing creation/editing, photos, status changes, enquiries, buyer matches, introductions, staged data rooms, structured offers and valuation requests | 9/10 | Listing analytics |
+| Seller workflow | Profile, listing management, enquiries, buyer matches, introductions, staged data rooms, structured offers, valuation requests and privacy-safe analytics | 9/10 | Portfolio tools and team permissions |
 | Confidentiality | Blurred restricted data, premium access rules, NDAs, staged disclosure permissions and audited private downloads | 9/10 | Retention controls and external storage hardening |
 | Matching | Profile-driven ranking with fit reasons and seller-side buyer matches | 6/10 | Normalised sector criteria and explainable weighting controls |
 | Introductions and deals | Request/approve/decline lifecycle, private workspaces, tasks, milestones, structured offer negotiation, deal creation, price, commission and status | 9/10 | E-signatures and completion workflow |
@@ -19,7 +19,7 @@ This is a product-readiness review of the current application, not a security ce
 | Billing | Stripe checkout, webhooks, subscription state and customer portal | 7/10 | Failed-payment recovery and entitlement audit views |
 | Admin | Role directories, listing approval, enquiries, matches, introductions, data-room access, audit log, deals, subscriptions, content and impersonation | 8/10 | Operational reporting and bulk actions |
 | Notifications | Persistent notification centre, unread state, immediate/weekly/off preferences, deduplicated saved-search alerts and transaction events | 8/10 | Delivery analytics, per-event controls and background workers |
-| Reporting | Deal/commission records and dashboard counts | 3/10 | Funnel, time-to-stage, listing engagement and revenue analytics |
+| Reporting | Seller listing engagement, conversion funnels, buyer quality, time-to-stage, listing comparisons and deal/commission records | 7/10 | Platform revenue analytics and scheduled reports |
 | Multi-sector data model | First-class sectors, configurable attributes and legacy compatibility | 7/10 | Admin-managed sector schemas and buyer criteria migration |
 
 ## Improvements delivered in this release
@@ -51,6 +51,8 @@ This is a product-readiness review of the current application, not a security ce
 - Added private deal workspaces with participant messaging, resolvable Q&A, assigned tasks, due dates, reminders and milestones.
 - Added exact structured offers with terms, conditions, optional expiry dates and permanent counter-offer chains.
 - Added participant-controlled acceptance, rejection and withdrawal, plus automatic accepted-price and deal synchronisation.
+- Added privacy-safe listing view and shortlist activity measurement using one-way visitor identifiers, with seller and administrator self-views excluded.
+- Added seller date/listing filters, engagement trends, conversion funnels, buyer-quality summaries, time-in-stage reporting and listing comparisons.
 
 Saved-search matches are included in the protected weekly digest task. Immediate delivery is available for transaction and data-room events when selected in notification preferences.
 
@@ -70,7 +72,7 @@ Saved-search matches are included in the protected weekly digest task. Immediate
 2. **Buyer qualification — delivered.** Identity, business and proof-of-funds review plus acquisition track records and seller-visible trust badges are in place.
 3. **Deal workspace — delivered.** Approved introductions now include private messaging, resolvable Q&A, assigned tasks, due dates, reminders and milestones.
 4. **Offers and negotiation — delivered.** Exact monetary offers, conditions, expiry, counter-offers, participant responses and accepted-offer history are tied to each introduction.
-5. **Seller analytics.** Show listing views, shortlist counts, enquiry conversion, matched-buyer quality and time in each stage.
+5. **Seller analytics — delivered.** Listing views, unique visitors, shortlist activity, conversion, matched-buyer quality, time in stage and per-listing comparisons are available without exposing browsing identities.
 6. **Adviser marketplace.** Generalise valuers into adviser categories with verification, coverage, availability, quotes and reviews.
 
 ### P2 — intelligence and scale
@@ -83,4 +85,4 @@ Saved-search matches are included in the protected weekly digest task. Immediate
 
 ## Suggested next build
 
-Build seller analytics next: listing views, shortlist and enquiry conversion, matched-buyer quality, and time spent in each transaction stage.
+Build the adviser marketplace next: generalise valuers into verified adviser categories with coverage, availability, scope and quote management, and reviews.

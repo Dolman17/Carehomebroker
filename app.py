@@ -80,7 +80,7 @@ app.config["LEGAL_CONTACT_EMAIL"] = os.getenv(
     "LEGAL_CONTACT_EMAIL", "hello@ownerlane.uk"
 )
 app.config["LEGAL_LAST_UPDATED"] = os.getenv(
-    "LEGAL_LAST_UPDATED", "17 July 2026"
+    "LEGAL_LAST_UPDATED", "19 July 2026"
 )
 railway_public_domain = os.getenv("RAILWAY_PUBLIC_DOMAIN")
 public_base_url = os.getenv("PUBLIC_BASE_URL") or (
@@ -615,6 +615,29 @@ class ShortlistItem(db.Model):
     __table_args__ = (
         db.UniqueConstraint(
             "buyer_id", "listing_id", name="uq_shortlist_item_buyer_listing"
+        ),
+    )
+
+
+class ListingAnalyticsEvent(db.Model):
+    """Privacy-safe listing activity; visitor identities are one-way hashed."""
+
+    __tablename__ = "listing_analytics_event"
+
+    id = db.Column(db.Integer, primary_key=True)
+    listing_id = db.Column(
+        db.Integer, db.ForeignKey("listing.id"), nullable=False, index=True
+    )
+    event_type = db.Column(db.String(30), nullable=False, index=True)
+    visitor_hash = db.Column(db.String(64), nullable=False)
+    occurred_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, index=True)
+
+    listing = db.relationship("Listing", backref="analytics_events", lazy=True)
+
+    __table_args__ = (
+        db.Index(
+            "ix_listing_analytics_listing_event_time",
+            "listing_id", "event_type", "occurred_at",
         ),
     )
 
@@ -1854,6 +1877,44 @@ def workspace_recipients(introduction: Introduction, exclude_user_id=None):
     ]
 
 
+def _listing_analytics_visitor_hash() -> str:
+    if current_user.is_authenticated:
+        identity = f"user:{current_user.id}"
+    else:
+        address = request.headers.get("X-Forwarded-For", request.remote_addr or "")
+        address = address.split(",", 1)[0].strip()
+        user_agent = request.headers.get("User-Agent", "")[:250]
+        identity = f"anonymous:{address}:{user_agent}"
+    return hmac.new(
+        app.config["SECRET_KEY"].encode(), identity.encode(), hashlib.sha256
+    ).hexdigest()
+
+
+def record_listing_analytics_event(listing: Listing, event_type: str):
+    """Record aggregate seller analytics without retaining a buyer or IP identity."""
+    if event_type not in {"view", "shortlist_added", "shortlist_removed"}:
+        return None
+    if (
+        current_user.is_authenticated
+        and (current_user.role == "admin" or current_user.id == listing.seller_id)
+    ):
+        return None
+    try:
+        event = ListingAnalyticsEvent(
+            listing_id=listing.id,
+            event_type=event_type,
+            visitor_hash=_listing_analytics_visitor_hash(),
+            occurred_at=utcnow(),
+        )
+        db.session.add(event)
+        db.session.commit()
+        return event
+    except Exception:
+        db.session.rollback()
+        current_app.logger.exception("Could not record listing analytics")
+        return None
+
+
 def can_negotiate_offer(user, introduction: Introduction) -> bool:
     return bool(
         can_access_deal_workspace(user, introduction)
@@ -2989,6 +3050,9 @@ def listing_detail(listing_id):
     if not can_access_listing(current_user, listing):
         abort(404)
 
+    if request.method == "GET" and listing.status == "live":
+        record_listing_analytics_event(listing, "view")
+
     # ---- Work out buyer flags for the template ----
     is_premium_buyer = False
     is_shortlisted = False
@@ -3822,6 +3886,239 @@ def update_notification_preferences():
 # -------------------------------------------------------------------
 # Seller routes
 # -------------------------------------------------------------------
+
+
+def _seller_analytics_snapshot(seller_id, selected_listings, start_at, now):
+    listing_ids = [listing.id for listing in selected_listings]
+    rows = {
+        listing.id: {
+            "listing": listing, "views": 0, "visitor_hashes": set(),
+            "shortlist_adds": 0, "shortlist_removes": 0, "current_shortlists": 0,
+            "enquiries": 0, "introductions": 0, "offers": 0, "accepted": 0,
+        }
+        for listing in selected_listings
+    }
+    if not listing_ids:
+        return {
+            "summary": {key: 0 for key in (
+                "views", "unique_visitors", "current_shortlists", "shortlist_adds",
+                "enquiries", "introductions", "offers", "accepted", "completed",
+            )},
+            "listing_rows": [], "trend": [], "funnel": [],
+            "stage_timing": [], "match_quality": {}, "qualification_quality": {},
+        }
+
+    events = ListingAnalyticsEvent.query.filter(
+        ListingAnalyticsEvent.listing_id.in_(listing_ids),
+        ListingAnalyticsEvent.occurred_at >= start_at,
+        ListingAnalyticsEvent.occurred_at <= now,
+    ).all()
+    enquiries = Enquiry.query.filter(
+        Enquiry.listing_id.in_(listing_ids), Enquiry.created_at >= start_at,
+        Enquiry.created_at <= now,
+    ).all()
+    leads = Lead.query.filter(
+        Lead.listing_id.in_(listing_ids), Lead.created_at >= start_at,
+        Lead.created_at <= now,
+    ).all()
+    introductions = Introduction.query.filter(
+        Introduction.listing_id.in_(listing_ids), Introduction.created_at >= start_at,
+        Introduction.created_at <= now,
+    ).all()
+    offers = StructuredOffer.query.join(Introduction).filter(
+        Introduction.listing_id.in_(listing_ids), StructuredOffer.created_at >= start_at,
+        StructuredOffer.created_at <= now,
+    ).all()
+    accepted_offers = StructuredOffer.query.join(Introduction).filter(
+        Introduction.listing_id.in_(listing_ids), StructuredOffer.status == "accepted",
+        StructuredOffer.responded_at >= start_at, StructuredOffer.responded_at <= now,
+    ).all()
+
+    visitor_hashes = set()
+    for event in events:
+        row = rows[event.listing_id]
+        if event.event_type == "view":
+            row["views"] += 1
+            row["visitor_hashes"].add(event.visitor_hash)
+            visitor_hashes.add(event.visitor_hash)
+        elif event.event_type == "shortlist_added":
+            row["shortlist_adds"] += 1
+        elif event.event_type == "shortlist_removed":
+            row["shortlist_removes"] += 1
+    for listing_id, count in db.session.query(
+        ShortlistItem.listing_id, func.count(ShortlistItem.id)
+    ).filter(ShortlistItem.listing_id.in_(listing_ids)).group_by(
+        ShortlistItem.listing_id
+    ).all():
+        rows[listing_id]["current_shortlists"] = count
+    for enquiry in enquiries:
+        rows[enquiry.listing_id]["enquiries"] += 1
+    for lead in leads:
+        rows[lead.listing_id]["enquiries"] += 1
+    for intro in introductions:
+        rows[intro.listing_id]["introductions"] += 1
+    for offer in offers:
+        rows[offer.introduction.listing_id]["offers"] += 1
+    for offer in accepted_offers:
+        rows[offer.introduction.listing_id]["accepted"] += 1
+
+    completed = Introduction.query.filter(
+        Introduction.listing_id.in_(listing_ids), Introduction.status == "completed",
+        Introduction.updated_at >= start_at, Introduction.updated_at <= now,
+    ).count()
+    summary = {
+        "views": sum(row["views"] for row in rows.values()),
+        "unique_visitors": len(visitor_hashes),
+        "current_shortlists": sum(row["current_shortlists"] for row in rows.values()),
+        "shortlist_adds": sum(row["shortlist_adds"] for row in rows.values()),
+        "enquiries": len(enquiries) + len(leads),
+        "introductions": len(introductions),
+        "offers": len(offers),
+        "accepted": len(accepted_offers),
+        "completed": completed,
+    }
+
+    listing_rows = []
+    for row in rows.values():
+        row["unique_visitors"] = len(row.pop("visitor_hashes"))
+        row["enquiry_conversion"] = round(
+            row["enquiries"] * 100 / row["unique_visitors"], 1
+        ) if row["unique_visitors"] else 0
+        listing_rows.append(row)
+    listing_rows.sort(
+        key=lambda row: (row["views"], row["enquiries"], row["offers"]), reverse=True
+    )
+
+    funnel_values = (
+        ("Unique visitors", summary["unique_visitors"]),
+        ("Shortlist adds", summary["shortlist_adds"]),
+        ("Enquiries", summary["enquiries"]),
+        ("Introductions", summary["introductions"]),
+        ("Offers", summary["offers"]),
+        ("Accepted", summary["accepted"]),
+    )
+    funnel = []
+    previous = None
+    for label, count in funnel_values:
+        conversion = None if previous is None else (
+            round(count * 100 / previous, 1) if previous else 0
+        )
+        funnel.append({"label": label, "count": count, "conversion": conversion})
+        previous = count
+
+    span_days = max((now.date() - start_at.date()).days + 1, 1)
+    bucket_count = min(12, span_days)
+    bucket_days = max(math.ceil(span_days / bucket_count), 1)
+    trend = []
+    for index in range(bucket_count):
+        bucket_start = start_at + timedelta(days=index * bucket_days)
+        bucket_end = min(bucket_start + timedelta(days=bucket_days), now + timedelta(seconds=1))
+        trend.append({
+            "start": bucket_start, "end": bucket_end,
+            "label": bucket_start.strftime("%d %b"),
+            "views": sum(1 for event in events if event.event_type == "view" and bucket_start <= event.occurred_at < bucket_end),
+            "shortlists": sum(1 for event in events if event.event_type == "shortlist_added" and bucket_start <= event.occurred_at < bucket_end),
+            "enquiries": sum(1 for item in enquiries if bucket_start <= item.created_at < bucket_end) + sum(1 for item in leads if bucket_start <= item.created_at < bucket_end),
+        })
+    trend_max = max((max(point["views"], point["shortlists"], point["enquiries"]) for point in trend), default=0)
+    for point in trend:
+        for key in ("views", "shortlists", "enquiries"):
+            point[f"{key}_width"] = round(point[key] * 100 / trend_max, 1) if trend_max else 0
+
+    history_by_intro = {}
+    if introductions:
+        for history in IntroductionStatusHistory.query.filter(
+            IntroductionStatusHistory.introduction_id.in_([intro.id for intro in introductions])
+        ).order_by(IntroductionStatusHistory.changed_at.asc()).all():
+            history_by_intro.setdefault(history.introduction_id, []).append(history)
+    stage_seconds = {}
+    for intro in introductions:
+        history = history_by_intro.get(intro.id, [])
+        stage = (history[0].old_status if history else intro.status) or "initiated"
+        cursor = intro.created_at or start_at
+        for change in history:
+            if change.changed_at and change.changed_at >= cursor:
+                stage_seconds.setdefault(stage, []).append((change.changed_at - cursor).total_seconds())
+                cursor = change.changed_at
+            stage = change.new_status or stage
+        if stage not in {"completed", "declined", "failed"} and now >= cursor:
+            stage_seconds.setdefault(stage, []).append((now - cursor).total_seconds())
+    status_labels = dict(INTRO_STATUSES)
+    stage_timing = [
+        {
+            "status": status, "label": status_labels.get(status, status.replace("_", " ").title()),
+            "days": round(sum(values) / len(values) / 86400, 1), "sample": len(values),
+        }
+        for status, values in stage_seconds.items() if values
+    ]
+    stage_timing.sort(key=lambda item: [key for key, _ in INTRO_STATUSES].index(item["status"]) if item["status"] in dict(INTRO_STATUSES) else 99)
+
+    premium_ids = {
+        row[0] for row in db.session.query(Subscription.user_id).filter_by(
+            role="buyer", tier="premium", is_active=True
+        ).distinct().all()
+    }
+    match_quality = {"strong": 0, "good": 0, "possible": 0, "verified": 0}
+    if premium_ids:
+        for profile in BuyerProfile.query.filter(BuyerProfile.user_id.in_(premium_ids)).all():
+            best_score = max(
+                (compute_buyer_listing_match(listing, profile)[0] for listing in selected_listings),
+                default=0,
+            )
+            if best_score <= 0:
+                continue
+            key = "strong" if best_score >= 60 else "good" if best_score >= 30 else "possible"
+            match_quality[key] += 1
+            qualification = BuyerQualification.query.filter_by(user_id=profile.user_id).first()
+            if qualification and qualification.overall_status == "verified":
+                match_quality["verified"] += 1
+
+    qualification_quality = {"verified": 0, "in_review": 0, "action_required": 0, "not_submitted": 0}
+    for buyer_id in {intro.buyer_id for intro in introductions}:
+        qualification = BuyerQualification.query.filter_by(user_id=buyer_id).first()
+        status = qualification.overall_status if qualification else "not_submitted"
+        qualification_quality[status] = qualification_quality.get(status, 0) + 1
+
+    return {
+        "summary": summary, "listing_rows": listing_rows, "trend": trend,
+        "funnel": funnel, "stage_timing": stage_timing,
+        "match_quality": match_quality, "qualification_quality": qualification_quality,
+    }
+
+
+@app.route("/seller/analytics")
+@login_required
+@role_required("seller")
+def seller_analytics():
+    seller_listings = Listing.query.filter_by(seller_id=current_user.id).order_by(
+        Listing.created_at.desc()
+    ).all()
+    listing_id = request.args.get("listing_id", type=int)
+    if listing_id and listing_id not in {listing.id for listing in seller_listings}:
+        abort(404)
+    selected_listings = [
+        listing for listing in seller_listings if not listing_id or listing.id == listing_id
+    ]
+    period = (request.args.get("period") or "30").strip()
+    if period not in {"30", "90", "365", "all"}:
+        period = "30"
+    now = utcnow()
+    if period == "all":
+        start_at = min(
+            (listing.created_at for listing in selected_listings if listing.created_at),
+            default=now,
+        )
+    else:
+        start_at = now - timedelta(days=int(period))
+    snapshot = _seller_analytics_snapshot(
+        current_user.id, selected_listings, start_at, now
+    )
+    return render_template(
+        "seller/analytics.html", seller_listings=seller_listings,
+        selected_listing_id=listing_id, selected_period=period,
+        start_at=start_at, now=now, **snapshot,
+    )
+
 
 @app.route("/seller/dashboard")
 @login_required
@@ -5809,13 +6106,16 @@ def toggle_shortlist(listing_id):
 
     if item:
         db.session.delete(item)
+        analytics_event_type = "shortlist_removed"
         flash("Listing removed from your shortlist.", "info")
     else:
         db.session.add(
             ShortlistItem(buyer_id=current_user.id, listing_id=listing.id)
         )
+        analytics_event_type = "shortlist_added"
         flash("Listing added to your shortlist.", "success")
     db.session.commit()
+    record_listing_analytics_event(listing, analytics_event_type)
 
     # Go back to where the user came from, or fallback to shortlist page
     requested_next = request.form.get("next") or request.referrer
@@ -6221,8 +6521,14 @@ def admin_introduction_requests():
 @role_required("admin")
 def admin_approve_intro_request(intro_id):
     intro = Introduction.query.get_or_404(intro_id)
+    previous_status = intro.status
     intro.status = "initiated"
-    intro.updated_at = datetime.utcnow()
+    intro.updated_at = utcnow()
+    db.session.add(IntroductionStatusHistory(
+        introduction_id=intro.id, old_status=previous_status,
+        new_status="initiated", changed_by_user_id=current_user.id,
+        note="Introduction request approved",
+    ))
     db.session.commit()
     record_audit_event(
         "admin.introduction_approved", "Introduction request approved",
@@ -6249,7 +6555,14 @@ def admin_approve_intro_request(intro_id):
 @role_required("admin")
 def admin_decline_intro_request(intro_id):
     intro = Introduction.query.get_or_404(intro_id)
+    previous_status = intro.status
     intro.status = "declined"
+    intro.updated_at = utcnow()
+    db.session.add(IntroductionStatusHistory(
+        introduction_id=intro.id, old_status=previous_status,
+        new_status="declined", changed_by_user_id=current_user.id,
+        note="Introduction request declined",
+    ))
     db.session.commit()
     record_audit_event(
         "admin.introduction_declined", "Introduction request declined",

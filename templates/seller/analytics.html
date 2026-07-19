@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}Seller analytics{% endblock %}
+{% block content %}
+<div class="space-y-6">
+  <div class="flex flex-wrap items-end justify-between gap-3">
+    <div><p class="text-[11px] uppercase tracking-[0.2em] text-ownerMint">Performance</p><h1 class="mt-2 text-2xl font-semibold">Seller analytics</h1><p class="mt-1 text-sm text-white/55">Aggregate marketplace activity without exposing individual buyer browsing.</p></div>
+    <a href="{{ url_for('seller_dashboard') }}" class="rounded border border-white/20 px-3 py-2 text-xs hover:text-ownerMint">Back to dashboard</a>
+  </div>
+
+  <form method="get" class="grid gap-3 rounded-xl border border-white/10 bg-black/25 p-4 sm:grid-cols-[1fr_12rem_auto]">
+    <label class="text-[10px] uppercase tracking-wide text-white/45">Listing<select name="listing_id" class="mt-1 w-full rounded border border-white/15 bg-ownerInk px-3 py-2 text-xs normal-case tracking-normal text-white"><option value="">All listings</option>{% for listing in seller_listings %}<option value="{{ listing.id }}" {% if selected_listing_id == listing.id %}selected{% endif %}>{{ listing.listing_code or listing.title }}</option>{% endfor %}</select></label>
+    <label class="text-[10px] uppercase tracking-wide text-white/45">Period<select name="period" class="mt-1 w-full rounded border border-white/15 bg-ownerInk px-3 py-2 text-xs normal-case tracking-normal text-white">{% for value, label in [('30','Last 30 days'),('90','Last 90 days'),('365','Last 12 months'),('all','All time')] %}<option value="{{ value }}" {% if selected_period == value %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
+    <button class="self-end rounded bg-ownerMint px-4 py-2 text-xs font-semibold text-ownerInk">Apply filters</button>
+  </form>
+
+  <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+    {% for label, value, note in [
+      ('Listing views', summary.views, summary.unique_visitors ~ ' unique visitors'),
+      ('Current shortlists', summary.current_shortlists, summary.shortlist_adds ~ ' adds in period'),
+      ('Enquiries', summary.enquiries, summary.introductions ~ ' introductions'),
+      ('Offers', summary.offers, summary.accepted ~ ' accepted')
+    ] %}
+    <article class="rounded-xl border border-white/10 bg-black/25 p-4"><p class="text-[10px] uppercase tracking-wide text-white/40">{{ label }}</p><p class="mt-2 text-3xl font-semibold">{{ value }}</p><p class="mt-1 text-[11px] text-white/45">{{ note }}</p></article>
+    {% endfor %}
+  </div>
+
+  <div class="grid gap-6 lg:grid-cols-[1.2fr_.8fr]">
+    <section class="rounded-xl border border-white/10 bg-black/25 p-5">
+      <div class="flex flex-wrap items-center justify-between gap-2"><div><h2 class="text-sm font-semibold">Activity trend</h2><p class="mt-1 text-[10px] text-white/40">Views, new shortlist activity and enquiries from {{ start_at.strftime('%d %b %Y') }}.</p></div><div class="flex gap-3 text-[9px]"><span class="text-ownerMint">● Views</span><span class="text-ownerCoral">● Shortlists</span><span class="text-ownerBlue">● Enquiries</span></div></div>
+      <div class="mt-5 space-y-3">
+        {% for point in trend %}<div class="grid grid-cols-[3.2rem_1fr] items-center gap-3"><span class="text-[9px] text-white/40">{{ point.label }}</span><div class="space-y-1"><div class="h-1.5 rounded bg-white/5"><div class="h-full rounded bg-ownerMint" style="width: {{ point.views_width }}%"></div></div><div class="h-1.5 rounded bg-white/5"><div class="h-full rounded bg-ownerCoral" style="width: {{ point.shortlists_width }}%"></div></div><div class="h-1.5 rounded bg-white/5"><div class="h-full rounded bg-ownerBlue" style="width: {{ point.enquiries_width }}%"></div></div></div></div>{% else %}<p class="text-xs text-white/50">Activity will appear here after buyers visit a live listing.</p>{% endfor %}
+      </div>
+    </section>
+
+    <section class="rounded-xl border border-white/10 bg-black/25 p-5">
+      <h2 class="text-sm font-semibold">Transaction funnel</h2><p class="mt-1 text-[10px] text-white/40">Period activity at each step; percentages compare with the previous step.</p>
+      <div class="mt-4 space-y-3">{% set funnel_base = funnel[0].count if funnel and funnel[0].count else 1 %}{% for step in funnel %}<div><div class="flex justify-between text-[10px]"><span>{{ step.label }}</span><span class="text-white/55">{{ step.count }}{% if step.conversion is not none %} · {{ step.conversion }}%{% endif %}</span></div><div class="mt-1 h-2 rounded bg-white/5"><div class="h-full rounded bg-ownerMint/70" style="width: {{ [step.count * 100 / funnel_base, 100]|min }}%"></div></div></div>{% endfor %}</div>
+      <p class="mt-4 text-[9px] leading-relaxed text-white/35">Shortlist activity is measured from this analytics release onward. Current shortlist totals include earlier saved listings.</p>
+    </section>
+  </div>
+
+  <div class="grid gap-6 lg:grid-cols-3">
+    <section class="rounded-xl border border-white/10 bg-black/25 p-5"><h2 class="text-sm font-semibold">Buyer match quality</h2><p class="mt-1 text-[10px] text-white/40">Aggregate fit across active premium buyer mandates.</p><dl class="mt-4 space-y-2 text-xs">{% for key, label in [('strong','Strong matches'),('good','Good matches'),('possible','Possible matches'),('verified','Verified matches')] %}<div class="flex justify-between border-b border-white/5 pb-2"><dt class="text-white/55">{{ label }}</dt><dd class="font-semibold">{{ match_quality[key] or 0 }}</dd></div>{% endfor %}</dl></section>
+    <section class="rounded-xl border border-white/10 bg-black/25 p-5"><h2 class="text-sm font-semibold">Introduced buyer quality</h2><p class="mt-1 text-[10px] text-white/40">Qualification status for introductions opened in this period.</p><dl class="mt-4 space-y-2 text-xs">{% for key, label in [('verified','Verified'),('in_review','In review'),('action_required','Action required'),('not_submitted','Not submitted')] %}<div class="flex justify-between border-b border-white/5 pb-2"><dt class="text-white/55">{{ label }}</dt><dd class="font-semibold">{{ qualification_quality[key] or 0 }}</dd></div>{% endfor %}</dl></section>
+    <section class="rounded-xl border border-white/10 bg-black/25 p-5"><h2 class="text-sm font-semibold">Average time in stage</h2><p class="mt-1 text-[10px] text-white/40">Observed time for introductions opened in this period.</p><dl class="mt-4 space-y-2 text-xs">{% for stage in stage_timing %}<div class="flex justify-between border-b border-white/5 pb-2"><dt class="text-white/55">{{ stage.label }}</dt><dd class="text-right font-semibold">{{ stage.days }} days<p class="text-[8px] font-normal text-white/30">{{ stage.sample }} observation{{ '' if stage.sample == 1 else 's' }}</p></dd></div>{% else %}<p class="text-xs text-white/45">No stage history in this period.</p>{% endfor %}</dl></section>
+  </div>
+
+  <section class="overflow-hidden rounded-xl border border-white/10 bg-black/25">
+    <div class="p-5"><h2 class="text-sm font-semibold">Listing comparison</h2><p class="mt-1 text-[10px] text-white/40">Compare engagement and conversion without revealing individual visitors.</p></div>
+    <div class="overflow-x-auto"><table class="w-full min-w-[52rem] text-left text-xs"><thead class="border-y border-white/10 bg-white/[.03] text-[9px] uppercase tracking-wide text-white/40"><tr><th class="px-5 py-3">Listing</th><th class="px-3 py-3">Views</th><th class="px-3 py-3">Unique</th><th class="px-3 py-3">Shortlists</th><th class="px-3 py-3">Enquiries</th><th class="px-3 py-3">Introductions</th><th class="px-3 py-3">Offers</th><th class="px-3 py-3">View → enquiry</th></tr></thead><tbody>{% for row in listing_rows %}<tr class="border-b border-white/5"><td class="px-5 py-4"><a href="{{ url_for('seller_analytics', listing_id=row.listing.id, period=selected_period) }}" class="font-medium hover:text-ownerMint">{{ row.listing.listing_code or row.listing.title }}</a><p class="mt-1 text-[9px] text-white/35">{{ row.listing.status|replace('_',' ')|title }}</p></td><td class="px-3 py-4">{{ row.views }}</td><td class="px-3 py-4">{{ row.unique_visitors }}</td><td class="px-3 py-4">{{ row.current_shortlists }}</td><td class="px-3 py-4">{{ row.enquiries }}</td><td class="px-3 py-4">{{ row.introductions }}</td><td class="px-3 py-4">{{ row.offers }}</td><td class="px-3 py-4">{{ row.enquiry_conversion }}%</td></tr>{% else %}<tr><td colspan="8" class="px-5 py-8 text-center text-white/45">Create a listing to begin measuring performance.</td></tr>{% endfor %}</tbody></table></div>
+  </section>
+</div>
+{% endblock %}

@@ -14,6 +14,7 @@
     </div>
 
     <div class="flex items-center gap-2">
+      <a href="{{ url_for('seller_analytics') }}" class="rounded border border-white/20 px-3 py-1.5 text-[11px] text-white/75 hover:border-ownerMint hover:text-ownerMint">Analytics</a>
       {% if is_premium_seller(current_user) %}
         <span class="inline-flex items-center px-3 py-1 rounded-full text-[11px] bg-ownerMint text-black font-semibold uppercase tracking-[0.15em]">
           Seller Premium
@@ -156,6 +157,10 @@
   <a href="{{ url_for('seller_listing_data_room', listing_id=l.id) }}"
      class="px-3 py-1.5 rounded border border-ownerMint/40 text-ownerMint hover:bg-ownerMint hover:text-black transition">
     Data room
+  </a>
+  <a href="{{ url_for('seller_analytics', listing_id=l.id) }}"
+     class="px-3 py-1.5 rounded border border-white/20 text-white/80 hover:bg-white/10 hover:text-ownerMint transition">
+    Analytics
   </a>
 </div>
 
