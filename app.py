@@ -1164,6 +1164,60 @@ class Introduction(db.Model):
     listing = db.relationship("Listing")
 
 
+class WorkspaceMessage(db.Model):
+    __tablename__ = "workspace_message"
+
+    id = db.Column(db.Integer, primary_key=True)
+    introduction_id = db.Column(db.Integer, db.ForeignKey("introductions.id"), nullable=False, index=True)
+    author_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
+    message_type = db.Column(db.String(20), nullable=False, default="message", index=True)
+    body = db.Column(db.Text, nullable=False)
+    resolved_at = db.Column(db.DateTime)
+    resolved_by_id = db.Column(db.Integer, db.ForeignKey("user.id"))
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, index=True)
+
+    introduction = db.relationship("Introduction", backref="workspace_messages")
+    author = db.relationship("User", foreign_keys=[author_id])
+    resolved_by = db.relationship("User", foreign_keys=[resolved_by_id])
+
+
+class WorkspaceTask(db.Model):
+    __tablename__ = "workspace_task"
+
+    id = db.Column(db.Integer, primary_key=True)
+    introduction_id = db.Column(db.Integer, db.ForeignKey("introductions.id"), nullable=False, index=True)
+    title = db.Column(db.String(200), nullable=False)
+    description = db.Column(db.Text)
+    owner_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False, index=True)
+    created_by_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
+    status = db.Column(db.String(20), nullable=False, default="todo", index=True)
+    due_date = db.Column(db.Date, index=True)
+    completed_at = db.Column(db.DateTime)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+    introduction = db.relationship("Introduction", backref="workspace_tasks")
+    owner = db.relationship("User", foreign_keys=[owner_id])
+    created_by = db.relationship("User", foreign_keys=[created_by_id])
+
+
+class WorkspaceMilestone(db.Model):
+    __tablename__ = "workspace_milestone"
+
+    id = db.Column(db.Integer, primary_key=True)
+    introduction_id = db.Column(db.Integer, db.ForeignKey("introductions.id"), nullable=False, index=True)
+    title = db.Column(db.String(200), nullable=False)
+    due_date = db.Column(db.Date)
+    status = db.Column(db.String(20), nullable=False, default="planned", index=True)
+    sort_order = db.Column(db.Integer, nullable=False, default=0)
+    created_by_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
+    completed_at = db.Column(db.DateTime)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+    introduction = db.relationship("Introduction", backref="workspace_milestones")
+    created_by = db.relationship("User", foreign_keys=[created_by_id])
+
+
 class DataRoomDocument(db.Model):
     __tablename__ = "data_room_document"
 
@@ -1741,6 +1795,24 @@ def can_manage_data_room(user, listing: Listing) -> bool:
         getattr(user, "is_authenticated", False)
         and (user.role == "admin" or (user.role == "seller" and listing.seller_id == user.id))
     )
+
+
+def can_access_deal_workspace(user, introduction: Introduction) -> bool:
+    if not getattr(user, "is_authenticated", False):
+        return False
+    if user.role == "admin":
+        return True
+    return bool(
+        user.id in {introduction.buyer_id, introduction.seller_id}
+        and introduction.status not in {"pending_seller_request", "declined", "failed"}
+    )
+
+
+def workspace_recipients(introduction: Introduction, exclude_user_id=None):
+    return [
+        user for user in (introduction.buyer, introduction.seller)
+        if user.id != exclude_user_id
+    ]
 
 
 def buyer_data_room_access(user, listing: Listing):
@@ -3672,6 +3744,11 @@ def seller_dashboard():
     current_plan_label = None
     if active_sub:
         current_plan_label = f"{active_sub.role.capitalize()} {active_sub.tier.capitalize()}"
+    workspace_introductions = (
+        Introduction.query.filter_by(seller_id=current_user.id)
+        .filter(~Introduction.status.in_(["pending_seller_request", "declined", "failed"]))
+        .order_by(Introduction.updated_at.desc()).limit(10).all()
+    )
 
     return render_template(
         "seller/dashboard.html",
@@ -3680,6 +3757,7 @@ def seller_dashboard():
         profile_incomplete=profile_incomplete,
         current_plan_label=current_plan_label,
         active_sub=active_sub,
+        workspace_introductions=workspace_introductions,
         # optional: expose this if you want in template later
         # seller_is_premium=seller_is_premium,
     )
@@ -4603,6 +4681,238 @@ def download_data_room_document(document_id):
         app.config["DATA_ROOM_FOLDER"], document.filename,
         as_attachment=True, download_name=document.original_filename,
     )
+
+
+@app.route("/introductions/<int:intro_id>/workspace")
+@login_required
+def deal_workspace(intro_id):
+    intro = Introduction.query.get_or_404(intro_id)
+    if not can_access_deal_workspace(current_user, intro):
+        abort(404)
+    messages = WorkspaceMessage.query.filter_by(introduction_id=intro.id).order_by(
+        WorkspaceMessage.created_at.asc()
+    ).all()
+    tasks = WorkspaceTask.query.filter_by(introduction_id=intro.id).order_by(
+        WorkspaceTask.status.asc(), WorkspaceTask.due_date.asc(), WorkspaceTask.created_at.asc()
+    ).all()
+    milestones = WorkspaceMilestone.query.filter_by(introduction_id=intro.id).order_by(
+        WorkspaceMilestone.sort_order.asc(), WorkspaceMilestone.due_date.asc()
+    ).all()
+    return render_template(
+        "workspace/index.html", introduction=intro, messages=messages,
+        tasks=tasks, milestones=milestones,
+        participants=(intro.buyer, intro.seller),
+    )
+
+
+@app.route("/introductions/<int:intro_id>/workspace/messages", methods=["POST"])
+@login_required
+def add_workspace_message(intro_id):
+    intro = Introduction.query.get_or_404(intro_id)
+    if not can_access_deal_workspace(current_user, intro):
+        abort(404)
+    body = (request.form.get("body") or "").strip()
+    message_type = (request.form.get("message_type") or "message").strip()
+    if not body or message_type not in {"message", "question"}:
+        flash("Enter a message or question.", "error")
+        return redirect(url_for("deal_workspace", intro_id=intro.id))
+    message = WorkspaceMessage(
+        introduction_id=intro.id, author_id=current_user.id,
+        message_type=message_type, body=body[:5000],
+    )
+    db.session.add(message)
+    intro.updated_at = utcnow()
+    db.session.commit()
+    record_audit_event(
+        "workspace.question_added" if message_type == "question" else "workspace.message_added",
+        "Deal-workspace question added" if message_type == "question" else "Deal-workspace message added",
+        subject_user_id=intro.seller_id, resource_type="workspace_message",
+        resource_id=message.id, details={"introduction_id": intro.id},
+    )
+    if message.author_id != current_user.id:
+        publish_notification(
+            message.author, event_type="workspace_question",
+            title="Deal question resolved" if resolved else "Deal question reopened",
+            body=f"Your question for {intro.listing.listing_code or 'an introduction'} was {'resolved' if resolved else 'reopened'}.",
+            target_url=url_for("deal_workspace", intro_id=intro.id),
+            dedupe_key=f"workspace-question:{message.id}:{'resolved' if resolved else 'reopened'}",
+        )
+    for recipient in workspace_recipients(intro, current_user.id):
+        publish_notification(
+            recipient, event_type="workspace_message",
+            title="New deal-workspace question" if message_type == "question" else "New deal-workspace message",
+            body=f"A new update was posted for {intro.listing.listing_code or 'an introduction'}.",
+            target_url=url_for("deal_workspace", intro_id=intro.id),
+            dedupe_key=f"workspace-message:{message.id}:{recipient.id}",
+        )
+    flash("Question added." if message_type == "question" else "Message posted.", "success")
+    return redirect(url_for("deal_workspace", intro_id=intro.id))
+
+
+@app.route("/workspace/messages/<int:message_id>/resolve", methods=["POST"])
+@login_required
+def resolve_workspace_question(message_id):
+    message = WorkspaceMessage.query.get_or_404(message_id)
+    intro = message.introduction
+    if not can_access_deal_workspace(current_user, intro) or message.message_type != "question":
+        abort(404)
+    resolved = (request.form.get("resolved") or "1") == "1"
+    message.resolved_at = utcnow() if resolved else None
+    message.resolved_by_id = current_user.id if resolved else None
+    db.session.commit()
+    record_audit_event(
+        "workspace.question_resolved" if resolved else "workspace.question_reopened",
+        "Deal-workspace question resolved" if resolved else "Deal-workspace question reopened",
+        subject_user_id=intro.seller_id, resource_type="workspace_message",
+        resource_id=message.id, details={"introduction_id": intro.id},
+    )
+    return redirect(url_for("deal_workspace", intro_id=intro.id))
+
+
+@app.route("/introductions/<int:intro_id>/workspace/tasks", methods=["POST"])
+@login_required
+def add_workspace_task(intro_id):
+    intro = Introduction.query.get_or_404(intro_id)
+    if not can_access_deal_workspace(current_user, intro):
+        abort(404)
+    title = (request.form.get("title") or "").strip()
+    owner_id = request.form.get("owner_id", type=int)
+    if not title or owner_id not in {intro.buyer_id, intro.seller_id}:
+        flash("Enter a task and choose a deal participant.", "error")
+        return redirect(url_for("deal_workspace", intro_id=intro.id))
+    due_date = None
+    due_raw = (request.form.get("due_date") or "").strip()
+    if due_raw:
+        try:
+            due_date = datetime.strptime(due_raw, "%Y-%m-%d").date()
+        except ValueError:
+            flash("Choose a valid due date.", "error")
+            return redirect(url_for("deal_workspace", intro_id=intro.id))
+    task = WorkspaceTask(
+        introduction_id=intro.id, title=title[:200],
+        description=((request.form.get("description") or "").strip()[:3000] or None),
+        owner_id=owner_id, created_by_id=current_user.id, due_date=due_date,
+    )
+    db.session.add(task)
+    intro.updated_at = utcnow()
+    db.session.commit()
+    record_audit_event(
+        "workspace.task_created", "Deal-workspace task created",
+        subject_user_id=owner_id, resource_type="workspace_task", resource_id=task.id,
+        details={"introduction_id": intro.id, "due_date": str(due_date) if due_date else None},
+    )
+    publish_notification(
+        task.owner, event_type="workspace_task", title="New deal task assigned",
+        body=f"{task.title} was assigned for {intro.listing.listing_code or 'an introduction'}.",
+        target_url=url_for("deal_workspace", intro_id=intro.id),
+        dedupe_key=f"workspace-task:{task.id}:created",
+    )
+    flash("Task added.", "success")
+    return redirect(url_for("deal_workspace", intro_id=intro.id))
+
+
+@app.route("/workspace/tasks/<int:task_id>/status", methods=["POST"])
+@login_required
+def update_workspace_task(task_id):
+    task = WorkspaceTask.query.get_or_404(task_id)
+    intro = task.introduction
+    if not can_access_deal_workspace(current_user, intro):
+        abort(404)
+    status = (request.form.get("status") or "").strip()
+    if status not in {"todo", "in_progress", "completed"}:
+        flash("Choose a valid task status.", "error")
+        return redirect(url_for("deal_workspace", intro_id=intro.id))
+    task.status = status
+    task.completed_at = utcnow() if status == "completed" else None
+    task.updated_at = utcnow()
+    db.session.commit()
+    record_audit_event(
+        "workspace.task_status_changed", "Deal-workspace task status changed",
+        subject_user_id=task.owner_id, resource_type="workspace_task", resource_id=task.id,
+        details={"introduction_id": intro.id, "status": status},
+    )
+    if task.owner_id != current_user.id:
+        publish_notification(
+            task.owner, event_type="workspace_task",
+            title="Deal task updated", body=f"{task.title} is now {status.replace('_', ' ')}.",
+            target_url=url_for("deal_workspace", intro_id=intro.id),
+            dedupe_key=f"workspace-task:{task.id}:{status}",
+        )
+    flash("Task updated.", "success")
+    return redirect(url_for("deal_workspace", intro_id=intro.id))
+
+
+@app.route("/introductions/<int:intro_id>/workspace/milestones", methods=["POST"])
+@login_required
+def add_workspace_milestone(intro_id):
+    intro = Introduction.query.get_or_404(intro_id)
+    if not can_access_deal_workspace(current_user, intro):
+        abort(404)
+    title = (request.form.get("title") or "").strip()
+    if not title:
+        flash("Enter a milestone title.", "error")
+        return redirect(url_for("deal_workspace", intro_id=intro.id))
+    due_date = None
+    due_raw = (request.form.get("due_date") or "").strip()
+    if due_raw:
+        try:
+            due_date = datetime.strptime(due_raw, "%Y-%m-%d").date()
+        except ValueError:
+            flash("Choose a valid milestone date.", "error")
+            return redirect(url_for("deal_workspace", intro_id=intro.id))
+    milestone = WorkspaceMilestone(
+        introduction_id=intro.id, title=title[:200], due_date=due_date,
+        sort_order=WorkspaceMilestone.query.filter_by(introduction_id=intro.id).count(),
+        created_by_id=current_user.id,
+    )
+    db.session.add(milestone)
+    intro.updated_at = utcnow()
+    db.session.commit()
+    record_audit_event(
+        "workspace.milestone_created", "Deal-workspace milestone created",
+        subject_user_id=intro.seller_id, resource_type="workspace_milestone",
+        resource_id=milestone.id, details={"introduction_id": intro.id},
+    )
+    for recipient in workspace_recipients(intro, current_user.id):
+        publish_notification(
+            recipient, event_type="workspace_milestone", title="New deal milestone",
+            body=f"{milestone.title} was added for {intro.listing.listing_code or 'an introduction'}.",
+            target_url=url_for("deal_workspace", intro_id=intro.id),
+            dedupe_key=f"workspace-milestone:{milestone.id}:{recipient.id}",
+        )
+    flash("Milestone added.", "success")
+    return redirect(url_for("deal_workspace", intro_id=intro.id))
+
+
+@app.route("/workspace/milestones/<int:milestone_id>/status", methods=["POST"])
+@login_required
+def update_workspace_milestone(milestone_id):
+    milestone = WorkspaceMilestone.query.get_or_404(milestone_id)
+    intro = milestone.introduction
+    if not can_access_deal_workspace(current_user, intro):
+        abort(404)
+    status = (request.form.get("status") or "").strip()
+    if status not in {"planned", "completed"}:
+        flash("Choose a valid milestone status.", "error")
+        return redirect(url_for("deal_workspace", intro_id=intro.id))
+    milestone.status = status
+    milestone.completed_at = utcnow() if status == "completed" else None
+    db.session.commit()
+    record_audit_event(
+        "workspace.milestone_status_changed", "Deal-workspace milestone status changed",
+        subject_user_id=intro.seller_id, resource_type="workspace_milestone",
+        resource_id=milestone.id, details={"introduction_id": intro.id, "status": status},
+    )
+    for recipient in workspace_recipients(intro, current_user.id):
+        publish_notification(
+            recipient, event_type="workspace_milestone",
+            title="Deal milestone updated",
+            body=f"{milestone.title} is now {status}.",
+            target_url=url_for("deal_workspace", intro_id=intro.id),
+            dedupe_key=f"workspace-milestone:{milestone.id}:{status}:{recipient.id}",
+        )
+    flash("Milestone updated.", "success")
+    return redirect(url_for("deal_workspace", intro_id=intro.id))
 
 
 @app.route("/buyer/profile", methods=["GET", "POST"])
@@ -6587,6 +6897,28 @@ def send_weekly_digest():
         Listing.status == "live", Listing.created_at >= since
     ).all():
         publish_listing_match_notifications(listing)
+
+    today = utcnow().date()
+    reminder_horizon = today + timedelta(days=7)
+    due_tasks = (
+        WorkspaceTask.query.join(Introduction)
+        .filter(
+            WorkspaceTask.status != "completed",
+            WorkspaceTask.due_date.isnot(None),
+            WorkspaceTask.due_date <= reminder_horizon,
+            ~Introduction.status.in_(["pending_seller_request", "declined", "failed"]),
+        )
+        .all()
+    )
+    for task in due_tasks:
+        timing = "overdue" if task.due_date < today else f"due {task.due_date.strftime('%d %b')}"
+        publish_notification(
+            task.owner, event_type="workspace_task_reminder",
+            title="Deal task reminder",
+            body=f"{task.title} is {timing} for {task.introduction.listing.listing_code or 'an introduction'}.",
+            target_url=url_for("deal_workspace", intro_id=task.introduction_id),
+            dedupe_key=f"workspace-task-reminder:{task.id}:{task.due_date.isoformat()}",
+        )
 
     # Retry immediate deliveries that previously failed.
     for notification in Notification.query.filter_by(

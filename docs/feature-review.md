@@ -14,7 +14,7 @@ This is a product-readiness review of the current application, not a security ce
 | Seller workflow | Profile, listing creation/editing, photos, status changes, enquiries, buyer matches, introductions, staged data rooms and valuation requests | 8/10 | Listing analytics and offer workflow |
 | Confidentiality | Blurred restricted data, premium access rules, NDAs, staged disclosure permissions and audited private downloads | 9/10 | Retention controls and external storage hardening |
 | Matching | Profile-driven ranking with fit reasons and seller-side buyer matches | 6/10 | Normalised sector criteria and explainable weighting controls |
-| Introductions and deals | Request/approve/decline lifecycle, history, deal creation, price, commission and status | 7/10 | Tasks, milestones, messaging and offer/counter-offer history |
+| Introductions and deals | Request/approve/decline lifecycle, private workspace messaging and Q&A, assigned tasks, reminders, milestones, deal creation, price, commission and status | 8/10 | Structured offer and counter-offer history |
 | Valuer workflow | Directory/profile, request assignment, accept/decline/update and digest support | 5/10 | Verification, availability, scope/quote management and billing |
 | Billing | Stripe checkout, webhooks, subscription state and customer portal | 7/10 | Failed-payment recovery and entitlement audit views |
 | Admin | Role directories, listing approval, enquiries, matches, introductions, data-room access, audit log, deals, subscriptions, content and impersonation | 8/10 | Operational reporting and bulk actions |
@@ -48,6 +48,7 @@ This is a product-readiness review of the current application, not a security ce
 - Added immediate access revocation, secure audited downloads and buyer notifications for new documents and access changes.
 - Added buyer qualification with private proof-of-funds evidence, administrator review decisions and seller-visible trust badges.
 - Added declared acquisition track records without exposing private evidence to sellers.
+- Added private deal workspaces with participant messaging, resolvable Q&A, assigned tasks, due dates, reminders and milestones.
 
 Saved-search matches are included in the protected weekly digest task. Immediate delivery is available for transaction and data-room events when selected in notification preferences.
 
@@ -65,7 +66,7 @@ Saved-search matches are included in the protected weekly digest task. Immediate
 
 1. **Staged data room — delivered.** Documents are organised by disclosure stage with version history, per-introduction permissions and audited access.
 2. **Buyer qualification — delivered.** Identity, business and proof-of-funds review plus acquisition track records and seller-visible trust badges are in place.
-3. **Deal workspace.** Add private messaging, Q&A, tasks, owners, due dates, milestones and reminders around each introduction.
+3. **Deal workspace — delivered.** Approved introductions now include private messaging, resolvable Q&A, assigned tasks, due dates, reminders and milestones.
 4. **Offers and negotiation.** Capture structured offers, conditions, expiry, counter-offers and accepted-offer history.
 5. **Seller analytics.** Show listing views, shortlist counts, enquiry conversion, matched-buyer quality and time in each stage.
 6. **Adviser marketplace.** Generalise valuers into adviser categories with verification, coverage, availability, quotes and reviews.
@@ -80,4 +81,4 @@ Saved-search matches are included in the protected weekly digest task. Immediate
 
 ## Suggested next build
 
-Build the deal workspace next: private introduction messaging, Q&A, tasks, owners, due dates, milestones and reminders. This creates the shared operating layer needed before structured offers and counter-offers.
+Build structured offers and negotiation next: monetary offers, conditions, expiry dates, counter-offers, withdrawal and a permanent accepted-offer history tied to each introduction.

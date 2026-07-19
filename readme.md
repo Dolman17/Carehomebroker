@@ -69,6 +69,10 @@ Immediate, weekly or disabled notification-email preferences
 
 Deduplicated saved-search and transaction-event delivery
 
+Private introduction workspaces with messaging, Q&A, tasks and milestones
+
+Due-date reminders through immediate or weekly notification delivery
+
 Listing matching logic
 
 Confidential listing handling
