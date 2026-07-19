@@ -47,4 +47,9 @@ def test_initial_migration_builds_a_fresh_database(tmp_path):
         "deals",
         "subscriptions",
         "listing_analytics_event",
+        "adviser_category",
+        "adviser_service",
+        "adviser_request",
+        "adviser_quote",
+        "adviser_review",
     } <= tables

@@ -1,12 +1,12 @@
 {% extends "base.html" %}
-{% block title %}Register as Valuer – Ownerlane{% endblock %}
+{% block title %}Register as an adviser – Ownerlane{% endblock %}
 
 {% block content %}
 <div class="max-w-xl mx-auto py-8">
   <div class="mb-6">
-    <h1 class="text-2xl font-semibold text-white mb-1">Register as a Valuer</h1>
+    <h1 class="text-2xl font-semibold text-white mb-1">Register as an adviser</h1>
     <p class="text-xs text-white/70">
-      Join the Ownerlane valuer network to be discoverable by business buyers and sellers.
+      Join the Ownerlane adviser marketplace to receive scoped requests from business buyers and sellers.
     </p>
   </div>
 
@@ -33,6 +33,8 @@
         </p>
       </div>
     </div>
+
+    <div><span class="block text-xs font-medium text-white/80 mb-2">Services offered</span><div class="grid gap-2 sm:grid-cols-2">{% for category in categories %}<label class="flex items-center gap-2 text-[11px] text-white/80"><input type="checkbox" name="categories" value="{{ category.slug }}" {% if category.slug == 'business-valuation' %}checked{% endif %}><span>{{ category.name }}</span></label>{% endfor %}</div></div>
 
     <!-- Company & accreditation -->
     <div class="grid sm:grid-cols-2 gap-4">
@@ -78,7 +80,7 @@
     <!-- Pricing notes -->
     <div>
       <label for="pricing_notes" class="block text-xs font-medium text-white/80 mb-1">
-        Valuation fee notes
+        Fee approach
       </label>
       <textarea id="pricing_notes" name="pricing_notes" rows="3"
                 class="w-full rounded border border-white/20 bg-black/40 px-3 py-2 text-sm text-white placeholder:text-white/40"
@@ -102,7 +104,7 @@
       </a>
       <button type="submit"
               class="px-4 py-2 rounded bg-ownerCoral text-white text-xs font-semibold hover:bg-ownerMint hover:text-black transition">
-        Create valuer account
+        Create adviser account
       </button>
     </div>
   </form>

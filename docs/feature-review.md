@@ -15,7 +15,7 @@ This is a product-readiness review of the current application, not a security ce
 | Confidentiality | Blurred restricted data, premium access rules, NDAs, staged disclosure permissions and audited private downloads | 9/10 | Retention controls and external storage hardening |
 | Matching | Profile-driven ranking with fit reasons and seller-side buyer matches | 6/10 | Normalised sector criteria and explainable weighting controls |
 | Introductions and deals | Request/approve/decline lifecycle, private workspaces, tasks, milestones, structured offer negotiation, deal creation, price, commission and status | 9/10 | E-signatures and completion workflow |
-| Valuer workflow | Directory/profile, request assignment, accept/decline/update and digest support | 5/10 | Verification, availability, scope/quote management and billing |
+| Adviser workflow | Multi-discipline directory, verification, coverage, availability, private requests, versioned quotes, engagement status and completed-work reviews | 8/10 | Evidence renewal, conflicts workflow and adviser billing |
 | Billing | Stripe checkout, webhooks, subscription state and customer portal | 7/10 | Failed-payment recovery and entitlement audit views |
 | Admin | Role directories, listing approval, enquiries, matches, introductions, data-room access, audit log, deals, subscriptions, content and impersonation | 8/10 | Operational reporting and bulk actions |
 | Notifications | Persistent notification centre, unread state, immediate/weekly/off preferences, deduplicated saved-search alerts and transaction events | 8/10 | Delivery analytics, per-event controls and background workers |
@@ -53,6 +53,8 @@ This is a product-readiness review of the current application, not a security ce
 - Added participant-controlled acceptance, rejection and withdrawal, plus automatic accepted-price and deal synchronisation.
 - Added privacy-safe listing view and shortlist activity measurement using one-way visitor identifiers, with seller and administrator self-views excluded.
 - Added seller date/listing filters, engagement trends, conversion funnels, buyer-quality summaries, time-in-stage reporting and listing comparisons.
+- Generalised the valuer framework into a multi-discipline adviser marketplace while retaining legacy valuation requests.
+- Added independent administrator verification, availability and coverage filters, private scopes, versioned quotes, engagement status, expiry processing and completed-engagement reviews.
 
 Saved-search matches are included in the protected weekly digest task. Immediate delivery is available for transaction and data-room events when selected in notification preferences.
 
@@ -73,7 +75,7 @@ Saved-search matches are included in the protected weekly digest task. Immediate
 3. **Deal workspace — delivered.** Approved introductions now include private messaging, resolvable Q&A, assigned tasks, due dates, reminders and milestones.
 4. **Offers and negotiation — delivered.** Exact monetary offers, conditions, expiry, counter-offers, participant responses and accepted-offer history are tied to each introduction.
 5. **Seller analytics — delivered.** Listing views, unique visitors, shortlist activity, conversion, matched-buyer quality, time in stage and per-listing comparisons are available without exposing browsing identities.
-6. **Adviser marketplace.** Generalise valuers into adviser categories with verification, coverage, availability, quotes and reviews.
+6. **Adviser marketplace — delivered.** Valuers now participate in a broader adviser directory with disciplines, verification, coverage, availability, private scoped requests, quote history and reviews.
 
 ### P2 — intelligence and scale
 
@@ -85,4 +87,4 @@ Saved-search matches are included in the protected weekly digest task. Immediate
 
 ## Suggested next build
 
-Build the adviser marketplace next: generalise valuers into verified adviser categories with coverage, availability, scope and quote management, and reviews.
+Build permissioned market benchmarks and valuation reports next, using completed and anonymised transaction data with minimum-sample safeguards.

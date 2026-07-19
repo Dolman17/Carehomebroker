@@ -81,6 +81,10 @@ Privacy-safe seller analytics for listing views, unique visitors and shortlist a
 
 Seller conversion funnels, buyer-quality summaries, stage timing and listing comparisons
 
+Multi-discipline adviser marketplace with verification, coverage and availability filters
+
+Private scoped requests, versioned quotes, engagement tracking and completed-work reviews
+
 Listing matching logic
 
 Confidential listing handling

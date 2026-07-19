@@ -1,12 +1,12 @@
 {% extends "base.html" %}
-{% block title %}Admin – Valuers{% endblock %}
+{% block title %}Admin – Advisers{% endblock %}
 
 {% block content %}
 <div class="mb-6 flex items-center justify-between gap-3">
   <div>
-    <h1 class="text-xl font-semibold text-white">Valuer framework</h1>
+    <h1 class="text-xl font-semibold text-white">Adviser marketplace</h1>
     <p class="text-xs text-white/70">
-      All valuers registered on the framework, with region coverage and tier.
+      Review adviser credentials, disciplines, coverage and independent verification status.
     </p>
   </div>
   <a href="{{ url_for('admin_dashboard') }}"
@@ -19,12 +19,13 @@
   <table class="min-w-full text-left text-xs">
     <thead class="bg-white/5 text-white/70 uppercase tracking-[0.15em] text-[10px]">
       <tr>
-        <th class="px-4 py-2">Valuer</th>
+        <th class="px-4 py-2">Adviser</th>
         <th class="px-4 py-2">Company</th>
         <th class="px-4 py-2">Accreditation</th>
         <th class="px-4 py-2">Regions</th>
         <th class="px-4 py-2">Notes</th>
         <th class="px-4 py-2">Tier</th>
+        <th class="px-4 py-2">Verification</th>
         <th class="px-4 py-2 text-right">Joined</th>
       </tr>
     </thead>
@@ -68,24 +69,25 @@
         <td class="px-4 py-2 align-top text-[11px]">
           {% if u.id in premium_ids %}
             <span class="inline-flex items-center px-2 py-0.5 rounded-full bg-ownerCoral/20 border border-ownerCoral/60 text-ownerCoral">
-              Valuer Premium
+              Adviser Premium
             </span>
           {% elif u.id in basic_ids %}
             <span class="inline-flex items-center px-2 py-0.5 rounded-full bg-white/5 border border-white/20 text-white/70">
-              Valuer Basic
+              Adviser Basic
             </span>
           {% else %}
             <span class="text-white/40">No active sub</span>
           {% endif %}
         </td>
+        <td class="px-4 py-2 align-top text-[11px]">{% if p %}<p class="mb-2 {{ 'text-ownerMint' if p.verification_status == 'verified' else 'text-ownerCoral' }}">{{ p.verification_status|replace('_',' ')|title }}</p><form method="post" action="{{ url_for('admin_adviser_verification', profile_id=p.id) }}" class="flex gap-1"><select name="status" class="rounded border border-white/10 bg-ownerInk px-1 py-1 text-[9px]">{% for status in ['pending','verified','rejected','unverified'] %}<option value="{{ status }}" {% if p.verification_status == status %}selected{% endif %}>{{ status|replace('_',' ')|title }}</option>{% endfor %}</select><button class="rounded border border-ownerMint/40 px-2 text-[9px] text-ownerMint">Save</button></form>{% else %}<span class="text-white/30">No profile</span>{% endif %}</td>
         <td class="px-4 py-2 align-top text-right text-[11px] text-white/60">
           {{ u.created_at.strftime("%d %b %Y") if u.created_at else "–" }}
         </td>
       </tr>
     {% else %}
       <tr>
-        <td colspan="7" class="px-4 py-4 text-center text-[11px] text-white/60">
-          No valuers found.
+        <td colspan="8" class="px-4 py-4 text-center text-[11px] text-white/60">
+          No advisers found.
         </td>
       </tr>
     {% endfor %}

@@ -69,6 +69,8 @@
           Listings
         </a>
 
+        <a href="{{ url_for('adviser_directory') }}" class="text-white/80 hover:text-ownerMint transition-colors">Advisers</a>
+
         <a href="{{ url_for('pricing') }}?role=buyer"
            class="text-white/80 hover:text-ownerMint transition-colors">
           Pricing
@@ -165,6 +167,7 @@
           <nav class="mt-4 grid gap-2.5 text-xs text-white/60" aria-label="Marketplace footer navigation">
             <a href="{{ url_for('listings') }}" class="hover:text-ownerMint">Business opportunities</a>
             <a href="{{ url_for('pricing') }}" class="hover:text-ownerMint">Plans & pricing</a>
+            <a href="{{ url_for('adviser_directory') }}" class="hover:text-ownerMint">Adviser marketplace</a>
             <a href="{{ url_for('register_buyer') }}" class="hover:text-ownerMint">Join as a buyer</a>
             <a href="{{ url_for('register_seller') }}" class="hover:text-ownerMint">Join as a seller</a>
             <a href="{{ url_for('register_valuer') }}" class="hover:text-ownerMint">Join as an adviser</a>
@@ -215,6 +218,8 @@
          class="py-1 text-white/80 hover:text-ownerMint">
         Listings
       </a>
+
+      <a href="{{ url_for('adviser_directory') }}" class="py-1 text-white/80 hover:text-ownerMint">Advisers</a>
 
       <a href="{{ url_for('pricing') }}"
          class="py-1 text-white/80 hover:text-ownerMint">

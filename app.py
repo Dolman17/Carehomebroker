@@ -251,6 +251,16 @@ DATA_ROOM_CATEGORIES = (
     ("other", "Other", "nda"),
 )
 
+DEFAULT_ADVISER_CATEGORIES = (
+    ("business-valuation", "Business valuation", "Independent valuations and valuation reviews."),
+    ("legal-transaction", "Legal & transaction", "Heads of terms, due diligence and transaction documents."),
+    ("tax-accounting", "Tax & accounting", "Transaction tax, financial diligence and accounting support."),
+    ("deal-finance", "Deal finance", "Acquisition finance, refinancing and funding advice."),
+    ("due-diligence", "Due diligence", "Commercial, financial and operational diligence."),
+    ("commercial-property", "Commercial property", "Property, lease, survey and real-estate advice."),
+    ("regulatory-compliance", "Regulatory & compliance", "Licensing, regulatory and compliance support."),
+)
+
 
 
 
@@ -560,6 +570,44 @@ def parse_listing_attributes(form, sector):
         else:
             values[key] = raw[:255]
     return values
+
+
+def get_adviser_categories():
+    categories = AdviserCategory.query.filter_by(is_active=True).order_by(
+        AdviserCategory.sort_order.asc(), AdviserCategory.name.asc()
+    ).all()
+    if categories:
+        return categories
+    for index, (slug, name, description) in enumerate(DEFAULT_ADVISER_CATEGORIES):
+        db.session.add(AdviserCategory(
+            slug=slug, name=name, description=description, sort_order=index
+        ))
+    db.session.commit()
+    return AdviserCategory.query.filter_by(is_active=True).order_by(
+        AdviserCategory.sort_order.asc(), AdviserCategory.name.asc()
+    ).all()
+
+
+def sync_adviser_services(profile, category_slugs):
+    categories = {
+        category.slug: category for category in get_adviser_categories()
+    }
+    selected_ids = {
+        categories[slug].id for slug in category_slugs if slug in categories
+    }
+    existing = {service.category_id: service for service in profile.adviser_services}
+    for category_id, service in existing.items():
+        if category_id not in selected_ids:
+            db.session.delete(service)
+    for category_id in selected_ids - set(existing):
+        db.session.add(AdviserService(profile_id=profile.id, category_id=category_id))
+
+
+def adviser_review_summary(adviser_id):
+    count, average = db.session.query(
+        func.count(AdviserReview.id), func.avg(AdviserReview.rating)
+    ).filter(AdviserReview.adviser_id == adviser_id).one()
+    return int(count or 0), round(float(average), 1) if average is not None else None
 
 
 def merge_legacy_listing_attributes(form, values):
@@ -919,13 +967,58 @@ class ValuerProfile(db.Model):
     regions = db.Column(db.String(255))  # comma-separated list or JSON
     pricing_notes = db.Column(db.Text)
     bio = db.Column(db.Text)
+    verification_status = db.Column(
+        db.String(20), nullable=False, default="unverified", index=True
+    )
+    availability_status = db.Column(
+        db.String(20), nullable=False, default="available", index=True
+    )
+    next_available_date = db.Column(db.Date)
+    remote_service = db.Column(db.Boolean, nullable=False, default=True)
+    verification_requested_at = db.Column(db.DateTime)
+    verified_at = db.Column(db.DateTime)
+    verified_by_id = db.Column(db.Integer, db.ForeignKey("user.id"))
 
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     user = db.relationship(
         "User",
+        foreign_keys=[user_id],
         backref=db.backref("valuer_profile", uselist=False),
     )
+    verified_by = db.relationship("User", foreign_keys=[verified_by_id])
+
+
+class AdviserCategory(db.Model):
+    __tablename__ = "adviser_category"
+
+    id = db.Column(db.Integer, primary_key=True)
+    slug = db.Column(db.String(80), nullable=False, unique=True, index=True)
+    name = db.Column(db.String(120), nullable=False, unique=True)
+    description = db.Column(db.Text)
+    is_active = db.Column(db.Boolean, nullable=False, default=True)
+    sort_order = db.Column(db.Integer, nullable=False, default=0)
+
+
+class AdviserService(db.Model):
+    __tablename__ = "adviser_service"
+    __table_args__ = (
+        db.UniqueConstraint("profile_id", "category_id", name="uq_adviser_service_category"),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    profile_id = db.Column(
+        db.Integer, db.ForeignKey("valuer_profiles.id"), nullable=False, index=True
+    )
+    category_id = db.Column(
+        db.Integer, db.ForeignKey("adviser_category.id"), nullable=False, index=True
+    )
+    description = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+    profile = db.relationship("ValuerProfile", backref="adviser_services")
+    category = db.relationship("AdviserCategory", backref="adviser_services")
 
 # -------------------------------------------------------------------
 # Seller Profile Models (Business-Level Seller Information)
@@ -1385,6 +1478,85 @@ class ValuationRequest(db.Model):
     listing = db.relationship("Listing", backref="valuation_requests")
     seller = db.relationship("User", foreign_keys=[seller_id])
     valuer = db.relationship("User", foreign_keys=[valuer_id])
+
+
+class AdviserRequest(db.Model):
+    __tablename__ = "adviser_request"
+
+    id = db.Column(db.Integer, primary_key=True)
+    requester_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False, index=True)
+    adviser_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False, index=True)
+    category_id = db.Column(
+        db.Integer, db.ForeignKey("adviser_category.id"), nullable=False, index=True
+    )
+    listing_id = db.Column(db.Integer, db.ForeignKey("listing.id"), index=True)
+    introduction_id = db.Column(db.Integer, db.ForeignKey("introductions.id"), index=True)
+    scope = db.Column(db.Text, nullable=False)
+    target_date = db.Column(db.Date)
+    budget_minor = db.Column(db.BigInteger)
+    currency = db.Column(db.String(3), nullable=False, default="GBP")
+    status = db.Column(db.String(20), nullable=False, default="requested", index=True)
+    declined_reason = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, index=True)
+    updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    accepted_at = db.Column(db.DateTime)
+    completed_at = db.Column(db.DateTime)
+    cancelled_at = db.Column(db.DateTime)
+
+    requester = db.relationship("User", foreign_keys=[requester_id])
+    adviser = db.relationship("User", foreign_keys=[adviser_id])
+    category = db.relationship("AdviserCategory")
+    listing = db.relationship("Listing")
+    introduction = db.relationship("Introduction")
+
+
+class AdviserQuote(db.Model):
+    __tablename__ = "adviser_quote"
+    __table_args__ = (
+        db.UniqueConstraint("request_id", "revision", name="uq_adviser_quote_revision"),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    request_id = db.Column(
+        db.Integer, db.ForeignKey("adviser_request.id"), nullable=False, index=True
+    )
+    adviser_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
+    revision = db.Column(db.Integer, nullable=False, default=1)
+    fee_minor = db.Column(db.BigInteger, nullable=False)
+    currency = db.Column(db.String(3), nullable=False, default="GBP")
+    scope = db.Column(db.Text, nullable=False)
+    terms = db.Column(db.Text)
+    valid_until = db.Column(db.Date, index=True)
+    status = db.Column(db.String(20), nullable=False, default="submitted", index=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    responded_at = db.Column(db.DateTime)
+
+    request = db.relationship("AdviserRequest", backref="quotes")
+    adviser = db.relationship("User", foreign_keys=[adviser_id])
+
+    @property
+    def display_fee(self):
+        return format_minor_units(self.fee_minor, self.currency)
+
+
+class AdviserReview(db.Model):
+    __tablename__ = "adviser_review"
+    __table_args__ = (
+        db.UniqueConstraint("request_id", name="uq_adviser_review_request"),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    request_id = db.Column(db.Integer, db.ForeignKey("adviser_request.id"), nullable=False)
+    reviewer_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False, index=True)
+    adviser_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False, index=True)
+    rating = db.Column(db.Integer, nullable=False)
+    title = db.Column(db.String(160))
+    body = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, index=True)
+
+    request = db.relationship("AdviserRequest", backref=db.backref("review", uselist=False))
+    reviewer = db.relationship("User", foreign_keys=[reviewer_id])
+    adviser = db.relationship("User", foreign_keys=[adviser_id])
 
 
 class Deal(db.Model):
@@ -2791,6 +2963,10 @@ def inject_valuer_request_count():
                 )
                 .count()
             )
+            count += AdviserRequest.query.filter(
+                AdviserRequest.adviser_id == current_user.id,
+                AdviserRequest.status.in_(["requested", "quoted", "accepted"]),
+            ).count()
     except Exception:
         # Avoid template explosions if DB not ready
         count = 0
@@ -2839,6 +3015,11 @@ def date_short(value):
         return value.strftime("%d %b %Y")  # e.g. 24 Nov 2025
     except Exception:
         return str(value)
+
+
+@app.template_filter("format_money")
+def format_money_filter(value, currency="GBP"):
+    return format_minor_units(value, currency) or ""
 
 
 
@@ -3463,6 +3644,7 @@ def register_valuer():
     - No subscription requirement yet (that comes later)
     """
     region_choices = sorted(REGION_COORDS.keys())
+    categories = get_adviser_categories()
 
     if request.method == "POST":
         email = (request.form.get("email") or "").strip().lower()
@@ -3473,6 +3655,7 @@ def register_valuer():
         pricing_notes = (request.form.get("pricing_notes") or "").strip()
         bio = (request.form.get("bio") or "").strip()
         selected_regions = request.form.getlist("regions")
+        selected_categories = request.form.getlist("categories") or ["business-valuation"]
 
         if not valid_email_address(email):
             flash("Enter a valid email address.")
@@ -3508,6 +3691,8 @@ def register_valuer():
             bio=bio or None,
         )
         db.session.add(profile)
+        db.session.flush()
+        sync_adviser_services(profile, selected_categories)
         db.session.commit()
 
         send_verification_email(user)
@@ -3518,6 +3703,7 @@ def register_valuer():
     return render_template(
         "auth/register_valuer.html",
         region_choices=region_choices,
+        categories=categories,
     )
 
 # -------------------------------------------------------------------
@@ -6195,6 +6381,389 @@ def delete_saved_search(search_id):
     return redirect(url_for("buyer_saved_searches"))
 
 
+def can_access_adviser_request(user, adviser_request):
+    return bool(
+        user.is_authenticated
+        and (
+            user.role == "admin"
+            or user.id in {adviser_request.requester_id, adviser_request.adviser_id}
+        )
+    )
+
+
+def expire_adviser_quotes():
+    expired = AdviserQuote.query.filter(
+        AdviserQuote.status == "submitted",
+        AdviserQuote.valid_until.isnot(None),
+        AdviserQuote.valid_until < utcnow().date(),
+    ).all()
+    if not expired:
+        return []
+    now = utcnow()
+    affected_requests = set()
+    for quote in expired:
+        quote.status = "expired"
+        quote.responded_at = now
+        affected_requests.add(quote.request_id)
+    for request_id in affected_requests:
+        adviser_request = db.session.get(AdviserRequest, request_id)
+        if adviser_request and adviser_request.status == "quoted":
+            adviser_request.status = "requested"
+            adviser_request.updated_at = now
+    db.session.commit()
+    for quote in expired:
+        publish_notification(
+            quote.request.requester, event_type="adviser_quote_expired",
+            title="Adviser quote expired",
+            body=f"Quote revision {quote.revision} for your {quote.request.category.name.lower()} request expired.",
+            target_url=url_for("adviser_request_detail", request_id=quote.request_id),
+            dedupe_key=f"adviser-quote:{quote.id}:expired",
+        )
+        record_audit_event(
+            "adviser.quote_expired", "Adviser quote expired",
+            subject_user_id=quote.request.requester_id, resource_type="adviser_quote",
+            resource_id=quote.id, actor_id=None,
+            details={"request_id": quote.request_id, "revision": quote.revision},
+        )
+    return expired
+
+
+@app.route("/advisers")
+def adviser_directory():
+    categories = get_adviser_categories()
+    selected_category = (request.args.get("category") or "").strip()
+    selected_region = (request.args.get("region") or "").strip()
+    selected_availability = (request.args.get("availability") or "").strip()
+    verified_only = (request.args.get("verified") or "") == "1"
+    query = ValuerProfile.query.join(User, ValuerProfile.user_id == User.id).filter(
+        User.role == "valuer"
+    )
+    if selected_category:
+        query = query.join(AdviserService).join(AdviserCategory).filter(
+            AdviserCategory.slug == selected_category
+        )
+    if selected_region:
+        query = query.filter(ValuerProfile.regions.ilike(f"%{selected_region}%"))
+    if selected_availability in {"available", "limited", "unavailable"}:
+        query = query.filter(ValuerProfile.availability_status == selected_availability)
+    if verified_only:
+        query = query.filter(ValuerProfile.verification_status == "verified")
+    profiles = query.order_by(
+        (ValuerProfile.verification_status == "verified").desc(),
+        (ValuerProfile.availability_status == "available").desc(),
+        ValuerProfile.company_name.asc(),
+    ).distinct().all()
+    review_map = {profile.user_id: adviser_review_summary(profile.user_id) for profile in profiles}
+    return render_template(
+        "adviser/directory.html", profiles=profiles, categories=categories,
+        regions=sorted(REGION_COORDS), selected_category=selected_category,
+        selected_region=selected_region, selected_availability=selected_availability,
+        verified_only=verified_only, review_map=review_map,
+    )
+
+
+@app.route("/advisers/<int:profile_id>")
+def adviser_detail(profile_id):
+    profile = ValuerProfile.query.get_or_404(profile_id)
+    reviews = AdviserReview.query.filter_by(adviser_id=profile.user_id).order_by(
+        AdviserReview.created_at.desc()
+    ).limit(20).all()
+    review_count, review_average = adviser_review_summary(profile.user_id)
+    return render_template(
+        "adviser/detail.html", profile=profile, reviews=reviews,
+        review_count=review_count, review_average=review_average,
+        region_list=sorted(parse_csv(profile.regions)),
+    )
+
+
+@app.route("/advisers/<int:profile_id>/request", methods=["GET", "POST"])
+@login_required
+def request_adviser(profile_id):
+    if current_user.role not in {"buyer", "seller"}:
+        abort(404)
+    profile = ValuerProfile.query.get_or_404(profile_id)
+    service_categories = [service.category for service in profile.adviser_services]
+    if current_user.role == "seller":
+        accessible_listings = Listing.query.filter_by(seller_id=current_user.id).order_by(
+            Listing.created_at.desc()
+        ).all()
+        accessible_introductions = Introduction.query.filter_by(seller_id=current_user.id).all()
+    else:
+        accessible_introductions = Introduction.query.filter_by(buyer_id=current_user.id).filter(
+            ~Introduction.status.in_(["pending_seller_request", "declined", "failed"])
+        ).all()
+        listing_ids = {intro.listing_id for intro in accessible_introductions}
+        accessible_listings = Listing.query.filter(Listing.id.in_(listing_ids)).all() if listing_ids else []
+    listing_map = {listing.id: listing for listing in accessible_listings}
+    introduction_map = {intro.id: intro for intro in accessible_introductions}
+    category_map = {category.id: category for category in service_categories}
+
+    if request.method == "POST":
+        category_id = request.form.get("category_id", type=int)
+        listing_id = request.form.get("listing_id", type=int)
+        introduction_id = request.form.get("introduction_id", type=int)
+        scope = (request.form.get("scope") or "").strip()
+        if category_id not in category_map or not scope:
+            flash("Choose a service and provide a clear scope.", "error")
+            return redirect(request.url)
+        if listing_id and listing_id not in listing_map:
+            abort(404)
+        if introduction_id and introduction_id not in introduction_map:
+            abort(404)
+        if introduction_id and listing_id and introduction_map[introduction_id].listing_id != listing_id:
+            flash("The selected introduction does not belong to that listing.", "error")
+            return redirect(request.url)
+        target_date = None
+        target_raw = (request.form.get("target_date") or "").strip()
+        if target_raw:
+            try:
+                target_date = datetime.strptime(target_raw, "%Y-%m-%d").date()
+            except ValueError:
+                flash("Choose a valid target date.", "error")
+                return redirect(request.url)
+            if target_date < utcnow().date():
+                flash("The target date cannot be in the past.", "error")
+                return redirect(request.url)
+        currency = (request.form.get("currency") or "GBP").strip().upper()
+        if currency not in {"GBP", "EUR", "USD"}:
+            currency = "GBP"
+        try:
+            budget_minor = parse_major_units(request.form.get("budget"))
+        except ValueError as exc:
+            flash(str(exc), "error")
+            return redirect(request.url)
+        adviser_request = AdviserRequest(
+            requester_id=current_user.id, adviser_id=profile.user_id,
+            category_id=category_id, listing_id=listing_id,
+            introduction_id=introduction_id, scope=scope[:6000],
+            target_date=target_date, budget_minor=budget_minor, currency=currency,
+        )
+        db.session.add(adviser_request)
+        db.session.commit()
+        record_audit_event(
+            "adviser.request_created", "Adviser request created",
+            subject_user_id=profile.user_id, resource_type="adviser_request",
+            resource_id=adviser_request.id,
+            details={"category": category_map[category_id].slug, "listing_id": listing_id},
+        )
+        publish_notification(
+            profile.user, event_type="adviser_request", title="New adviser request",
+            body=f"A new {category_map[category_id].name.lower()} request is ready for review.",
+            target_url=url_for("adviser_request_detail", request_id=adviser_request.id),
+            dedupe_key=f"adviser-request:{adviser_request.id}:created",
+        )
+        flash("Adviser request sent.", "success")
+        return redirect(url_for("adviser_request_detail", request_id=adviser_request.id))
+
+    return render_template(
+        "adviser/request.html", profile=profile, categories=service_categories,
+        listings=accessible_listings, introductions=accessible_introductions,
+    )
+
+
+@app.route("/adviser/requests")
+@login_required
+def adviser_requests():
+    if current_user.role == "valuer":
+        requests_q = AdviserRequest.query.filter_by(adviser_id=current_user.id)
+        legacy_requests = ValuationRequest.query.filter_by(valuer_id=current_user.id).order_by(
+            ValuationRequest.created_at.desc()
+        ).all()
+    elif current_user.role in {"buyer", "seller"}:
+        requests_q = AdviserRequest.query.filter_by(requester_id=current_user.id)
+        legacy_requests = []
+    else:
+        abort(404)
+    requests_q = requests_q.order_by(AdviserRequest.updated_at.desc()).all()
+    return render_template(
+        "adviser/requests.html", adviser_requests=requests_q,
+        legacy_requests=legacy_requests,
+    )
+
+
+@app.route("/adviser/requests/<int:request_id>")
+@login_required
+def adviser_request_detail(request_id):
+    expire_adviser_quotes()
+    adviser_request = AdviserRequest.query.get_or_404(request_id)
+    if not can_access_adviser_request(current_user, adviser_request):
+        abort(404)
+    quotes = AdviserQuote.query.filter_by(request_id=adviser_request.id).order_by(
+        AdviserQuote.revision.desc()
+    ).all()
+    return render_template(
+        "adviser/request_detail.html", adviser_request=adviser_request, quotes=quotes,
+    )
+
+
+@app.route("/adviser/requests/<int:request_id>/quote", methods=["POST"])
+@login_required
+@role_required("valuer")
+def submit_adviser_quote(request_id):
+    adviser_request = AdviserRequest.query.filter_by(id=request_id).with_for_update().first_or_404()
+    if adviser_request.adviser_id != current_user.id or adviser_request.status not in {"requested", "quoted"}:
+        abort(404)
+    try:
+        fee_minor = parse_major_units(request.form.get("fee"))
+    except ValueError as exc:
+        flash(str(exc), "error")
+        return redirect(url_for("adviser_request_detail", request_id=request_id))
+    quote_scope = (request.form.get("scope") or "").strip()
+    if not fee_minor or not quote_scope:
+        flash("Enter a fee greater than zero and the quoted scope.", "error")
+        return redirect(url_for("adviser_request_detail", request_id=request_id))
+    currency = (request.form.get("currency") or "GBP").strip().upper()
+    if currency not in {"GBP", "EUR", "USD"}:
+        currency = "GBP"
+    valid_until = None
+    valid_raw = (request.form.get("valid_until") or "").strip()
+    if valid_raw:
+        try:
+            valid_until = datetime.strptime(valid_raw, "%Y-%m-%d").date()
+        except ValueError:
+            flash("Choose a valid quote expiry date.", "error")
+            return redirect(url_for("adviser_request_detail", request_id=request_id))
+        if valid_until < utcnow().date():
+            flash("Quote expiry cannot be in the past.", "error")
+            return redirect(url_for("adviser_request_detail", request_id=request_id))
+    existing = AdviserQuote.query.filter_by(request_id=request_id).all()
+    for quote in existing:
+        if quote.status == "submitted":
+            quote.status = "superseded"
+            quote.responded_at = utcnow()
+    quote = AdviserQuote(
+        request_id=request_id, adviser_id=current_user.id,
+        revision=max((item.revision for item in existing), default=0) + 1,
+        fee_minor=fee_minor, currency=currency, scope=quote_scope[:6000],
+        terms=((request.form.get("terms") or "").strip()[:6000] or None),
+        valid_until=valid_until,
+    )
+    db.session.add(quote)
+    adviser_request.status = "quoted"
+    adviser_request.updated_at = utcnow()
+    db.session.commit()
+    record_audit_event(
+        "adviser.quote_submitted", "Adviser quote submitted",
+        subject_user_id=adviser_request.requester_id, resource_type="adviser_quote",
+        resource_id=quote.id, details={"request_id": request_id, "revision": quote.revision},
+    )
+    publish_notification(
+        adviser_request.requester, event_type="adviser_quote", title="Adviser quote received",
+        body=f"A quote is ready for your {adviser_request.category.name.lower()} request.",
+        target_url=url_for("adviser_request_detail", request_id=request_id),
+        dedupe_key=f"adviser-quote:{quote.id}:submitted",
+    )
+    flash("Quote submitted.", "success")
+    return redirect(url_for("adviser_request_detail", request_id=request_id))
+
+
+@app.route("/adviser/requests/<int:request_id>/action", methods=["POST"])
+@login_required
+def update_adviser_request(request_id):
+    expire_adviser_quotes()
+    adviser_request = AdviserRequest.query.filter_by(id=request_id).with_for_update().first_or_404()
+    if not can_access_adviser_request(current_user, adviser_request) or current_user.role == "admin":
+        abort(404)
+    action = (request.form.get("action") or "").strip()
+    other_user = adviser_request.adviser if current_user.id == adviser_request.requester_id else adviser_request.requester
+    now = utcnow()
+    quote = None
+    if action in {"accept_quote", "reject_quote"}:
+        if current_user.id != adviser_request.requester_id:
+            abort(404)
+        quote_id = request.form.get("quote_id", type=int)
+        quote = AdviserQuote.query.filter_by(
+            id=quote_id, request_id=request_id, status="submitted"
+        ).first_or_404()
+        if action == "accept_quote":
+            quote.status = "accepted"
+            quote.responded_at = now
+            adviser_request.status = "accepted"
+            adviser_request.accepted_at = now
+        else:
+            quote.status = "rejected"
+            quote.responded_at = now
+            adviser_request.status = "requested"
+    elif action == "decline":
+        if current_user.id != adviser_request.adviser_id or adviser_request.status not in {"requested", "quoted"}:
+            abort(404)
+        adviser_request.status = "declined"
+        adviser_request.declined_reason = ((request.form.get("reason") or "").strip()[:2000] or None)
+        for open_quote in adviser_request.quotes:
+            if open_quote.status == "submitted":
+                open_quote.status = "withdrawn"
+                open_quote.responded_at = now
+    elif action == "cancel":
+        if current_user.id != adviser_request.requester_id or adviser_request.status in {"completed", "cancelled"}:
+            abort(404)
+        adviser_request.status = "cancelled"
+        adviser_request.cancelled_at = now
+        for open_quote in adviser_request.quotes:
+            if open_quote.status == "submitted":
+                open_quote.status = "withdrawn"
+                open_quote.responded_at = now
+    elif action == "complete":
+        if current_user.id != adviser_request.adviser_id or adviser_request.status != "accepted":
+            abort(404)
+        adviser_request.status = "completed"
+        adviser_request.completed_at = now
+    else:
+        flash("Choose a valid request action.", "error")
+        return redirect(url_for("adviser_request_detail", request_id=request_id))
+    adviser_request.updated_at = now
+    db.session.commit()
+    record_audit_event(
+        f"adviser.request_{adviser_request.status}", f"Adviser request {adviser_request.status}",
+        subject_user_id=other_user.id, resource_type="adviser_request",
+        resource_id=request_id, details={"quote_id": quote.id if quote else None},
+    )
+    publish_notification(
+        other_user, event_type="adviser_request_status",
+        title=f"Adviser request {adviser_request.status}",
+        body=f"Your {adviser_request.category.name.lower()} request is now {adviser_request.status}.",
+        target_url=url_for("adviser_request_detail", request_id=request_id),
+        dedupe_key=f"adviser-request:{request_id}:{adviser_request.status}:{int(now.timestamp())}",
+    )
+    flash(f"Request {adviser_request.status}.", "success")
+    return redirect(url_for("adviser_request_detail", request_id=request_id))
+
+
+@app.route("/adviser/requests/<int:request_id>/review", methods=["POST"])
+@login_required
+def review_adviser_request(request_id):
+    adviser_request = AdviserRequest.query.get_or_404(request_id)
+    if current_user.id != adviser_request.requester_id or adviser_request.status != "completed":
+        abort(404)
+    if AdviserReview.query.filter_by(request_id=request_id).first():
+        flash("This engagement has already been reviewed.", "error")
+        return redirect(url_for("adviser_request_detail", request_id=request_id))
+    rating = request.form.get("rating", type=int)
+    if rating not in {1, 2, 3, 4, 5}:
+        flash("Choose a rating from one to five.", "error")
+        return redirect(url_for("adviser_request_detail", request_id=request_id))
+    review = AdviserReview(
+        request_id=request_id, reviewer_id=current_user.id,
+        adviser_id=adviser_request.adviser_id, rating=rating,
+        title=((request.form.get("title") or "").strip()[:160] or None),
+        body=((request.form.get("body") or "").strip()[:3000] or None),
+    )
+    db.session.add(review)
+    db.session.commit()
+    record_audit_event(
+        "adviser.review_created", "Adviser engagement reviewed",
+        subject_user_id=adviser_request.adviser_id, resource_type="adviser_review",
+        resource_id=review.id, details={"request_id": request_id, "rating": rating},
+    )
+    publish_notification(
+        adviser_request.adviser, event_type="adviser_review", title="New adviser review",
+        body=f"A completed engagement received a {rating}-star review.",
+        target_url=url_for("adviser_request_detail", request_id=request_id),
+        dedupe_key=f"adviser-review:{review.id}",
+    )
+    flash("Review published.", "success")
+    return redirect(url_for("adviser_request_detail", request_id=request_id))
+
+
 @app.route("/valuers/<int:profile_id>")
 def valuer_public_profile(profile_id):
     """
@@ -6255,6 +6824,7 @@ def valuer_dashboard():
         and profile.company_name
         and profile.regions
         and profile.accreditation
+        and profile.adviser_services
     )
 
     # Get active subscription for valuer role
@@ -6270,6 +6840,10 @@ def valuer_dashboard():
         profile_complete=profile_complete,
         current_plan_label=current_plan_label,
         active_sub=active_sub,
+        subscription=active_sub,
+        adviser_requests=AdviserRequest.query.filter_by(adviser_id=current_user.id).order_by(
+            AdviserRequest.updated_at.desc()
+        ).limit(5).all(),
     )
 
 
@@ -6288,13 +6862,27 @@ def valuer_profile():
         return redirect(url_for("index"))
 
     profile = ValuerProfile.query.filter_by(user_id=current_user.id).first()
+    categories = get_adviser_categories()
 
     if request.method == "POST":
         company_name = (request.form.get("company_name") or "").strip() or None
         accreditation = (request.form.get("accreditation") or "").strip() or None
-        regions = (request.form.get("regions") or "").strip() or None
+        selected_regions = request.form.getlist("regions")
+        regions = ", ".join(selected_regions) if selected_regions else None
         pricing_notes = (request.form.get("pricing_notes") or "").strip() or None
         bio = (request.form.get("bio") or "").strip() or None
+        category_slugs = request.form.getlist("categories")
+        availability_status = (request.form.get("availability_status") or "available").strip()
+        if availability_status not in {"available", "limited", "unavailable"}:
+            availability_status = "available"
+        next_available_date = None
+        next_available_raw = (request.form.get("next_available_date") or "").strip()
+        if next_available_raw:
+            try:
+                next_available_date = datetime.strptime(next_available_raw, "%Y-%m-%d").date()
+            except ValueError:
+                flash("Choose a valid next-available date.", "error")
+                return redirect(request.url)
 
         if profile is None:
             profile = ValuerProfile(
@@ -6304,20 +6892,70 @@ def valuer_profile():
                 regions=regions,
                 pricing_notes=pricing_notes,
                 bio=bio,
+                availability_status=availability_status,
+                next_available_date=next_available_date,
+                remote_service=bool(request.form.get("remote_service")),
             )
             db.session.add(profile)
+            db.session.flush()
         else:
+            previous_accreditation = profile.accreditation
+            previous_categories = {service.category.slug for service in profile.adviser_services}
             profile.company_name = company_name
             profile.accreditation = accreditation
             profile.regions = regions
             profile.pricing_notes = pricing_notes
             profile.bio = bio
+            profile.availability_status = availability_status
+            profile.next_available_date = next_available_date
+            profile.remote_service = bool(request.form.get("remote_service"))
+            if profile.verification_status == "verified" and (
+                previous_accreditation != accreditation
+                or previous_categories != set(category_slugs)
+            ):
+                profile.verification_status = "pending"
+                profile.verification_requested_at = utcnow()
+                profile.verified_at = None
+                profile.verified_by_id = None
+
+        profile.updated_at = utcnow()
+        sync_adviser_services(profile, category_slugs)
+        if request.form.get("request_verification"):
+            if not accreditation or not category_slugs:
+                flash("Add an accreditation and at least one service before requesting verification.", "error")
+                return redirect(request.url)
+            profile.verification_status = "pending"
+            profile.verification_requested_at = utcnow()
 
         db.session.commit()
-        flash("Valuer profile saved.")
+        record_audit_event(
+            "adviser.profile_updated", "Adviser profile updated",
+            subject_user_id=current_user.id, resource_type="valuer_profile",
+            resource_id=profile.id,
+            details={"verification_status": profile.verification_status},
+        )
+        if request.form.get("request_verification"):
+            record_audit_event(
+                "adviser.verification_requested", "Adviser verification requested",
+                subject_user_id=current_user.id, resource_type="valuer_profile",
+                resource_id=profile.id,
+            )
+            publish_role_notification(
+                "admin", event_type="adviser_verification",
+                title="Adviser verification requested",
+                body=f"{profile.company_name or 'An adviser'} submitted credentials for review.",
+                target_url=url_for("admin_valuers"),
+                dedupe_key=f"adviser-verification-request:{profile.id}:{int(profile.verification_requested_at.timestamp())}",
+            )
+        flash("Adviser profile saved.")
         return redirect(url_for("valuer_profile"))
 
-    return render_template("valuer/profile.html", profile=profile)
+    return render_template(
+        "valuer/profile.html", profile=profile, categories=categories,
+        selected_categories={service.category.slug for service in profile.adviser_services} if profile else set(),
+        region_choices=sorted(REGION_COORDS.keys()),
+        selected_regions=parse_csv(profile.regions) if profile else set(),
+    )
 
 # -------------------------------------------------------------------
 # Admin routes
@@ -6766,6 +7404,38 @@ def admin_valuers():
         premium_ids=premium_ids,
         basic_ids=basic_ids,
     )
+
+
+@app.route("/admin/advisers/<int:profile_id>/verification", methods=["POST"])
+@login_required
+@role_required("admin")
+def admin_adviser_verification(profile_id):
+    profile = ValuerProfile.query.get_or_404(profile_id)
+    status = (request.form.get("status") or "").strip()
+    if status not in {"pending", "verified", "rejected", "unverified"}:
+        flash("Choose a valid verification status.", "error")
+        return redirect(url_for("admin_valuers"))
+    previous_status = profile.verification_status
+    profile.verification_status = status
+    profile.verified_at = utcnow() if status == "verified" else None
+    profile.verified_by_id = current_user.id if status == "verified" else None
+    profile.updated_at = utcnow()
+    db.session.commit()
+    record_audit_event(
+        "admin.adviser_verification_updated", "Adviser verification updated",
+        subject_user_id=profile.user_id, resource_type="valuer_profile",
+        resource_id=profile.id,
+        details={"previous_status": previous_status, "status": status},
+    )
+    publish_notification(
+        profile.user, event_type="adviser_verification",
+        title="Adviser verification updated",
+        body=f"Your adviser verification is now {status.replace('_', ' ')}.",
+        target_url=url_for("valuer_profile"),
+        dedupe_key=f"adviser-verification:{profile.id}:{status}:{int(profile.updated_at.timestamp())}",
+    )
+    flash("Adviser verification updated.", "success")
+    return redirect(url_for("admin_valuers"))
 
 
 @app.route("/admin/valuation-requests")
@@ -7527,6 +8197,7 @@ def send_weekly_digest():
         )
 
     expire_structured_offers()
+    expire_adviser_quotes()
 
     # Retry immediate deliveries that previously failed.
     for notification in Notification.query.filter_by(

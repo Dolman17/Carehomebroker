@@ -21,7 +21,7 @@
   <p class="text-sm text-white/70 max-w-2xl mb-6">
     {{ page_text(
       slug,
-      "The Ownerlane platform is built for three groups: buyers, sellers, and valuers. Start by choosing your role, then pick the access level that fits how active you want to be in the marketplace."
+      "The Ownerlane platform is built for buyers, sellers and professional advisers. Start by choosing your role, then pick the access level that fits how active you want to be in the marketplace."
     ) }}
     {% if can_edit_copy %}
       <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
@@ -259,7 +259,7 @@
                     {% endif %}">
       {% set slug = "pricing_role_valuer_title" %}
       <h2 class="text-md font-semibold text-ownerBlue mb-1">
-        {{ page_text(slug, "Valuer / Appraiser") }}
+        {{ page_text(slug, "Professional adviser") }}
         {% if can_edit_copy %}
           <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
              class="ml-2 text-[10px] text-ownerMint underline">Edit</a>
@@ -281,7 +281,7 @@
       <ul class="text-xs text-white/65 space-y-1 mb-4">
         {% set slug = "pricing_role_valuer_bullet_1" %}
         <li>
-          {{ page_text(slug, "Appear in the broker’s valuer framework.") }}
+          {{ page_text(slug, "Appear in the adviser marketplace.") }}
           {% if can_edit_copy %}
             <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
                class="ml-1 text-[9px] text-ownerMint underline">Edit</a>
@@ -359,7 +359,7 @@
     </span>
     {% set slug = "pricing_step2_sub" %}
     <span class="px-2 py-0.5 rounded-full bg-black/20 border border-white/10 text-white/70">
-      {{ page_text(slug, "Same structure across buyers, sellers and valuers") }}
+      {{ page_text(slug, "Same structure across buyers, sellers and advisers") }}
       {% if can_edit_copy %}
         <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
            class="ml-1 text-[9px] text-ownerMint underline">Edit</a>
@@ -476,7 +476,7 @@
       {% else %}
         {% set slug = "pricing_tier1_role_hint" %}
         <p class="text-[11px] text-white/55 mt-2">
-          {{ page_text(slug, "Choose Buyer, Seller or Valuer above to activate this option.") }}
+          {{ page_text(slug, "Choose Buyer, Seller or Adviser above to activate this option.") }}
           {% if can_edit_copy %}
             <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
                class="ml-2 text-[9px] text-ownerMint underline">Edit</a>
@@ -595,7 +595,7 @@
       {% else %}
         {% set slug = "pricing_tier2_role_hint" %}
         <p class="text-[11px] text-white/55 mt-2">
-          {{ page_text(slug, "Choose Buyer, Seller or Valuer above to see Tier 2 options for your role.") }}
+          {{ page_text(slug, "Choose Buyer, Seller or Adviser above to see Tier 2 options for your role.") }}
           {% if can_edit_copy %}
             <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
                class="ml-2 text-[9px] text-ownerMint underline">Edit</a>
@@ -688,7 +688,7 @@
       <details class="rounded-lg border border-white/10 bg-black/30 backdrop-blur-sm px-4 py-3">
         {% set slug = "pricing_faq_q4" %}
         <summary class="cursor-pointer text-white/90 font-medium">
-          {{ page_text(slug, "Can valuers join without taking on full marketplace access?") }}
+          {{ page_text(slug, "Can advisers join without taking on full marketplace access?") }}
           {% if can_edit_copy %}
             <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
                class="ml-2 text-[9px] text-ownerMint underline">Edit</a>
@@ -698,7 +698,7 @@
         <p class="mt-2 text-white/75 text-xs">
           {{ page_text(
             slug,
-            "Yes. Many valuers start on Tier 1 to get listed in the framework, then move to Tier 2 if they want deeper data visibility or closer collaboration on deal flow."
+            "Yes. Advisers can start on Tier 1 to build a marketplace profile, then move to Tier 2 for greater visibility and closer collaboration on deal flow."
           ) }}
           {% if can_edit_copy %}
             <a href="{{ url_for('admin_edit_content', slug=slug, next=request.path) }}"
