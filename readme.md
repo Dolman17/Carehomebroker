@@ -111,6 +111,10 @@ HTTPS webhooks with HMAC-SHA256 signatures, delivery history and bounded retries
 
 Role-scoped, spreadsheet-safe CRM CSV export
 
+Failed-payment recovery with configurable grace periods, Stripe portal prompts and automatic access restoration
+
+Administrator entitlement decisions with provider status and append-only transition history
+
 Confidential multi-listing portfolios marketed as a whole, by configurable lot, or either way
 
 Seller portfolio builder with lot pricing, availability, publication safeguards and targeted premium-buyer enquiries
@@ -298,6 +302,7 @@ WEBAUTHN_RP_ID=ownerlane.uk
 WEBAUTHN_RP_NAME=Ownerlane
 ADMIN_STEP_UP_MAX_AGE=600
 WEBAUTHN_CHALLENGE_MAX_AGE=300
+BILLING_GRACE_DAYS=7
 
 SMTP_SERVER=smtp.gmail.com
 SMTP_PORT=587
@@ -320,6 +325,16 @@ Changing either value can make existing passkeys unusable. There is no
 password-only bypass: if every administrator passkey is lost, an authorised
 operator must use a controlled database recovery procedure before the account
 can enrol a replacement.
+
+Stripe webhook configuration must include `checkout.session.completed`,
+`customer.subscription.updated`, `customer.subscription.deleted`,
+`invoice.payment_failed`, `invoice.payment_action_required`, `invoice.paid` and
+`invoice.payment_succeeded`. Ownerlane keeps premium access during the
+configurable `past_due` grace period, restricts access when that period expires
+or Stripe reports a terminal state, and restores access only after a verified
+recovery event. Customers can still open the Stripe billing portal while access
+is restricted. Use Stripe sandbox events and test clocks before enabling live
+billing recovery.
 
 ## Integrations
 

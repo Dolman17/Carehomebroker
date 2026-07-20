@@ -229,6 +229,9 @@ if not webauthn_origin_host or not (
 # Stripe config
 app.config["STRIPE_SECRET_KEY"] = os.getenv("STRIPE_SECRET_KEY")
 app.config["STRIPE_WEBHOOK_SECRET"] = os.getenv("STRIPE_WEBHOOK_SECRET")
+app.config["BILLING_GRACE_DAYS"] = max(
+    0, int(os.getenv("BILLING_GRACE_DAYS", "7"))
+)
 
 # Price IDs for each role / tier
 app.config["STRIPE_PRICE_BUYER_BASIC"] = os.getenv("STRIPE_PRICE_BUYER_BASIC")
@@ -1408,8 +1411,41 @@ class Subscription(db.Model):
     # Stripe integration
     stripe_subscription_id = db.Column(db.String(255), unique=True)
     stripe_customer_id = db.Column(db.String(255))
+    stripe_status = db.Column(db.String(30), index=True)
+    grace_period_ends_at = db.Column(db.DateTime, index=True)
+    payment_failed_at = db.Column(db.DateTime)
+    last_payment_at = db.Column(db.DateTime)
+    last_invoice_id = db.Column(db.String(255), index=True)
+    last_stripe_event_created = db.Column(db.BigInteger)
+    last_entitlement_reason = db.Column(db.String(255))
+    updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
 
     user = db.relationship("User", backref="subscriptions")
+
+
+class SubscriptionEntitlementEvent(db.Model):
+    __tablename__ = "subscription_entitlement_event"
+
+    id = db.Column(db.Integer, primary_key=True)
+    subscription_id = db.Column(
+        db.Integer, db.ForeignKey("subscriptions.id"), index=True
+    )
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), index=True)
+    stripe_event_id = db.Column(db.String(255), unique=True, index=True)
+    source = db.Column(db.String(30), nullable=False)
+    event_type = db.Column(db.String(80), nullable=False, index=True)
+    previous_provider_status = db.Column(db.String(30))
+    provider_status = db.Column(db.String(30))
+    previous_access_state = db.Column(db.String(20))
+    access_state = db.Column(db.String(20), nullable=False, index=True)
+    reason = db.Column(db.String(255), nullable=False)
+    details = db.Column(db.JSON, nullable=False, default=dict)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, index=True)
+
+    subscription = db.relationship(
+        "Subscription", backref=db.backref("entitlement_events", lazy=True)
+    )
+    user = db.relationship("User")
 
 
 class Payment(db.Model):
@@ -1446,7 +1482,7 @@ def upsert_subscription_from_stripe(
     """
     sub = (
         Subscription.query
-        .filter_by(user_id=user_id, role=role, tier=tier)
+        .filter_by(stripe_subscription_id=stripe_subscription_id)
         .first()
     )
 
@@ -1464,6 +1500,8 @@ def upsert_subscription_from_stripe(
             stripe_customer_id=stripe_customer_id,
             renews_at=renews_at,
             is_active=active,
+            stripe_status="active" if active else "canceled",
+            last_entitlement_reason="Stripe subscription is active." if active else "Stripe subscription is inactive.",
         )
         db.session.add(sub)
     else:
@@ -1471,6 +1509,9 @@ def upsert_subscription_from_stripe(
         sub.stripe_customer_id = stripe_customer_id
         sub.renews_at = renews_at
         sub.is_active = active
+        sub.stripe_status = "active" if active else "canceled"
+        sub.last_entitlement_reason = "Stripe subscription is active." if active else "Stripe subscription is inactive."
+        sub.updated_at = utcnow()
 
     db.session.commit()
 
@@ -2203,6 +2244,145 @@ def role_required(*roles):
     return wrapper
 
 
+def subscription_access_state(subscription, at=None):
+    """Return the entitlement decision used by every premium feature gate."""
+    if not subscription or not subscription.is_active:
+        return "restricted"
+    now = at or utcnow()
+    status = (subscription.stripe_status or "").lower()
+    if subscription.stripe_subscription_id:
+        if status in {"active", "trialing"}:
+            return "active"
+        if status == "past_due" and subscription.grace_period_ends_at:
+            return "grace" if subscription.grace_period_ends_at > now else "restricted"
+        return "restricted"
+    if subscription.renews_at and subscription.renews_at <= now:
+        return "restricted"
+    return "active"
+
+
+def subscription_access_reason(subscription, at=None):
+    state = subscription_access_state(subscription, at=at)
+    if state == "active":
+        return "Subscription is active."
+    if state == "grace":
+        return f"Payment recovery grace period ends {subscription.grace_period_ends_at:%d %b %Y %H:%M} UTC."
+    if (
+        subscription.stripe_status == "past_due"
+        and subscription.grace_period_ends_at
+        and subscription.grace_period_ends_at <= (at or utcnow())
+    ):
+        return f"Payment recovery grace period expired {subscription.grace_period_ends_at:%d %b %Y %H:%M} UTC."
+    return subscription.last_entitlement_reason or "Subscription access is restricted."
+
+
+def latest_subscription_for_user(user, role=None):
+    if not getattr(user, "is_authenticated", False):
+        return None
+    query = Subscription.query.filter_by(user_id=user.id)
+    if role:
+        query = query.filter_by(role=role)
+    return query.order_by(Subscription.started_at.desc(), Subscription.id.desc()).first()
+
+
+def record_entitlement_event(
+    subscription,
+    *,
+    source,
+    event_type,
+    reason,
+    previous_provider_status=None,
+    previous_access_state=None,
+    stripe_event_id=None,
+    details=None,
+):
+    event = SubscriptionEntitlementEvent(
+        subscription_id=subscription.id,
+        user_id=subscription.user_id,
+        stripe_event_id=stripe_event_id,
+        source=source,
+        event_type=event_type[:80],
+        previous_provider_status=previous_provider_status,
+        provider_status=subscription.stripe_status,
+        previous_access_state=previous_access_state,
+        access_state=subscription_access_state(subscription),
+        reason=reason[:255],
+        details=details or {},
+    )
+    db.session.add(event)
+    return event
+
+
+def apply_stripe_subscription_state(
+    subscription,
+    status,
+    *,
+    event_type,
+    reason,
+    stripe_event_id,
+    stripe_event_created=None,
+    details=None,
+):
+    """Apply one verified Stripe state transition and append its decision record."""
+    status = (status or "").lower()
+    previous_status = subscription.stripe_status
+    previous_access = subscription_access_state(subscription)
+    now = utcnow()
+    subscription.stripe_status = status
+    subscription.last_entitlement_reason = reason[:255]
+    subscription.updated_at = now
+    if stripe_event_created:
+        subscription.last_stripe_event_created = max(
+            subscription.last_stripe_event_created or 0,
+            int(stripe_event_created),
+        )
+    if status in {"active", "trialing"}:
+        subscription.is_active = True
+        subscription.grace_period_ends_at = None
+        subscription.payment_failed_at = None
+    elif status == "past_due":
+        subscription.is_active = True
+        subscription.payment_failed_at = subscription.payment_failed_at or now
+        subscription.grace_period_ends_at = subscription.grace_period_ends_at or (
+            now + timedelta(days=app.config["BILLING_GRACE_DAYS"])
+        )
+    else:
+        subscription.is_active = False
+        subscription.grace_period_ends_at = None
+    return record_entitlement_event(
+        subscription,
+        source="stripe",
+        event_type=event_type,
+        reason=reason,
+        previous_provider_status=previous_status,
+        previous_access_state=previous_access,
+        stripe_event_id=stripe_event_id,
+        details=details,
+    )
+
+
+def record_stale_stripe_event(subscription, event_type, event_id, event_created):
+    reason = "An older Stripe event was recorded but did not replace a newer entitlement decision."
+    record_entitlement_event(
+        subscription,
+        source="stripe",
+        event_type=event_type,
+        reason=reason,
+        previous_provider_status=subscription.stripe_status,
+        previous_access_state=subscription_access_state(subscription),
+        stripe_event_id=event_id,
+        details={"event_created": event_created, "ignored_as_stale": True},
+    )
+
+
+def stripe_event_is_stale(subscription, event_created):
+    return bool(
+        event_created
+        and subscription.last_stripe_event_created
+        and int(event_created) < subscription.last_stripe_event_created
+    )
+
+
 def has_active_subscription(user, role: str, tier: str = "premium") -> bool:
     """
     Return True if the user has an active subscription for the given role/tier.
@@ -2215,17 +2395,10 @@ def has_active_subscription(user, role: str, tier: str = "premium") -> bool:
     if not getattr(user, "is_authenticated", False):
         return False
 
-    now = datetime.utcnow()
-    sub = (
-        SubscriptionModel.query
-        .filter_by(user_id=user.id, role=role, tier=tier, is_active=True)
-        .filter(
-            (SubscriptionModel.renews_at.is_(None))
-            | (SubscriptionModel.renews_at > now)
-        )
-        .first()
-    )
-    return sub is not None
+    subs = SubscriptionModel.query.filter_by(
+        user_id=user.id, role=role, tier=tier, is_active=True
+    ).all()
+    return any(subscription_access_state(sub) in {"active", "grace"} for sub in subs)
 
 def get_active_subscription(user, role: str | None = None) -> Subscription | None:
     """
@@ -2239,18 +2412,20 @@ def get_active_subscription(user, role: str | None = None) -> Subscription | Non
     if not getattr(user, "is_authenticated", False):
         return None
 
-    query = SubscriptionModel.query.filter_by(
-        user_id=user.id,
-        is_active=True,
-    ).filter(
-        (SubscriptionModel.renews_at.is_(None))
-        | (SubscriptionModel.renews_at > datetime.utcnow())
-    )
+    query = SubscriptionModel.query.filter_by(user_id=user.id, is_active=True)
 
     if role:
         query = query.filter_by(role=role)
 
-    return query.order_by(SubscriptionModel.started_at.desc()).first()
+    return next(
+        (
+            sub for sub in query.order_by(
+                SubscriptionModel.started_at.desc(), SubscriptionModel.id.desc()
+            ).all()
+            if subscription_access_state(sub) in {"active", "grace"}
+        ),
+        None,
+    )
 
 
 
@@ -2276,17 +2451,10 @@ def get_active_subscription_for_role(user, role: str):
     if SubscriptionModel is None or not getattr(user, "is_authenticated", False):
         return None
 
-    q = (
-        SubscriptionModel.query
-        .filter_by(user_id=user.id, role=role, is_active=True)
-        .filter(
-            (SubscriptionModel.renews_at.is_(None))
-            | (SubscriptionModel.renews_at > datetime.utcnow())
-        )
-    )
+    q = SubscriptionModel.query.filter_by(user_id=user.id, role=role, is_active=True)
 
     # Prefer premium if both exist
-    subs = q.all()
+    subs = [sub for sub in q.all() if subscription_access_state(sub) in {"active", "grace"}]
     if not subs:
         return None
 
@@ -2316,6 +2484,10 @@ def require_subscription(role: str, tier: str = "premium"):
                 return redirect(url_for("index"))
 
             if not has_active_subscription(current_user, role, tier):
+                latest = latest_subscription_for_user(current_user, role)
+                if latest and latest.stripe_subscription_id:
+                    flash("Your subscription needs payment attention before premium access can continue.", "warning")
+                    return redirect(url_for("billing_recovery"))
                 flash("You need an active subscription to access this page.", "warning")
                 try:
                     return redirect(url_for("pricing"))
@@ -2343,14 +2515,22 @@ def upsert_subscription(user_id: int, role: str, tier: str = "premium", months: 
 
     sub = (
         SubscriptionModel.query
-        .filter_by(user_id=user_id, role=role, tier=tier)
+        .filter_by(
+            user_id=user_id, role=role, tier=tier,
+            stripe_subscription_id=None,
+        )
         .first()
     )
 
     if sub:
         sub.is_active = True
-        sub.started_at = sub.started_at or now
+        sub.started_at = now
         sub.renews_at = renews_at
+        sub.stripe_status = None
+        sub.grace_period_ends_at = None
+        sub.payment_failed_at = None
+        sub.last_entitlement_reason = "Manually granted subscription is active."
+        sub.updated_at = utcnow()
     else:
         sub = SubscriptionModel(
             user_id=user_id,
@@ -2359,6 +2539,7 @@ def upsert_subscription(user_id: int, role: str, tier: str = "premium", months: 
             started_at=now,
             renews_at=renews_at,
             is_active=True,
+            last_entitlement_reason="Manually granted subscription is active.",
         )
         db.session.add(sub)
 
@@ -4243,10 +4424,21 @@ def seed_admin_command():
 
 @app.context_processor
 def inject_subscription_helpers():
+    recovery_subscription = None
+    recovery_state = None
+    if current_user.is_authenticated and current_user.role in {"buyer", "seller", "valuer"}:
+        candidate = latest_subscription_for_user(current_user, current_user.role)
+        if candidate and candidate.stripe_subscription_id:
+            candidate_state = subscription_access_state(candidate)
+            if candidate_state in {"grace", "restricted"}:
+                recovery_subscription = candidate
+                recovery_state = candidate_state
     return {
         "has_active_subscription": has_active_subscription,
         "is_premium_seller": is_premium_seller,
         "get_active_subscription": get_active_subscription,
+        "billing_recovery_subscription": recovery_subscription,
+        "billing_recovery_state": recovery_state,
     }
 
 
@@ -5826,10 +6018,10 @@ def billing_portal():
         flash("Billing is not configured yet. Contact support.", "error")
         return redirect(url_for("pricing"))
 
-    # Prefer a subscription matching their current role, fall back to any active one
-    active_sub = get_active_subscription(current_user, current_user.role)
+    # Restricted subscriptions still need portal access so payment can be repaired.
+    active_sub = latest_subscription_for_user(current_user, current_user.role)
     if not active_sub:
-        active_sub = get_active_subscription(current_user, None)
+        active_sub = latest_subscription_for_user(current_user, None)
 
     if not active_sub or not active_sub.stripe_customer_id:
         flash("We couldn’t find an active subscription to manage.", "warning")
@@ -5856,6 +6048,21 @@ def billing_portal():
         return redirect(return_url)
 
     return redirect(portal_session.url, code=303)
+
+
+@app.route("/billing/recovery")
+@login_required
+def billing_recovery():
+    subscription = latest_subscription_for_user(current_user, current_user.role)
+    if not subscription or not subscription.stripe_subscription_id:
+        flash("There is no Stripe subscription to recover.", "info")
+        return redirect(url_for("pricing", role=current_user.role))
+    return render_template(
+        "billing/recovery.html",
+        subscription=subscription,
+        access_state=subscription_access_state(subscription),
+        access_reason=subscription_access_reason(subscription),
+    )
 
 
 
@@ -10444,6 +10651,8 @@ def admin_dashboard():
     if "Subscription" in globals():
         active_subs = Subscription.query.filter_by(is_active=True).all()
         for s in active_subs:
+            if subscription_access_state(s) not in {"active", "grace"}:
+                continue
             role_key = s.role
             tier_key = s.tier
             if role_key in subscription_breakdown and tier_key in subscription_breakdown[role_key]:
@@ -11418,16 +11627,35 @@ def admin_subscriptions():
         .all()
     )
 
-    # Map: user_id -> currently active subscription
+    # Map each user to their latest subscription, including restricted records.
     sub_map = {}
     for s in subs:
-        if s.is_active:
+        if s.user_id not in sub_map:
             sub_map[s.user_id] = s
+
+    events_query = SubscriptionEntitlementEvent.query.order_by(
+        SubscriptionEntitlementEvent.created_at.desc(),
+        SubscriptionEntitlementEvent.id.desc(),
+    )
+    access_filter = (request.args.get("access") or "").strip()
+    if access_filter in {"active", "grace", "restricted"}:
+        events_query = events_query.filter_by(access_state=access_filter)
+    events = events_query.limit(100).all()
+    billing_users = [user for user in users if user.role in {"buyer", "seller", "valuer"}]
+    access_counts = {"active": 0, "grace": 0, "restricted": 0}
+    for user in billing_users:
+        access_counts[subscription_access_state(sub_map.get(user.id))] += 1
 
     return render_template(
         "admin/subscriptions.html",
         users=users,
-        sub_map=sub_map
+        billing_users=billing_users,
+        sub_map=sub_map,
+        events=events,
+        access_counts=access_counts,
+        access_filter=access_filter,
+        subscription_access_state=subscription_access_state,
+        subscription_access_reason=subscription_access_reason,
     )
 
 @app.route("/admin/enquiries")
@@ -11481,7 +11709,13 @@ def admin_grant_subscription():
         flash("User role mismatch for that subscription type.", "error")
         return redirect(url_for("admin_subscriptions"))
 
-    upsert_subscription(user.id, role=role, tier=tier, months=1)
+    sub = upsert_subscription(user.id, role=role, tier=tier, months=1)
+    record_entitlement_event(
+        sub, source="admin", event_type="admin.subscription_granted",
+        reason="An administrator granted or refreshed marketplace access.",
+        previous_access_state="restricted",
+    )
+    db.session.commit()
     record_audit_event(
         "admin.subscription_granted", "Subscription granted or refreshed",
         subject_user_id=user.id, resource_type="user", resource_id=user.id,
@@ -11514,7 +11748,14 @@ def admin_cancel_subscription():
         flash("Subscription not found.", "error")
         return redirect(url_for("admin_subscriptions"))
 
+    previous_access = subscription_access_state(sub)
     sub.is_active = False
+    sub.last_entitlement_reason = "An administrator canceled this subscription."
+    sub.updated_at = utcnow()
+    record_entitlement_event(
+        sub, source="admin", event_type="admin.subscription_cancelled",
+        reason=sub.last_entitlement_reason, previous_access_state=previous_access,
+    )
     db.session.commit()
     record_audit_event(
         "admin.subscription_cancelled", "Subscription cancelled",
@@ -11532,14 +11773,23 @@ def admin_clear_subscription(user_id):
     user = User.query.get_or_404(user_id)
 
     # Find their active subscription
-    sub = Subscription.query.filter_by(user_id=user.id, is_active=True).first()
+    sub = Subscription.query.filter_by(
+        user_id=user.id, is_active=True
+    ).order_by(Subscription.started_at.desc(), Subscription.id.desc()).first()
 
     if not sub:
         flash("No active subscription to clear for this user.", "info")
         return redirect(url_for("admin_subscriptions"))
 
     # Deactivate it (adjust these lines if your model uses different fields)
+    previous_access = subscription_access_state(sub)
     sub.is_active = False
+    sub.last_entitlement_reason = "An administrator cleared this subscription."
+    sub.updated_at = utcnow()
+    record_entitlement_event(
+        sub, source="admin", event_type="admin.subscription_cleared",
+        reason=sub.last_entitlement_reason, previous_access_state=previous_access,
+    )
     # Optional: mark an end date if you have such a column
     # sub.ends_at = datetime.utcnow()
 
@@ -11883,9 +12133,15 @@ def admin_set_subscription():
         role=role,
         tier=tier,
         is_active=True,
-        renews_at=datetime.utcnow() + timedelta(days=30)
+        renews_at=datetime.utcnow() + timedelta(days=30),
+        last_entitlement_reason="An administrator set this subscription.",
     )
     db.session.add(new_sub)
+    db.session.flush()
+    record_entitlement_event(
+        new_sub, source="admin", event_type="admin.subscription_set",
+        reason=new_sub.last_entitlement_reason, previous_access_state="restricted",
+    )
     db.session.commit()
     record_audit_event(
         "admin.subscription_set", "Subscription replaced",
@@ -11896,14 +12152,49 @@ def admin_set_subscription():
     flash(f"{user.email} is now {role.capitalize()} {tier.capitalize()}.", "success")
     return redirect(url_for("admin_subscriptions"))
 
+def stripe_invoice_subscription_id(invoice):
+    subscription_id = invoice.get("subscription")
+    if subscription_id:
+        return subscription_id
+    parent = invoice.get("parent") or {}
+    subscription_details = parent.get("subscription_details") or {}
+    return subscription_details.get("subscription")
+
+
+def notify_billing_transition(subscription, event_type, stripe_event_id):
+    state = subscription_access_state(subscription)
+    if event_type in {"invoice.payment_failed", "invoice.payment_action_required"} or state == "grace":
+        title = "Payment needs attention"
+        body = (
+            f"Your {subscription.role} {subscription.tier} subscription payment was not completed. "
+            + (
+                f"Premium access remains available until {subscription.grace_period_ends_at:%d %b %Y %H:%M} UTC."
+                if state == "grace" and subscription.grace_period_ends_at
+                else "Premium access is restricted until payment is resolved."
+            )
+        )
+    elif event_type in {"invoice.paid", "invoice.payment_succeeded"}:
+        title = "Subscription payment recovered"
+        body = f"Payment for your {subscription.role} {subscription.tier} subscription succeeded and access is active."
+    elif state == "restricted":
+        title = "Subscription access changed"
+        body = f"Your {subscription.role} {subscription.tier} access is restricted: {subscription.last_entitlement_reason}"
+    else:
+        return
+    publish_notification(
+        subscription.user,
+        event_type="billing_recovery",
+        title=title,
+        body=body,
+        target_url=url_for("billing_recovery"),
+        dedupe_key=f"billing:{stripe_event_id}",
+    )
+
+
 @app.route("/webhooks/stripe", methods=["POST"])
 @csrf.exempt
 def stripe_webhook():
-    """
-    Handle Stripe webhooks:
-      - checkout.session.completed → create/activate Subscription row
-      - customer.subscription.deleted → deactivate
-    """
+    """Reconcile verified Stripe lifecycle events into local entitlements."""
     payload = request.data
     sig_header = request.headers.get("Stripe-Signature")
     webhook_secret = app.config.get("STRIPE_WEBHOOK_SECRET")
@@ -11927,6 +12218,12 @@ def stripe_webhook():
 
     event_type = event["type"]
     data_obj = event["data"]["object"]
+    event_id = event.get("id")
+    if not event_id:
+        return "Missing event id", 400
+    if SubscriptionEntitlementEvent.query.filter_by(stripe_event_id=event_id).first():
+        return "ok", 200
+    event_created = int(event.get("created") or 0)
 
     # 1) Checkout completed → create/update Subscription row
     if event_type == "checkout.session.completed":
@@ -11952,45 +12249,146 @@ def stripe_webhook():
             app.logger.warning(f"Stripe webhook: user {user_id} not found")
             return "User not found", 200
 
-        # Deactivate existing active subs for this user/role
+        new_sub = Subscription.query.filter_by(
+            stripe_subscription_id=subscription_id
+        ).first()
+        if new_sub and stripe_event_is_stale(new_sub, event_created):
+            record_stale_stripe_event(new_sub, event_type, event_id, event_created)
+            db.session.commit()
+            return "ok", 200
+
+        # Deactivate existing active subs for this user/role only after the
+        # checkout event has passed ordering checks.
         Subscription.query.filter_by(
             user_id=user.id,
             role=role,
             is_active=True,
         ).update({"is_active": False})
 
-        # Create a new active subscription
-        new_sub = Subscription(
-            user_id=user.id,
-            role=role,
-            tier=tier,
-            stripe_subscription_id=subscription_id,
-            stripe_customer_id=customer_id,
-            is_active=True,
-            started_at=datetime.utcnow(),
-            renews_at=None,  # could be updated from invoice / subscription events
+        if new_sub is None:
+            new_sub = Subscription(
+                user_id=user.id,
+                role=role,
+                tier=tier,
+                stripe_subscription_id=subscription_id,
+                stripe_customer_id=customer_id,
+                is_active=True,
+                started_at=utcnow(),
+            )
+            db.session.add(new_sub)
+            db.session.flush()
+        else:
+            new_sub.stripe_customer_id = customer_id or new_sub.stripe_customer_id
+        apply_stripe_subscription_state(
+            new_sub,
+            "active",
+            event_type=event_type,
+            reason="Stripe checkout completed and subscription activation was confirmed.",
+            stripe_event_id=event_id,
+            stripe_event_created=event_created,
+            details={"checkout_session_id": session_obj.get("id")},
         )
-        db.session.add(new_sub)
         db.session.commit()
-
-        app.logger.info(f"Activated {role} {tier} subscription for user {user.email}")
+        record_audit_event(
+            "billing.subscription_activated", "Stripe subscription activated",
+            subject_user_id=user.id, resource_type="subscription", resource_id=new_sub.id,
+            actor_id=None, details={"role": role, "tier": tier},
+        )
         return "ok", 200
 
-    # 2) Subscription deleted/canceled → deactivate
+    if event_type in {
+        "invoice.payment_failed", "invoice.payment_action_required",
+        "invoice.paid", "invoice.payment_succeeded",
+    }:
+        stripe_sub_id = stripe_invoice_subscription_id(data_obj)
+        db_sub = Subscription.query.filter_by(
+            stripe_subscription_id=stripe_sub_id
+        ).first() if stripe_sub_id else None
+        if not db_sub:
+            app.logger.warning("Stripe invoice event has no matching subscription")
+            return "Subscription not found", 200
+        if stripe_event_is_stale(db_sub, event_created):
+            record_stale_stripe_event(db_sub, event_type, event_id, event_created)
+            db.session.commit()
+            return "ok", 200
+        invoice_id = data_obj.get("id")
+        db_sub.last_invoice_id = invoice_id
+        details = {
+            "invoice_id": invoice_id,
+            "attempt_count": data_obj.get("attempt_count"),
+            "next_payment_attempt": data_obj.get("next_payment_attempt"),
+        }
+        if event_type in {"invoice.payment_failed", "invoice.payment_action_required"}:
+            reason = "Stripe reported that the latest subscription invoice requires payment attention."
+            terminal_statuses = {"unpaid", "canceled", "paused", "incomplete_expired"}
+            failed_status = db_sub.stripe_status if db_sub.stripe_status in terminal_statuses else "past_due"
+            apply_stripe_subscription_state(
+                db_sub, failed_status, event_type=event_type, reason=reason,
+                stripe_event_id=event_id, stripe_event_created=event_created,
+                details=details,
+            )
+        else:
+            # Payment can recover past-due access, but must not revive a terminal subscription.
+            current_status = (db_sub.stripe_status or "active").lower()
+            recovered_status = "active" if current_status in {"active", "trialing", "past_due"} else current_status
+            reason = "Stripe confirmed that the subscription invoice was paid."
+            apply_stripe_subscription_state(
+                db_sub, recovered_status, event_type=event_type, reason=reason,
+                stripe_event_id=event_id, stripe_event_created=event_created,
+                details=details,
+            )
+            db_sub.last_payment_at = utcnow()
+        db.session.commit()
+        notify_billing_transition(db_sub, event_type, event_id)
+        record_audit_event(
+            "billing.payment_state_changed", "Stripe payment state reconciled",
+            subject_user_id=db_sub.user_id, resource_type="subscription", resource_id=db_sub.id,
+            actor_id=None,
+            details={"event_type": event_type, "access_state": subscription_access_state(db_sub)},
+        )
+        return "ok", 200
+
     if event_type in {"customer.subscription.deleted", "customer.subscription.updated"}:
         sub = data_obj
         stripe_sub_id = sub.get("id")
-        status = sub.get("status")
+        status = "canceled" if event_type == "customer.subscription.deleted" else (sub.get("status") or "unknown")
 
         db_sub = Subscription.query.filter_by(
             stripe_subscription_id=stripe_sub_id
         ).first()
 
         if db_sub:
-            if status in {"canceled", "unpaid", "past_due"}:
-                db_sub.is_active = False
+            if stripe_event_is_stale(db_sub, event_created):
+                record_stale_stripe_event(db_sub, event_type, event_id, event_created)
                 db.session.commit()
-                app.logger.info(f"Deactivated subscription {stripe_sub_id} due to status {status}")
+                return "ok", 200
+            period_end = sub.get("current_period_end")
+            if period_end:
+                db_sub.renews_at = datetime.fromtimestamp(period_end, UTC).replace(tzinfo=None)
+            reason_map = {
+                "active": "Stripe reports that the subscription is active.",
+                "trialing": "Stripe reports that the subscription trial is active.",
+                "past_due": "Stripe reports that payment is past due.",
+                "unpaid": "Stripe reports that payment retries are exhausted and the subscription is unpaid.",
+                "canceled": "Stripe reports that the subscription is canceled.",
+                "paused": "Stripe reports that the subscription is paused.",
+                "incomplete": "Stripe reports that the subscription setup is incomplete.",
+                "incomplete_expired": "Stripe reports that incomplete subscription setup expired.",
+            }
+            reason = reason_map.get(status, "Stripe returned an unrecognised subscription state; access was restricted safely.")
+            apply_stripe_subscription_state(
+                db_sub, status, event_type=event_type, reason=reason,
+                stripe_event_id=event_id, stripe_event_created=event_created,
+                details={"cancel_at_period_end": bool(sub.get("cancel_at_period_end"))},
+            )
+            db.session.commit()
+            notify_billing_transition(db_sub, event_type, event_id)
+            record_audit_event(
+                "billing.entitlement_changed", "Stripe subscription entitlement reconciled",
+                subject_user_id=db_sub.user_id, resource_type="subscription", resource_id=db_sub.id,
+                actor_id=None,
+                details={"provider_status": status, "access_state": subscription_access_state(db_sub)},
+            )
 
         return "ok", 200
 

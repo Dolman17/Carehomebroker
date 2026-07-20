@@ -16,7 +16,7 @@ This is a product-readiness review of the current application, not a security ce
 | Matching | Deterministic assisted ranking with visible weights, criterion evidence, gaps, missing-data coverage and buyer/seller/admin explanations | 9/10 | Feedback calibration and administrator weighting policy |
 | Introductions and deals | Request/approve/decline lifecycle, private workspaces, tasks, milestones, offers, completion conditions, Signable execution, two-party handover and deal synchronisation | 9/10 | Identity assurance and funds-flow integrations |
 | Adviser workflow | Multi-discipline directory, verification, coverage, availability, private requests, versioned quotes, engagement status and completed-work reviews | 8/10 | Evidence renewal, conflicts workflow and adviser billing |
-| Billing | Stripe checkout, webhooks, subscription state and customer portal | 7/10 | Failed-payment recovery and entitlement audit views |
+| Billing | Stripe checkout, idempotent lifecycle webhooks, failed-payment grace periods, automatic recovery, customer portal and entitlement audit views | 9/10 | Team billing and plan-change reconciliation |
 | Admin | Role directories, listing approval, enquiries, matches, introductions, data-room access, audit log, deals, subscriptions, content and impersonation | 8/10 | Operational reporting and bulk actions |
 | Notifications | Persistent notification centre, unread state, immediate/weekly/off preferences, deduplicated saved-search alerts and transaction events | 8/10 | Delivery analytics, per-event controls and background workers |
 | Reporting | Seller listing engagement, conversion funnels, buyer quality, time-to-stage, listing comparisons and deal/commission records | 7/10 | Platform revenue analytics and scheduled reports |
@@ -71,6 +71,8 @@ This is a product-readiness review of the current application, not a security ce
 - Added a two-party controlled handover that alone can complete the introduction and deal, mark the relevant listings sold, and update whole portfolios or selected lots.
 - Added mandatory phishing-resistant passkeys and recent-authentication step-up for administrator tools.
 - Added native Signable envelope submission, authenticated and idempotent webhook handling, authoritative provider reconciliation, party status tracking and private checksummed signed-copy storage.
+- Added Stripe failed-payment recovery with a configurable grace period, persistent customer prompts, terminal-state restriction and verified automatic restoration after payment.
+- Added an append-only subscription entitlement history showing Stripe or administrator source, provider transition, access decision, timestamp and reason.
 
 Saved-search matches are included in the protected weekly digest task. Immediate delivery is available for transaction and data-room events when selected in notification preferences.
 
@@ -108,4 +110,4 @@ Saved-search matches are included in the protected weekly digest task. Immediate
 
 ## Suggested next build
 
-Add failed-payment recovery and entitlement audit views next. Identity assurance and regulated completion-payment integrations should follow only after their operational and compliance models are defined.
+Add formal buyer mandate approval and team billing next. Identity assurance and regulated completion-payment integrations should follow only after their operational and compliance models are defined.

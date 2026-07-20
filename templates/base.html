@@ -138,6 +138,15 @@
     </div>
   {% endif %}
 
+  {% if billing_recovery_subscription %}
+    <div class="border-b {{ 'border-amber-300/40 bg-amber-300/10' if billing_recovery_state == 'grace' else 'border-ownerCoral/50 bg-ownerCoral/15' }}">
+      <div class="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-3 text-xs">
+        <p><strong>{{ 'Payment failed — access is temporarily protected' if billing_recovery_state == 'grace' else 'Premium access is restricted' }}</strong>{% if billing_recovery_state == 'grace' and billing_recovery_subscription.grace_period_ends_at %} until {{ billing_recovery_subscription.grace_period_ends_at.strftime('%d %b %Y at %H:%M') }} UTC{% endif %}. Update your payment method to restore normal billing.</p>
+        <a href="{{ url_for('billing_recovery') }}" class="rounded bg-white px-3 py-2 font-semibold text-ownerInk">Fix payment</a>
+      </div>
+    </div>
+  {% endif %}
+
   <!-- FLASHES -->
   <div class="max-w-3xl mx-auto mt-4 px-4">
     {% with messages = get_flashed_messages() %}

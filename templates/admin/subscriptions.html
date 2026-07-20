@@ -1,65 +1,54 @@
 {% extends "base.html" %}
-{% block title %}Manage Subscriptions{% endblock %}
-
+{% block title %}Subscription entitlements · Ownerlane{% endblock %}
 {% block content %}
-<h1 class="text-xl font-bold mb-4">Subscription Management</h1>
+<div class="space-y-7">
+  <header>
+    <p class="text-xs uppercase tracking-[0.2em] text-ownerMint">Billing controls</p>
+    <h1 class="mt-2 text-2xl font-semibold">Subscription entitlements</h1>
+    <p class="mt-2 text-sm text-white/50">Current access decisions and an append-only history of Stripe and administrator changes.</p>
+  </header>
 
-<div class="space-y-4">
+  <section class="grid gap-3 sm:grid-cols-3">
+    {% for state, count in access_counts.items() %}
+    <a href="{{ url_for('admin_subscriptions', access=state) }}" class="rounded-xl border {{ 'border-ownerMint/40' if state == 'active' else ('border-amber-300/40' if state == 'grace' else 'border-ownerCoral/40') }} bg-white/5 p-4">
+      <p class="text-[10px] uppercase tracking-[0.18em] text-white/40">{{ state }}</p><p class="mt-2 text-2xl font-semibold">{{ count }}</p>
+    </a>
+    {% endfor %}
+  </section>
 
-  {% for user in users %}
-  <div class="p-4 bg-black/20 border border-white/10 rounded">
-
-    <div class="flex justify-between items-center">
+  <section class="space-y-3">
+    <h2 class="font-semibold">Current user access</h2>
+    {% for user in billing_users %}
+    {% set sub = sub_map.get(user.id) %}
+    {% set state = subscription_access_state(sub) if sub else 'restricted' %}
+    <article class="rounded-xl border border-white/10 bg-black/20 p-4 text-xs sm:flex sm:items-center sm:justify-between sm:gap-4">
       <div>
-        <div class="font-semibold">{{ user.email }}</div>
-        <div class="text-sm text-white/60">
-          Role: {{ user.role }}
-        </div>
-
-        {% if sub_map.get(user.id) %}
-          <div class="mt-1 text-green-400 text-sm">
-            Active: {{ sub_map.get(user.id).role }} / {{ sub_map.get(user.id).tier }}
-          </div>
-        {% else %}
-          <div class="mt-1 text-red-400 text-sm">
-            No active subscription
-          </div>
-        {% endif %}
+        <p class="font-semibold">{{ user.email }}</p>
+        <p class="mt-1 text-white/45">{{ user.role|title }}{% if sub %} · {{ sub.tier|title }} · {{ sub.stripe_status|replace('_',' ')|title if sub.stripe_status else 'Manual' }}{% endif %}</p>
+        <p class="mt-2 {{ 'text-ownerMint' if state == 'active' else ('text-amber-300' if state == 'grace' else 'text-ownerCoral') }}">{{ state|title }}{% if sub %} — {{ subscription_access_reason(sub) }}{% endif %}</p>
       </div>
-
-      <div class="flex gap-2">
-
-        <form method="POST" action="{{ url_for('admin_set_subscription') }}">
-          <input type="hidden" name="user_id" value="{{ user.id }}">
-          <input type="hidden" name="role" value="{{ user.role }}">
-          <input type="hidden" name="tier" value="basic">
-          <button class="px-3 py-1 bg-yellow-600 hover:bg-yellow-500 rounded text-sm">
-            Set Basic
-          </button>
-        </form>
-
-        <form method="POST" action="{{ url_for('admin_set_subscription') }}">
-          <input type="hidden" name="user_id" value="{{ user.id }}">
-          <input type="hidden" name="role" value="{{ user.role }}">
-          <input type="hidden" name="tier" value="premium">
-          <button class="px-3 py-1 bg-green-700 hover:bg-green-600 rounded text-sm">
-            Set Premium
-          </button>
-        </form>
-
-        <form method="POST" action="{{ url_for('admin_clear_subscription', user_id=user.id) }}">
-          <input type="hidden" name="user_id" value="{{ user.id }}">
-          <button class="px-3 py-1 bg-red-700 hover:bg-red-600 rounded text-sm">
-            Clear
-          </button>
-        </form>
-
+      {% if user.role in ['buyer','seller','valuer'] %}
+      <div class="mt-3 flex flex-wrap gap-2 sm:mt-0">
+        <form method="post" action="{{ url_for('admin_set_subscription') }}"><input type="hidden" name="user_id" value="{{ user.id }}"><input type="hidden" name="role" value="{{ user.role }}"><input type="hidden" name="tier" value="basic"><button class="rounded border border-white/15 px-3 py-2">Set Basic</button></form>
+        <form method="post" action="{{ url_for('admin_set_subscription') }}"><input type="hidden" name="user_id" value="{{ user.id }}"><input type="hidden" name="role" value="{{ user.role }}"><input type="hidden" name="tier" value="premium"><button class="rounded bg-ownerMint px-3 py-2 font-semibold text-ownerInk">Set Premium</button></form>
+        {% if sub and sub.is_active %}<form method="post" action="{{ url_for('admin_clear_subscription', user_id=user.id) }}"><button class="rounded border border-ownerCoral/40 px-3 py-2 text-ownerCoral">Restrict</button></form>{% endif %}
       </div>
+      {% endif %}
+    </article>
+    {% endfor %}
+  </section>
+
+  <section>
+    <div class="flex flex-wrap items-center justify-between gap-3"><h2 class="font-semibold">Entitlement decision history</h2>{% if access_filter %}<a href="{{ url_for('admin_subscriptions') }}" class="text-xs text-ownerMint">Clear filter</a>{% endif %}</div>
+    <div class="mt-3 overflow-x-auto rounded-xl border border-white/10">
+      <table class="min-w-full text-left text-xs">
+        <thead class="bg-white/5 text-white/40"><tr><th class="px-3 py-2">Time</th><th class="px-3 py-2">User</th><th class="px-3 py-2">Source</th><th class="px-3 py-2">Transition</th><th class="px-3 py-2">Reason</th></tr></thead>
+        <tbody class="divide-y divide-white/10">
+          {% for event in events %}<tr><td class="whitespace-nowrap px-3 py-3">{{ event.created_at.strftime('%d %b %Y %H:%M') }} UTC</td><td class="px-3 py-3">{{ event.user.email if event.user else 'Unknown' }}</td><td class="px-3 py-3">{{ event.source|title }}<br><span class="text-[10px] text-white/35">{{ event.event_type }}</span></td><td class="px-3 py-3">{{ event.previous_access_state or '—' }} → <span class="{{ 'text-ownerMint' if event.access_state == 'active' else ('text-amber-300' if event.access_state == 'grace' else 'text-ownerCoral') }}">{{ event.access_state }}</span><br><span class="text-[10px] text-white/35">{{ event.previous_provider_status or '—' }} → {{ event.provider_status or 'manual' }}</span></td><td class="max-w-sm px-3 py-3 text-white/60">{{ event.reason }}</td></tr>
+          {% else %}<tr><td colspan="5" class="px-3 py-6 text-center text-white/40">No entitlement decisions match this view.</td></tr>{% endfor %}
+        </tbody>
+      </table>
     </div>
-
-  </div>
-  {% endfor %}
-
+  </section>
 </div>
-
 {% endblock %}

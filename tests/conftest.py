@@ -28,6 +28,7 @@ def seeded_app(monkeypatch):
         SIGNABLE_WEBHOOK_USERNAME=None,
         SIGNABLE_WEBHOOK_PASSWORD=None,
         SIGNABLE_ENABLED=False,
+        BILLING_GRACE_DAYS=7,
     )
     monkeypatch.setattr(application, "send_email", lambda *args, **kwargs: True)
 
