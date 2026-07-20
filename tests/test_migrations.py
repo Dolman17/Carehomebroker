@@ -71,5 +71,8 @@ def test_initial_migration_builds_a_fresh_database(tmp_path):
         "completion_record",
         "admin_passkey",
         "webauthn_challenge",
+        "esignature_envelope",
+        "esignature_party",
+        "esignature_event",
     } <= tables
-    assert revision[0] == "b3e6f1a8d927"
+    assert revision[0] == "c4f7a2b9e138"

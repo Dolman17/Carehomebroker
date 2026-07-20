@@ -10,20 +10,20 @@ This is a product-readiness review of the current application, not a security ce
 |---|---|---:|---|
 | Marketplace discovery | Public live listings, confidentiality gating, keyword/region/sector/price filters, price sorting, list and map views, pagination | 8/10 | More sector-specific filters and search analytics |
 | Buyer workflow | Detailed profile, qualification, matches, shared team shortlists and searches, alerts, enquiries and subscriptions | 9/10 | Formal mandate approval and team billing |
-| Authentication | Verified-email registration, expiring one-time password resets, persistent login throttling and stricter admin sessions | 8/10 | Optional admin MFA and security-event audit views |
+| Authentication | Verified-email registration, expiring one-time password resets, persistent login throttling, stricter admin sessions and mandatory administrator passkeys | 9/10 | Security-event investigation views and recovery operations |
 | Seller workflow | Profile, team listing collaboration, configurable portfolios, advisers, enquiries, buyer matches, introductions, staged data rooms, offers, valuation requests and analytics | 9/10 | Team billing and bulk operations |
 | Confidentiality | Blurred restricted data, premium access rules, NDAs, staged disclosure permissions and audited private downloads | 9/10 | Retention controls and external storage hardening |
 | Matching | Deterministic assisted ranking with visible weights, criterion evidence, gaps, missing-data coverage and buyer/seller/admin explanations | 9/10 | Feedback calibration and administrator weighting policy |
-| Introductions and deals | Request/approve/decline lifecycle, private workspaces, tasks, milestones, offers, completion conditions, signature-document tracking, two-party handover and deal synchronisation | 9/10 | Native e-signature provider and funds-flow integrations |
+| Introductions and deals | Request/approve/decline lifecycle, private workspaces, tasks, milestones, offers, completion conditions, Signable execution, two-party handover and deal synchronisation | 9/10 | Identity assurance and funds-flow integrations |
 | Adviser workflow | Multi-discipline directory, verification, coverage, availability, private requests, versioned quotes, engagement status and completed-work reviews | 8/10 | Evidence renewal, conflicts workflow and adviser billing |
 | Billing | Stripe checkout, webhooks, subscription state and customer portal | 7/10 | Failed-payment recovery and entitlement audit views |
 | Admin | Role directories, listing approval, enquiries, matches, introductions, data-room access, audit log, deals, subscriptions, content and impersonation | 8/10 | Operational reporting and bulk actions |
 | Notifications | Persistent notification centre, unread state, immediate/weekly/off preferences, deduplicated saved-search alerts and transaction events | 8/10 | Delivery analytics, per-event controls and background workers |
 | Reporting | Seller listing engagement, conversion funnels, buyer quality, time-to-stage, listing comparisons and deal/commission records | 7/10 | Platform revenue analytics and scheduled reports |
 | Multi-sector data model | First-class sectors, configurable attributes and legacy compatibility | 7/10 | Admin-managed sector schemas and buyer criteria migration |
-| Integrations | Scoped read-only API tokens, versioned endpoints, signed retryable webhooks and CRM CSV export | 7/10 | Native CRM apps, accounting sync and e-signatures |
+| Integrations | Scoped read-only API tokens, versioned endpoints, signed retryable webhooks, CRM CSV export and native Signable execution | 8/10 | Native CRM apps and accounting sync |
 | Portfolio transactions | Confidential multi-listing opportunities sold as a whole, by configurable lot, or either way | 8/10 | Portfolio-level data rooms and offer allocation |
-| Transaction completion | Required checklists, conditions, private checksummed signature documents and controlled two-party handover | 8/10 | Native e-signatures, identity assurance and completion payments |
+| Transaction completion | Required checklists, conditions, private checksummed Signable documents and controlled two-party handover | 9/10 | Identity assurance and completion payments |
 
 ## Improvements delivered in this release
 
@@ -69,6 +69,8 @@ This is a product-readiness review of the current application, not a security ce
 - Added assigned completion checklists and conditions with required-item blockers and confirmation invalidation when the record changes.
 - Added private checksummed signature-ready documents with separate buyer and seller acknowledgements and clear non-reliance wording.
 - Added a two-party controlled handover that alone can complete the introduction and deal, mark the relevant listings sold, and update whole portfolios or selected lots.
+- Added mandatory phishing-resistant passkeys and recent-authentication step-up for administrator tools.
+- Added native Signable envelope submission, authenticated and idempotent webhook handling, authoritative provider reconciliation, party status tracking and private checksummed signed-copy storage.
 
 Saved-search matches are included in the protected weekly digest task. Immediate delivery is available for transaction and data-room events when selected in notification preferences.
 
@@ -77,7 +79,7 @@ Saved-search matches are included in the protected weekly digest task. Immediate
 ### P0 — launch confidence and conversion
 
 1. **Normalised sector model — delivered.** First-class sectors, configurable attributes and compatibility migration are now in place.
-2. **Authentication hardening — core delivered.** Verified email, password reset, login throttling and stronger admin sessions are in place; optional admin MFA remains a later enhancement.
+2. **Authentication hardening — delivered.** Verified email, password reset, login throttling, stronger admin sessions and mandatory administrator passkeys are in place.
 3. **Notification centre and saved-search delivery — delivered.** Persisted, deduplicated in-app events now support immediate, weekly or disabled email delivery.
 4. **Money data migration — delivered.** Listings now store price, revenue and EBITDA in integer minor units plus currency, with legacy display fallbacks.
 5. **Activity and audit log — delivered.** Sensitive access, status changes, admin actions, document downloads and notification delivery are recorded.
@@ -96,13 +98,14 @@ Saved-search matches are included in the protected weekly digest task. Immediate
 1. **Market benchmarks and valuation reports — delivered.** Completed deals require current buyer and seller consent, administrator publication, anonymous aggregation and a minimum cohort of five; sellers can save reproducible indicative reports.
 2. **Explainable assisted matching — delivered.** Buyer, seller and administrator views now share deterministic weighted criteria, fit/gap/missing evidence and a separate coverage score; results never autonomously approve, reject or block a transaction.
 3. **Team accounts and permissions — delivered.** Buyer groups share shortlists and searches, seller teams share selected listings and data rooms with advisers, and Ownerlane operators can be organised without team membership granting platform-admin status. Invitations are expiring and email-bound; owner, manager, contributor and viewer permissions are enforced server-side and audited.
-4. **Integrations foundation — delivered.** Scoped read-only API access, signed retryable webhooks and a CRM-ready export are available. Native CRM apps, accounting sync and e-signatures remain future extensions.
+4. **Integrations foundation — delivered.** Scoped read-only API access, signed retryable webhooks, a CRM-ready export and native Signable execution are available. Native CRM apps and accounting sync remain future extensions.
 5. **Portfolio and multi-listing transactions — delivered.** Sellers can package at least two live listings for sale as a whole, by configurable lot or either way, with listing-level confidentiality, team permissions, targeted buyer enquiries and automatic unpublishing when the package changes.
 
 ### P3 — completion and assurance
 
 1. **Transaction completion workflow — delivered.** Portfolio-aware introductions now support assigned completion checklists, conditions, checksummed execution-document tracking and buyer/seller handover confirmation. Administrator status changes cannot bypass the controlled completion gate.
+2. **Native electronic signatures — delivered.** Signable envelopes use private document upload, authenticated idempotent callbacks, provider-side status reconciliation and archived signed artifacts. Manual acknowledgements remain available only for documents not sent to Signable.
 
 ## Suggested next build
 
-Add phishing-resistant administrator MFA and step-up authentication next, followed by a native e-signature provider integration using the new completion-document model.
+Add failed-payment recovery and entitlement audit views next. Identity assurance and regulated completion-payment integrations should follow only after their operational and compliance models are defined.

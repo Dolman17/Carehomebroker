@@ -2,20 +2,140 @@
 {% block title %}Transaction completion · Ownerlane{% endblock %}
 {% block content %}
 <div class="space-y-7">
-  <header class="flex flex-wrap items-end justify-between gap-3"><div><p class="text-xs uppercase tracking-[0.2em] text-ownerMint">Controlled handover</p><h1 class="mt-2 text-2xl font-semibold">Transaction completion</h1><p class="mt-2 text-sm text-white/50">{{ introduction.portfolio.portfolio_code ~ ' · ' ~ (introduction.portfolio_lot.name if introduction.portfolio_lot else 'Whole portfolio') if introduction.portfolio else (introduction.listing.listing_code or 'Opportunity') }}</p></div><a href="{{ url_for('deal_workspace', intro_id=introduction.id) }}" class="rounded border border-white/20 px-3 py-2 text-xs">Back to deal workspace</a></header>
+  <header class="flex flex-wrap items-end justify-between gap-3">
+    <div>
+      <p class="text-xs uppercase tracking-[0.2em] text-ownerMint">Controlled handover</p>
+      <h1 class="mt-2 text-2xl font-semibold">Transaction completion</h1>
+      <p class="mt-2 text-sm text-white/50">{{ introduction.portfolio.portfolio_code ~ ' · ' ~ (introduction.portfolio_lot.name if introduction.portfolio_lot else 'Whole portfolio') if introduction.portfolio else (introduction.listing.listing_code or 'Opportunity') }}</p>
+    </div>
+    <a href="{{ url_for('deal_workspace', intro_id=introduction.id) }}" class="rounded border border-white/20 px-3 py-2 text-xs">Back to deal workspace</a>
+  </header>
 
-  {% if completion and completion.completed_at %}<section class="rounded-2xl border border-ownerMint/50 bg-ownerMint/10 p-5"><h2 class="font-semibold text-ownerMint">Transaction completed</h2><p class="mt-2 text-xs text-white/65">Buyer and seller confirmed controlled handover on {{ completion.completed_at.strftime('%d %b %Y at %H:%M') }} UTC.</p>{% if completion.handover_notes %}<p class="mt-3 whitespace-pre-wrap text-xs text-white/55">{{ completion.handover_notes }}</p>{% endif %}</section>{% endif %}
+  {% if completion and completion.completed_at %}
+  <section class="rounded-2xl border border-ownerMint/50 bg-ownerMint/10 p-5">
+    <h2 class="font-semibold text-ownerMint">Transaction completed</h2>
+    <p class="mt-2 text-xs text-white/65">Buyer and seller confirmed controlled handover on {{ completion.completed_at.strftime('%d %b %Y at %H:%M') }} UTC.</p>
+    {% if completion.handover_notes %}<p class="mt-3 whitespace-pre-wrap text-xs text-white/55">{{ completion.handover_notes }}</p>{% endif %}
+  </section>
+  {% endif %}
 
-  <section class="rounded-2xl border {{ 'border-ownerCoral/40' if blockers else 'border-ownerMint/40' }} bg-white/5 p-5"><div class="flex flex-wrap items-start justify-between gap-3"><div><h2 class="font-semibold">Completion readiness</h2><p class="mt-1 text-xs text-white/50">Completion requires an accepted offer, cleared required items, executed required documents and confirmation from both parties.</p></div><span class="rounded-full px-3 py-1 text-[10px] {{ 'bg-ownerCoral/15 text-ownerCoral' if blockers else 'bg-ownerMint/15 text-ownerMint' }}">{{ blockers|length }} blocker{{ '' if blockers|length == 1 else 's' }}</span></div>{% if blockers %}<ul class="mt-4 grid gap-2 text-xs text-white/60 sm:grid-cols-2">{% for blocker in blockers %}<li class="rounded border border-white/10 px-3 py-2">{{ blocker }}</li>{% endfor %}</ul>{% else %}<p class="mt-4 text-xs text-ownerMint">All completion requirements are clear.</p>{% endif %}</section>
+  <section class="rounded-2xl border {{ 'border-ownerCoral/40' if blockers else 'border-ownerMint/40' }} bg-white/5 p-5">
+    <div class="flex flex-wrap items-start justify-between gap-3">
+      <div><h2 class="font-semibold">Completion readiness</h2><p class="mt-1 text-xs text-white/50">Completion requires an accepted offer, cleared required items, executed required documents and confirmation from both parties.</p></div>
+      <span class="rounded-full px-3 py-1 text-[10px] {{ 'bg-ownerCoral/15 text-ownerCoral' if blockers else 'bg-ownerMint/15 text-ownerMint' }}">{{ blockers|length }} blocker{{ '' if blockers|length == 1 else 's' }}</span>
+    </div>
+    {% if blockers %}<ul class="mt-4 grid gap-2 text-xs text-white/60 sm:grid-cols-2">{% for blocker in blockers %}<li class="rounded border border-white/10 px-3 py-2">{{ blocker }}</li>{% endfor %}</ul>{% else %}<p class="mt-4 text-xs text-ownerMint">All completion requirements are clear.</p>{% endif %}
+  </section>
 
   <div class="grid gap-6 lg:grid-cols-2">
-    <section class="rounded-2xl border border-white/10 bg-white/5 p-5"><h2 class="font-semibold">Completion checklist</h2><div class="mt-4 space-y-2">{% for item in checklist %}<article class="rounded-xl border border-white/10 p-3 text-xs"><div class="flex justify-between gap-3"><div><strong>{{ item.title }}</strong><p class="mt-1 text-[10px] text-white/40">{{ item.category|title }} · {{ item.assigned_to|title }}{% if item.due_date %} · Due {{ item.due_date.strftime('%d %b %Y') }}{% endif %} · {{ 'Required' if item.is_required else 'Optional' }}</p></div><span class="text-[10px] {{ 'text-ownerMint' if item.status in ['completed','waived'] else 'text-ownerCoral' }}">{{ item.status|title }}</span></div>{% if item.note %}<p class="mt-2 text-white/55">{{ item.note }}</p>{% endif %}{% if current_party and item.assigned_to in [current_party,'joint'] and not (completion and completion.completed_at) %}<form method="post" action="{{ url_for('update_completion_checklist_item', item_id=item.id) }}" class="mt-3"><select name="status" onchange="this.form.submit()" class="rounded border border-white/15 bg-ownerInk px-2 py-1 text-[10px]">{% for value in ['pending','completed','waived'] %}<option value="{{ value }}" {% if item.status == value %}selected{% endif %}>{{ value|title }}</option>{% endfor %}</select></form>{% endif %}</article>{% else %}<p class="text-xs text-white/40">No completion items yet.</p>{% endfor %}</div>{% if current_party and not (completion and completion.completed_at) %}<form method="post" action="{{ url_for('add_completion_checklist_item', intro_id=introduction.id) }}" class="mt-5 space-y-2 border-t border-white/10 pt-4"><input name="title" required maxlength="200" placeholder="Checklist item" class="w-full rounded border border-white/15 bg-ownerInk px-3 py-2 text-xs"><div class="grid grid-cols-2 gap-2"><select name="category" class="rounded border border-white/15 bg-ownerInk px-2 py-2 text-xs">{% for value in ['legal','financial','regulatory','operational','handover','other'] %}<option value="{{ value }}">{{ value|title }}</option>{% endfor %}</select><select name="assigned_to" class="rounded border border-white/15 bg-ownerInk px-2 py-2 text-xs"><option value="buyer">Buyer</option><option value="seller">Seller</option><option value="joint">Joint</option></select><input type="date" name="due_date" class="rounded border border-white/15 bg-ownerInk px-2 py-2 text-xs"><label class="flex items-center gap-2 text-[10px]"><input type="checkbox" name="is_required" checked class="accent-teal-400">Required for completion</label></div><textarea name="note" rows="2" placeholder="Evidence or notes" class="w-full rounded border border-white/15 bg-ownerInk px-3 py-2 text-xs"></textarea><button class="rounded bg-ownerMint px-3 py-2 text-xs font-semibold text-ownerInk">Add checklist item</button></form>{% endif %}</section>
+    <section class="rounded-2xl border border-white/10 bg-white/5 p-5">
+      <h2 class="font-semibold">Completion checklist</h2>
+      <div class="mt-4 space-y-2">
+        {% for item in checklist %}
+        <article class="rounded-xl border border-white/10 p-3 text-xs">
+          <div class="flex justify-between gap-3"><div><strong>{{ item.title }}</strong><p class="mt-1 text-[10px] text-white/40">{{ item.category|title }} · {{ item.assigned_to|title }}{% if item.due_date %} · Due {{ item.due_date.strftime('%d %b %Y') }}{% endif %} · {{ 'Required' if item.is_required else 'Optional' }}</p></div><span class="text-[10px] {{ 'text-ownerMint' if item.status in ['completed','waived'] else 'text-ownerCoral' }}">{{ item.status|title }}</span></div>
+          {% if item.note %}<p class="mt-2 text-white/55">{{ item.note }}</p>{% endif %}
+          {% if current_party and item.assigned_to in [current_party,'joint'] and not (completion and completion.completed_at) %}<form method="post" action="{{ url_for('update_completion_checklist_item', item_id=item.id) }}" class="mt-3"><select name="status" onchange="this.form.submit()" class="rounded border border-white/15 bg-ownerInk px-2 py-1 text-[10px]">{% for value in ['pending','completed','waived'] %}<option value="{{ value }}" {% if item.status == value %}selected{% endif %}>{{ value|title }}</option>{% endfor %}</select></form>{% endif %}
+        </article>
+        {% else %}<p class="text-xs text-white/40">No completion items yet.</p>{% endfor %}
+      </div>
+      {% if current_party and not (completion and completion.completed_at) %}
+      <form method="post" action="{{ url_for('add_completion_checklist_item', intro_id=introduction.id) }}" class="mt-5 space-y-2 border-t border-white/10 pt-4">
+        <input name="title" required maxlength="200" placeholder="Checklist item" class="w-full rounded border border-white/15 bg-ownerInk px-3 py-2 text-xs">
+        <div class="grid grid-cols-2 gap-2"><select name="category" class="rounded border border-white/15 bg-ownerInk px-2 py-2 text-xs">{% for value in ['legal','financial','regulatory','operational','handover','other'] %}<option value="{{ value }}">{{ value|title }}</option>{% endfor %}</select><select name="assigned_to" class="rounded border border-white/15 bg-ownerInk px-2 py-2 text-xs"><option value="buyer">Buyer</option><option value="seller">Seller</option><option value="joint">Joint</option></select><input type="date" name="due_date" class="rounded border border-white/15 bg-ownerInk px-2 py-2 text-xs"><label class="flex items-center gap-2 text-[10px]"><input type="checkbox" name="is_required" checked class="accent-teal-400">Required for completion</label></div>
+        <textarea name="note" rows="2" placeholder="Evidence or notes" class="w-full rounded border border-white/15 bg-ownerInk px-3 py-2 text-xs"></textarea><button class="rounded bg-ownerMint px-3 py-2 text-xs font-semibold text-ownerInk">Add checklist item</button>
+      </form>
+      {% endif %}
+    </section>
 
-    <section class="rounded-2xl border border-white/10 bg-white/5 p-5"><h2 class="font-semibold">Completion conditions</h2><div class="mt-4 space-y-2">{% for condition in conditions %}<article class="rounded-xl border border-white/10 p-3 text-xs"><div class="flex justify-between gap-3"><div><strong>{{ condition.title }}</strong><p class="mt-1 text-[10px] text-white/40">{{ condition.responsible_party|title }}{% if condition.due_date %} · Due {{ condition.due_date.strftime('%d %b %Y') }}{% endif %}</p></div><span class="text-[10px] {{ 'text-ownerMint' if condition.status in ['satisfied','waived'] else 'text-ownerCoral' }}">{{ condition.status|title }}</span></div>{% if condition.description %}<p class="mt-2 text-white/55">{{ condition.description }}</p>{% endif %}{% if current_party and condition.responsible_party in [current_party,'joint'] and not (completion and completion.completed_at) %}<form method="post" action="{{ url_for('update_completion_condition', condition_id=condition.id) }}" class="mt-3"><select name="status" onchange="this.form.submit()" class="rounded border border-white/15 bg-ownerInk px-2 py-1 text-[10px]">{% for value in ['outstanding','satisfied','waived'] %}<option value="{{ value }}" {% if condition.status == value %}selected{% endif %}>{{ value|title }}</option>{% endfor %}</select></form>{% endif %}</article>{% else %}<p class="text-xs text-white/40">No completion conditions recorded.</p>{% endfor %}</div>{% if current_party and not (completion and completion.completed_at) %}<form method="post" action="{{ url_for('add_completion_condition', intro_id=introduction.id) }}" class="mt-5 space-y-2 border-t border-white/10 pt-4"><input name="title" required maxlength="200" placeholder="Condition to completion" class="w-full rounded border border-white/15 bg-ownerInk px-3 py-2 text-xs"><div class="grid grid-cols-2 gap-2"><select name="responsible_party" class="rounded border border-white/15 bg-ownerInk px-2 py-2 text-xs"><option value="buyer">Buyer</option><option value="seller">Seller</option><option value="joint">Joint</option></select><input type="date" name="due_date" class="rounded border border-white/15 bg-ownerInk px-2 py-2 text-xs"></div><textarea name="description" rows="2" placeholder="Condition details" class="w-full rounded border border-white/15 bg-ownerInk px-3 py-2 text-xs"></textarea><button class="rounded bg-ownerMint px-3 py-2 text-xs font-semibold text-ownerInk">Add condition</button></form>{% endif %}</section>
+    <section class="rounded-2xl border border-white/10 bg-white/5 p-5">
+      <h2 class="font-semibold">Completion conditions</h2>
+      <div class="mt-4 space-y-2">
+        {% for condition in conditions %}
+        <article class="rounded-xl border border-white/10 p-3 text-xs">
+          <div class="flex justify-between gap-3"><div><strong>{{ condition.title }}</strong><p class="mt-1 text-[10px] text-white/40">{{ condition.responsible_party|title }}{% if condition.due_date %} · Due {{ condition.due_date.strftime('%d %b %Y') }}{% endif %}</p></div><span class="text-[10px] {{ 'text-ownerMint' if condition.status in ['satisfied','waived'] else 'text-ownerCoral' }}">{{ condition.status|title }}</span></div>
+          {% if condition.description %}<p class="mt-2 text-white/55">{{ condition.description }}</p>{% endif %}
+          {% if current_party and condition.responsible_party in [current_party,'joint'] and not (completion and completion.completed_at) %}<form method="post" action="{{ url_for('update_completion_condition', condition_id=condition.id) }}" class="mt-3"><select name="status" onchange="this.form.submit()" class="rounded border border-white/15 bg-ownerInk px-2 py-1 text-[10px]">{% for value in ['outstanding','satisfied','waived'] %}<option value="{{ value }}" {% if condition.status == value %}selected{% endif %}>{{ value|title }}</option>{% endfor %}</select></form>{% endif %}
+        </article>
+        {% else %}<p class="text-xs text-white/40">No completion conditions recorded.</p>{% endfor %}
+      </div>
+      {% if current_party and not (completion and completion.completed_at) %}
+      <form method="post" action="{{ url_for('add_completion_condition', intro_id=introduction.id) }}" class="mt-5 space-y-2 border-t border-white/10 pt-4">
+        <input name="title" required maxlength="200" placeholder="Condition to completion" class="w-full rounded border border-white/15 bg-ownerInk px-3 py-2 text-xs">
+        <div class="grid grid-cols-2 gap-2"><select name="responsible_party" class="rounded border border-white/15 bg-ownerInk px-2 py-2 text-xs"><option value="buyer">Buyer</option><option value="seller">Seller</option><option value="joint">Joint</option></select><input type="date" name="due_date" class="rounded border border-white/15 bg-ownerInk px-2 py-2 text-xs"></div>
+        <textarea name="description" rows="2" placeholder="Condition details" class="w-full rounded border border-white/15 bg-ownerInk px-3 py-2 text-xs"></textarea><button class="rounded bg-ownerMint px-3 py-2 text-xs font-semibold text-ownerInk">Add condition</button>
+      </form>
+      {% endif %}
+    </section>
   </div>
 
-  <section class="rounded-2xl border border-white/10 bg-white/5 p-5"><div><h2 class="font-semibold">Signature-ready documents</h2><p class="mt-1 text-xs text-white/45">Ownerlane records acknowledgements and file integrity; it does not itself create a qualified electronic signature or replace legal advice.</p></div><div class="mt-4 grid gap-3 lg:grid-cols-2">{% for document in documents %}<article class="rounded-xl border border-white/10 p-4 text-xs"><div class="flex justify-between gap-3"><div><a href="{{ url_for('download_signature_document', document_id=document.id) }}" class="font-semibold text-ownerMint">{{ document.title }}</a><p class="mt-1 text-[10px] text-white/35">SHA-256 {{ document.checksum_sha256[:12] }}… · {{ document.status|title }} · {{ 'Required' if document.is_required else 'Optional' }}</p></div></div><div class="mt-3 flex flex-wrap gap-2 text-[10px]"><span class="rounded border border-white/10 px-2 py-1">Buyer: {{ 'Acknowledged' if document.buyer_signed_at else ('Required' if document.requires_buyer else 'Not required') }}</span><span class="rounded border border-white/10 px-2 py-1">Seller: {{ 'Acknowledged' if document.seller_signed_at else ('Required' if document.requires_seller else 'Not required') }}</span></div>{% if current_party and document.status != 'void' and not (completion and completion.completed_at) %}<div class="mt-3 flex gap-3">{% if (current_party == 'buyer' and document.requires_buyer and not document.buyer_signed_at) or (current_party == 'seller' and document.requires_seller and not document.seller_signed_at) %}<form method="post" action="{{ url_for('update_signature_document', document_id=document.id) }}"><button name="action" value="sign" class="text-ownerMint">Record my acknowledgement</button></form>{% endif %}{% if current_user.id == document.uploaded_by_id or current_party == 'seller' %}{% if document.status == 'prepared' %}<form method="post" action="{{ url_for('update_signature_document', document_id=document.id) }}"><button name="action" value="ready" class="text-white/55">Mark ready</button></form>{% endif %}<form method="post" action="{{ url_for('update_signature_document', document_id=document.id) }}"><button name="action" value="void" class="text-ownerCoral">Void</button></form>{% endif %}</div>{% endif %}</article>{% else %}<p class="text-xs text-white/40">No signature documents uploaded.</p>{% endfor %}</div>{% if current_party and not (completion and completion.completed_at) %}<form method="post" enctype="multipart/form-data" action="{{ url_for('upload_signature_document', intro_id=introduction.id) }}" class="mt-5 grid gap-3 border-t border-white/10 pt-4 sm:grid-cols-2"><input name="title" maxlength="200" placeholder="Document title" class="rounded border border-white/15 bg-ownerInk px-3 py-2 text-xs"><input type="file" name="document" required accept=".pdf,.doc,.docx,.xls,.xlsx" class="rounded border border-white/15 bg-ownerInk px-3 py-2 text-xs"><label class="flex gap-2 text-xs"><input type="checkbox" name="requires_buyer" checked class="accent-teal-400">Buyer acknowledgement</label><label class="flex gap-2 text-xs"><input type="checkbox" name="requires_seller" checked class="accent-teal-400">Seller acknowledgement</label><label class="flex gap-2 text-xs"><input type="checkbox" name="is_required" checked class="accent-teal-400">Required for completion</label><button class="rounded bg-ownerMint px-3 py-2 text-xs font-semibold text-ownerInk">Upload document</button></form>{% endif %}</section>
+  <section class="rounded-2xl border border-white/10 bg-white/5 p-5">
+    <div>
+      <h2 class="font-semibold">Execution documents</h2>
+      <p class="mt-1 text-xs text-white/45">Documents can use Signable for electronic signatures and provider status tracking. Ownerlane retains private checksummed copies but does not replace legal advice or independently verify signer identity.</p>
+    </div>
+    <div class="mt-4 grid gap-3 lg:grid-cols-2">
+      {% for document in documents %}
+      {% set envelope = document.esignature_envelope %}
+      <article class="rounded-xl border border-white/10 p-4 text-xs">
+        <div class="flex justify-between gap-3">
+          <div><a href="{{ url_for('download_signature_document', document_id=document.id) }}" class="font-semibold text-ownerMint">{{ document.title }}</a><p class="mt-1 text-[10px] text-white/35">Original SHA-256 {{ document.checksum_sha256[:12] }}… · {{ 'Required' if document.is_required else 'Optional' }}</p></div>
+          <span class="h-fit rounded-full border px-2 py-1 text-[10px] {{ 'border-ownerMint/40 text-ownerMint' if document.status == 'signed' else 'border-white/15 text-white/55' }}">{{ (envelope.status if envelope else document.status)|replace('_',' ')|title }}</span>
+        </div>
+        <div class="mt-3 flex flex-wrap gap-2 text-[10px]">
+          <span class="rounded border border-white/10 px-2 py-1">Buyer: {{ 'Signed' if document.buyer_signed_at else ('Required' if document.requires_buyer else 'Not required') }}</span>
+          <span class="rounded border border-white/10 px-2 py-1">Seller: {{ 'Signed' if document.seller_signed_at else ('Required' if document.requires_seller else 'Not required') }}</span>
+        </div>
 
-  <section class="rounded-2xl border border-ownerMint/30 bg-black/25 p-5"><h2 class="font-semibold">Controlled handover</h2><div class="mt-3 flex flex-wrap gap-2 text-xs"><span class="rounded-full border border-white/15 px-3 py-1">Buyer: {{ 'Confirmed' if completion and completion.buyer_confirmed_at else 'Awaiting confirmation' }}</span><span class="rounded-full border border-white/15 px-3 py-1">Seller: {{ 'Confirmed' if completion and completion.seller_confirmed_at else 'Awaiting confirmation' }}</span></div>{% if current_party and not (completion and completion.completed_at) %}<form method="post" action="{{ url_for('confirm_completion_handover', intro_id=introduction.id) }}" class="mt-4 space-y-3"><textarea name="handover_notes" rows="3" placeholder="Optional shared handover record" class="w-full rounded border border-white/15 bg-ownerInk px-3 py-2 text-xs">{{ completion.handover_notes if completion else '' }}</textarea>{% set confirmed = (current_party == 'buyer' and completion and completion.buyer_confirmed_at) or (current_party == 'seller' and completion and completion.seller_confirmed_at) %}<button name="action" value="{{ 'revoke' if confirmed else 'confirm' }}" class="rounded {{ 'border border-ownerCoral/50 text-ownerCoral' if confirmed else 'bg-ownerMint text-ownerInk' }} px-4 py-2 text-xs font-semibold">{{ 'Withdraw my confirmation' if confirmed else 'Confirm readiness and handover' }}</button><p class="text-[10px] text-white/35">Confirmation is an operational platform record, not a substitute for executed transaction documents or professional advice.</p></form>{% elif current_user.role == 'admin' %}<p class="mt-4 text-xs text-white/45">Administrators can review this record but cannot confirm handover for either party.</p>{% endif %}</section>
+        {% if envelope %}
+        <div class="mt-3 rounded-lg bg-black/20 p-3 text-[10px] text-white/50">
+          <p>Provider: Signable · Last checked {{ envelope.last_synced_at.strftime('%d %b %Y %H:%M') ~ ' UTC' if envelope.last_synced_at else 'not yet' }}</p>
+          {% if envelope.last_error %}<p class="mt-1 text-ownerCoral">{{ envelope.last_error }}</p>{% endif %}
+          {% if envelope.signed_filename %}<a href="{{ url_for('download_signed_signature_document', document_id=document.id) }}" class="mt-2 inline-block text-ownerMint">Download signed copy · SHA-256 {{ envelope.signed_checksum_sha256[:12] }}…</a>{% endif %}
+        </div>
+        {% endif %}
+
+        {% if current_party and document.status != 'void' and not (completion and completion.completed_at) %}
+        <div class="mt-3 flex flex-wrap gap-3">
+          {% if envelope %}
+          <form method="post" action="{{ url_for('sync_signature_document_from_signable', document_id=document.id) }}"><button class="text-ownerMint">Refresh Signable status</button></form>
+          {% elif (current_party == 'buyer' and document.requires_buyer and not document.buyer_signed_at) or (current_party == 'seller' and document.requires_seller and not document.seller_signed_at) %}
+          <form method="post" action="{{ url_for('update_signature_document', document_id=document.id) }}"><button name="action" value="sign" class="text-white/55">Record manual acknowledgement</button></form>
+          {% endif %}
+          {% if current_user.id == document.uploaded_by_id or current_party == 'seller' %}
+            {% if not envelope and document.status == 'prepared' %}<form method="post" action="{{ url_for('update_signature_document', document_id=document.id) }}"><button name="action" value="ready" class="text-white/55">Mark ready</button></form>{% endif %}
+            {% if not envelope or envelope.status not in ['signed','cancelled','expired','rejected'] %}<form method="post" action="{{ url_for('update_signature_document', document_id=document.id) }}"><button name="action" value="void" class="text-ownerCoral">Void</button></form>{% endif %}
+          {% endif %}
+        </div>
+
+        {% if not envelope and signable_configured and (current_user.id == document.uploaded_by_id or current_party == 'seller') and document.status not in ['signed','void'] %}
+        <form method="post" action="{{ url_for('send_signature_document_to_signable', document_id=document.id) }}" class="mt-4 rounded-lg border border-ownerMint/25 bg-ownerMint/5 p-3">
+          <p class="text-[10px] leading-5 text-white/55">Before sending, place <code>{signature:buyer:Buyer+signature}</code> and/or <code>{signature:seller:Seller+signature}</code> in the PDF or Word file for each selected party.</p>
+          <label class="mt-2 flex gap-2 text-[10px]"><input required type="checkbox" name="confirm_tags" class="accent-teal-400">I confirm the required Signable tags are present.</label>
+          <button class="mt-3 rounded bg-ownerMint px-3 py-2 font-semibold text-ownerInk">Send through Signable</button>
+        </form>
+        {% elif not envelope and not signable_configured and (current_user.id == document.uploaded_by_id or current_party == 'seller') %}
+        <p class="mt-3 text-[10px] text-white/35">Signable will become available after the account credentials and webhook authentication are configured.</p>
+        {% endif %}
+        {% endif %}
+      </article>
+      {% else %}<p class="text-xs text-white/40">No signature documents uploaded.</p>{% endfor %}
+    </div>
+
+    {% if current_party and not (completion and completion.completed_at) %}
+    <form method="post" enctype="multipart/form-data" action="{{ url_for('upload_signature_document', intro_id=introduction.id) }}" class="mt-5 grid gap-3 border-t border-white/10 pt-4 sm:grid-cols-2">
+      <input name="title" maxlength="200" placeholder="Document title" class="rounded border border-white/15 bg-ownerInk px-3 py-2 text-xs"><input type="file" name="document" required accept=".pdf,.doc,.docx,.xls,.xlsx" class="rounded border border-white/15 bg-ownerInk px-3 py-2 text-xs">
+      <label class="flex gap-2 text-xs"><input type="checkbox" name="requires_buyer" checked class="accent-teal-400">Buyer signature</label><label class="flex gap-2 text-xs"><input type="checkbox" name="requires_seller" checked class="accent-teal-400">Seller signature</label><label class="flex gap-2 text-xs"><input type="checkbox" name="is_required" checked class="accent-teal-400">Required for completion</label><button class="rounded bg-ownerMint px-3 py-2 text-xs font-semibold text-ownerInk">Upload document</button>
+    </form>
+    {% endif %}
+  </section>
+
+  <section class="rounded-2xl border border-ownerMint/30 bg-black/25 p-5">
+    <h2 class="font-semibold">Controlled handover</h2>
+    <div class="mt-3 flex flex-wrap gap-2 text-xs"><span class="rounded-full border border-white/15 px-3 py-1">Buyer: {{ 'Confirmed' if completion and completion.buyer_confirmed_at else 'Awaiting confirmation' }}</span><span class="rounded-full border border-white/15 px-3 py-1">Seller: {{ 'Confirmed' if completion and completion.seller_confirmed_at else 'Awaiting confirmation' }}</span></div>
+    {% if current_party and not (completion and completion.completed_at) %}
+    <form method="post" action="{{ url_for('confirm_completion_handover', intro_id=introduction.id) }}" class="mt-4 space-y-3"><textarea name="handover_notes" rows="3" placeholder="Optional shared handover record" class="w-full rounded border border-white/15 bg-ownerInk px-3 py-2 text-xs">{{ completion.handover_notes if completion else '' }}</textarea>{% set confirmed = (current_party == 'buyer' and completion and completion.buyer_confirmed_at) or (current_party == 'seller' and completion and completion.seller_confirmed_at) %}<button name="action" value="{{ 'revoke' if confirmed else 'confirm' }}" class="rounded {{ 'border border-ownerCoral/50 text-ownerCoral' if confirmed else 'bg-ownerMint text-ownerInk' }} px-4 py-2 text-xs font-semibold">{{ 'Withdraw my confirmation' if confirmed else 'Confirm readiness and handover' }}</button><p class="text-[10px] text-white/35">Confirmation is an operational platform record, not a substitute for executed transaction documents or professional advice.</p></form>
+    {% elif current_user.role == 'admin' %}<p class="mt-4 text-xs text-white/45">Administrators can review this record but cannot confirm handover for either party.</p>{% endif %}
+  </section>
 </div>
 {% endblock %}

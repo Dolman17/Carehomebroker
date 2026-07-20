@@ -121,6 +121,8 @@ Transaction completion workspace with assigned checklists, conditions and automa
 
 Private SHA-256 checksummed signature-ready documents with separate buyer and seller acknowledgements
 
+Optional native Signable envelopes with authenticated webhook reconciliation and private signed-copy archiving
+
 Two-party controlled handover that synchronises introductions, deals, listings and portfolio lots
 
 Confidential listing handling
@@ -369,8 +371,17 @@ accepting production documents.
 
 Completion and signature-ready documents are stored under the same private
 root in `completion_docs`. Ownerlane records file integrity and party
-acknowledgements; this workflow is not itself a qualified electronic-signature
-service. Configure a native e-sign provider before presenting it as one.
+acknowledgements. When Signable is configured, authorised sellers can send PDF
+or Word documents containing Signable signature tags, reconcile status through
+an authenticated webhook and retain a checksummed signed copy. This is not an
+identity-verification, witnessing or qualified electronic-signature service.
+
+Set `SIGNABLE_API_KEY`, `SIGNABLE_WEBHOOK_USERNAME` and
+`SIGNABLE_WEBHOOK_PASSWORD` to enable the integration. In Signable, configure a
+webhook to post to `${PUBLIC_BASE_URL}/webhooks/signable` using those Basic Auth
+credentials. `SIGNABLE_API_BASE_URL` defaults to the production Signable API;
+use a Signable test key while validating a non-production deployment. Never use
+production signing credentials in local development or commit them to Git.
 
 🧪 Future Enhancements (ready when you are)
 

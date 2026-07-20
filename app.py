@@ -50,6 +50,8 @@ from werkzeug.utils import secure_filename
 from sqlalchemy import func, desc, or_
 from sqlalchemy.exc import IntegrityError
 
+from signable_client import SignableAPIError, SignableClient
+
 from webauthn import (
     base64url_to_bytes,
     generate_authentication_options,
@@ -163,6 +165,21 @@ app.config["LEADS_NOTIFICATION_EMAIL"] = os.getenv(
     "LEADS_NOTIFICATION_EMAIL",
     app.config.get("SMTP_USERNAME"),
 )
+
+# Signable is disabled until all credentials required for a safe round trip are set.
+app.config["SIGNABLE_API_KEY"] = os.getenv("SIGNABLE_API_KEY")
+app.config["SIGNABLE_API_BASE_URL"] = os.getenv(
+    "SIGNABLE_API_BASE_URL", "https://api.signable.co.uk/v1"
+).rstrip("/")
+app.config["SIGNABLE_WEBHOOK_USERNAME"] = os.getenv("SIGNABLE_WEBHOOK_USERNAME")
+app.config["SIGNABLE_WEBHOOK_PASSWORD"] = os.getenv("SIGNABLE_WEBHOOK_PASSWORD")
+app.config["SIGNABLE_ENABLED"] = bool(
+    app.config["SIGNABLE_API_KEY"]
+    and app.config["SIGNABLE_WEBHOOK_USERNAME"]
+    and app.config["SIGNABLE_WEBHOOK_PASSWORD"]
+)
+if is_production and not app.config["SIGNABLE_API_BASE_URL"].startswith("https://"):
+    raise RuntimeError("SIGNABLE_API_BASE_URL must use HTTPS in production.")
 
 # Authentication security controls
 app.config["EMAIL_VERIFICATION_MAX_AGE"] = int(
@@ -1699,6 +1716,80 @@ class SignatureDocument(db.Model):
     uploaded_by = db.relationship("User", foreign_keys=[uploaded_by_id])
 
 
+class ESignatureEnvelope(db.Model):
+    __tablename__ = "esignature_envelope"
+
+    id = db.Column(db.Integer, primary_key=True)
+    document_id = db.Column(
+        db.Integer, db.ForeignKey("signature_document.id"), nullable=False,
+        unique=True, index=True,
+    )
+    provider = db.Column(db.String(30), nullable=False, default="signable")
+    provider_envelope_id = db.Column(db.String(128), unique=True, index=True)
+    status = db.Column(db.String(30), nullable=False, default="creating", index=True)
+    requested_by_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
+    request_attempts = db.Column(db.Integer, nullable=False, default=0)
+    last_error = db.Column(db.Text)
+    sent_at = db.Column(db.DateTime)
+    completed_at = db.Column(db.DateTime)
+    last_synced_at = db.Column(db.DateTime)
+    signed_filename = db.Column(db.String(255))
+    signed_original_filename = db.Column(db.String(255))
+    signed_mime_type = db.Column(db.String(100))
+    signed_size_bytes = db.Column(db.Integer)
+    signed_checksum_sha256 = db.Column(db.String(64))
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+    document = db.relationship(
+        "SignatureDocument",
+        backref=db.backref("esignature_envelope", uselist=False),
+    )
+    requested_by = db.relationship("User", foreign_keys=[requested_by_id])
+
+
+class ESignatureParty(db.Model):
+    __tablename__ = "esignature_party"
+    __table_args__ = (
+        db.UniqueConstraint("envelope_id", "party_role", name="uq_esignature_party_role"),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    envelope_id = db.Column(
+        db.Integer, db.ForeignKey("esignature_envelope.id"), nullable=False, index=True
+    )
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False, index=True)
+    party_role = db.Column(db.String(20), nullable=False)
+    provider_party_id = db.Column(db.String(64))
+    status = db.Column(db.String(20), nullable=False, default="pending", index=True)
+    signed_at = db.Column(db.DateTime)
+    updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+    envelope = db.relationship(
+        "ESignatureEnvelope", backref=db.backref("parties", lazy=True)
+    )
+    user = db.relationship("User")
+
+
+class ESignatureEvent(db.Model):
+    __tablename__ = "esignature_event"
+
+    id = db.Column(db.Integer, primary_key=True)
+    envelope_id = db.Column(
+        db.Integer, db.ForeignKey("esignature_envelope.id"), nullable=False, index=True
+    )
+    payload_hash = db.Column(db.String(64), nullable=False, unique=True, index=True)
+    action = db.Column(db.String(60), nullable=False, index=True)
+    action_at = db.Column(db.DateTime)
+    received_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    processed_at = db.Column(db.DateTime)
+    processing_error = db.Column(db.String(500))
+
+    envelope = db.relationship(
+        "ESignatureEnvelope", backref=db.backref("events", lazy=True)
+    )
+
+
 class CompletionRecord(db.Model):
     __tablename__ = "completion_record"
 
@@ -2862,7 +2953,141 @@ def completion_blockers(introduction):
     for document in introduction.signature_documents:
         if document.is_required and document.status != "signed":
             blockers.append(f"Signature: {document.title}")
+        elif (
+            document.is_required
+            and document.esignature_envelope
+            and not document.esignature_envelope.signed_filename
+        ):
+            blockers.append(f"Signed copy not yet archived: {document.title}")
     return blockers
+
+
+def signable_is_configured():
+    return bool(app.config.get("SIGNABLE_ENABLED"))
+
+
+def get_signable_client():
+    if not signable_is_configured():
+        raise SignableAPIError("Signable is not configured.")
+    return SignableClient(
+        app.config["SIGNABLE_API_KEY"], app.config["SIGNABLE_API_BASE_URL"]
+    )
+
+
+def parse_provider_datetime(value):
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(str(value).replace("Z", "+00:00")).astimezone(UTC).replace(tzinfo=None)
+    except (TypeError, ValueError):
+        return None
+
+
+def _store_signed_envelope(envelope, provider_data, client):
+    if envelope.signed_filename:
+        return True
+    download_url = client.signed_download_url(provider_data)
+    if not download_url:
+        envelope.last_error = "Signable has not made the signed document available yet."
+        return False
+    downloaded = client.download_signed_file(download_url)
+    filename = f"signable_{envelope.id}_{uuid.uuid4().hex}{downloaded.extension}"
+    path = os.path.join(app.config["COMPLETION_DOCS_FOLDER"], filename)
+    with open(path, "wb") as signed_file:
+        signed_file.write(downloaded.content)
+    original_stem = os.path.splitext(envelope.document.original_filename)[0]
+    envelope.signed_filename = filename
+    envelope.signed_original_filename = secure_filename(
+        f"signed-{original_stem}{downloaded.extension}"
+    )[:255]
+    envelope.signed_mime_type = downloaded.mime_type
+    envelope.signed_size_bytes = len(downloaded.content)
+    envelope.signed_checksum_sha256 = hashlib.sha256(downloaded.content).hexdigest()
+    envelope.last_error = None
+    return True
+
+
+def sync_signable_envelope(envelope, *, client=None, archive_signed=True):
+    if not envelope.provider_envelope_id:
+        raise SignableAPIError("This envelope has no Signable identifier.")
+    client = client or get_signable_client()
+    provider_data = client.get_envelope(envelope.provider_envelope_id)
+    if provider_data.get("envelope_fingerprint") != envelope.provider_envelope_id:
+        raise SignableAPIError("Signable returned the wrong envelope.")
+
+    metadata = provider_data.get("envelope_meta") or {}
+    if isinstance(metadata, str):
+        try:
+            metadata = json.loads(metadata)
+        except ValueError:
+            metadata = {}
+    if not isinstance(metadata, dict):
+        metadata = {}
+    expected_document_id = str(envelope.document_id)
+    if str(metadata.get("ownerlane_document_id")) != expected_document_id:
+        raise SignableAPIError("Signable envelope metadata does not match Ownerlane.")
+
+    old_status = envelope.status
+    provider_status = (provider_data.get("envelope_status") or "processing").lower()
+    status_map = {
+        "processing": "processing",
+        "draft": "processing",
+        "sent": "sent",
+        "verify": "sent",
+        "signed": "signed",
+        "cancelled": "cancelled",
+        "expired": "expired",
+        "rejected": "rejected",
+        "failed": "failed",
+    }
+    envelope.status = status_map.get(provider_status, "processing")
+    envelope.last_synced_at = utcnow()
+    envelope.updated_at = utcnow()
+    envelope.sent_at = envelope.sent_at or parse_provider_datetime(
+        provider_data.get("envelope_sent")
+    )
+
+    parties_by_email = {
+        party.user.email.lower(): party for party in envelope.parties
+    }
+    for provider_party in provider_data.get("envelope_parties") or []:
+        email = (provider_party.get("contact_email") or "").lower()
+        party = parties_by_email.get(email)
+        if not party:
+            continue
+        party.provider_party_id = str(provider_party.get("party_id") or "") or None
+        provider_party_status = (provider_party.get("party_status") or "pending").lower()
+        party.status = "signed" if provider_party_status == "signed" else provider_party_status[:20]
+        if party.status == "signed" and not party.signed_at:
+            party.signed_at = utcnow()
+        party.updated_at = utcnow()
+
+    document = envelope.document
+    buyer_party = next((party for party in envelope.parties if party.party_role == "buyer"), None)
+    seller_party = next((party for party in envelope.parties if party.party_role == "seller"), None)
+    if buyer_party and buyer_party.status == "signed":
+        document.buyer_signed_at = document.buyer_signed_at or buyer_party.signed_at or utcnow()
+    if seller_party and seller_party.status == "signed":
+        document.seller_signed_at = document.seller_signed_at or seller_party.signed_at or utcnow()
+    if envelope.status == "signed":
+        now = utcnow()
+        if document.requires_buyer:
+            document.buyer_signed_at = document.buyer_signed_at or now
+        if document.requires_seller:
+            document.seller_signed_at = document.seller_signed_at or now
+        document.status = "signed"
+        envelope.completed_at = envelope.completed_at or now
+        if archive_signed:
+            try:
+                _store_signed_envelope(envelope, provider_data, client)
+            except SignableAPIError as exc:
+                envelope.last_error = str(exc)[:500]
+    elif document.status != "void":
+        document.status = "ready"
+
+    if old_status != envelope.status:
+        reset_completion_confirmations(document.introduction)
+    return provider_data
 
 
 def completion_target_label(introduction):
@@ -7822,6 +8047,7 @@ def completion_workspace(intro_id):
         conditions=conditions, documents=documents,
         completion=intro.completion_record, blockers=completion_blockers(intro),
         current_party=completion_party_for_user(current_user, intro),
+        signable_configured=signable_is_configured(),
     )
 
 
@@ -8008,6 +8234,284 @@ def upload_signature_document(intro_id):
     return redirect(url_for("completion_workspace", intro_id=intro.id))
 
 
+@app.route("/completion/signature-documents/<int:document_id>/signable/send", methods=["POST"])
+@login_required
+def send_signature_document_to_signable(document_id):
+    document = SignatureDocument.query.get_or_404(document_id)
+    intro = document.introduction
+    party = completion_party_for_user(current_user, intro)
+    if (
+        not party
+        or not can_access_deal_workspace(current_user, intro)
+        or (current_user.id != document.uploaded_by_id and party != "seller")
+    ):
+        abort(404)
+    ensure_completion_open(intro)
+    if not signable_is_configured():
+        flash("Signable is not configured yet.", "error")
+        return redirect(url_for("completion_workspace", intro_id=intro.id))
+    if not request.form.get("confirm_tags"):
+        flash("Confirm that the document contains the required Signable signature tags.", "error")
+        return redirect(url_for("completion_workspace", intro_id=intro.id))
+    extension = os.path.splitext(document.original_filename)[1].lower()
+    if extension not in {".pdf", ".doc", ".docx"}:
+        flash("Signable envelopes currently support PDF or Word signature documents.", "error")
+        return redirect(url_for("completion_workspace", intro_id=intro.id))
+    if document.status in {"signed", "void"}:
+        abort(400)
+
+    envelope = document.esignature_envelope
+    if envelope and envelope.status not in {"failed"}:
+        flash("This document already has a Signable envelope.", "info")
+        return redirect(url_for("completion_workspace", intro_id=intro.id))
+    if envelope is None:
+        envelope = ESignatureEnvelope(
+            document_id=document.id,
+            requested_by_id=current_user.id,
+            status="creating",
+        )
+        db.session.add(envelope)
+        db.session.flush()
+        if document.requires_buyer:
+            db.session.add(ESignatureParty(
+                envelope_id=envelope.id, user_id=intro.buyer_id, party_role="buyer"
+            ))
+        if document.requires_seller:
+            db.session.add(ESignatureParty(
+                envelope_id=envelope.id, user_id=intro.seller_id, party_role="seller"
+            ))
+    else:
+        envelope.status = "creating"
+        envelope.last_error = None
+    envelope.request_attempts += 1
+    envelope.updated_at = utcnow()
+    db.session.commit()
+
+    path = os.path.join(app.config["COMPLETION_DOCS_FOLDER"], document.filename)
+    if not os.path.isfile(path):
+        envelope.status = "failed"
+        envelope.last_error = "The source document is missing."
+        db.session.commit()
+        abort(404)
+    with open(path, "rb") as source_file:
+        content = source_file.read()
+    signers = []
+    if document.requires_buyer:
+        signers.append({
+            "party_name": intro.buyer.email,
+            "party_email": intro.buyer.email,
+            "party_role": "buyer",
+        })
+    if document.requires_seller:
+        signers.append({
+            "party_name": intro.seller.email,
+            "party_email": intro.seller.email,
+            "party_role": "seller",
+        })
+    public_redirect = None
+    if app.config.get("PUBLIC_BASE_URL"):
+        public_redirect = urljoin(
+            app.config["PUBLIC_BASE_URL"] + "/",
+            url_for("completion_workspace", intro_id=intro.id).lstrip("/"),
+        )
+    try:
+        response = get_signable_client().send_document(
+            title=f"Ownerlane {completion_target_label(intro)} · {document.title}"[:200],
+            filename=document.original_filename,
+            content=content,
+            signers=signers,
+            metadata={
+                "ownerlane_document_id": str(document.id),
+                "ownerlane_introduction_id": str(intro.id),
+            },
+            redirect_url=public_redirect,
+        )
+        fingerprint = (response.get("envelope_fingerprint") or "").strip()
+        if not fingerprint:
+            raise SignableAPIError("Signable did not return an envelope identifier.")
+    except SignableAPIError as exc:
+        envelope.status = "unknown" if exc.ambiguous else "failed"
+        envelope.last_error = str(exc)[:500]
+        envelope.updated_at = utcnow()
+        db.session.commit()
+        record_audit_event(
+            "esignature.send_failed", "Signable envelope could not be confirmed",
+            subject_user_id=intro.seller_id, resource_type="esignature_envelope",
+            resource_id=envelope.id,
+            details={"introduction_id": intro.id, "ambiguous": exc.ambiguous},
+        )
+        flash(str(exc), "error")
+        return redirect(url_for("completion_workspace", intro_id=intro.id))
+
+    envelope.provider_envelope_id = fingerprint
+    envelope.status = "processing"
+    envelope.sent_at = parse_provider_datetime(response.get("envelope_queued")) or utcnow()
+    envelope.updated_at = utcnow()
+    document.status = "ready"
+    reset_completion_confirmations(intro)
+    db.session.commit()
+    record_audit_event(
+        "esignature.sent", "Signature document sent through Signable",
+        subject_user_id=intro.seller_id, resource_type="esignature_envelope",
+        resource_id=envelope.id,
+        details={"introduction_id": intro.id, "document_id": document.id},
+    )
+    for recipient in (intro.buyer, intro.seller):
+        if any(signer["party_email"] == recipient.email for signer in signers):
+            publish_notification(
+                recipient,
+                event_type="esignature_requested",
+                title="Document sent for electronic signature",
+                body=f"{document.title} has been sent through Signable.",
+                target_url=url_for("completion_workspace", intro_id=intro.id),
+                dedupe_key=f"esignature-request:{envelope.id}:{recipient.id}",
+            )
+    flash("Document sent through Signable. Signers will receive signing emails.", "success")
+    return redirect(url_for("completion_workspace", intro_id=intro.id))
+
+
+@app.route("/completion/signature-documents/<int:document_id>/signable/sync", methods=["POST"])
+@login_required
+def sync_signature_document_from_signable(document_id):
+    document = SignatureDocument.query.get_or_404(document_id)
+    intro = document.introduction
+    if not can_access_deal_workspace(current_user, intro):
+        abort(404)
+    envelope = document.esignature_envelope
+    if not envelope:
+        abort(404)
+    try:
+        sync_signable_envelope(envelope)
+        db.session.commit()
+    except SignableAPIError as exc:
+        db.session.rollback()
+        flash(str(exc), "error")
+        return redirect(url_for("completion_workspace", intro_id=intro.id))
+    record_audit_event(
+        "esignature.synced", "Signable envelope status synchronised",
+        subject_user_id=intro.seller_id, resource_type="esignature_envelope",
+        resource_id=envelope.id,
+        details={"introduction_id": intro.id, "status": envelope.status},
+    )
+    flash("Signable status updated.", "success")
+    return redirect(url_for("completion_workspace", intro_id=intro.id))
+
+
+@app.route("/completion/signature-documents/<int:document_id>/signed-download")
+@login_required
+def download_signed_signature_document(document_id):
+    document = SignatureDocument.query.get_or_404(document_id)
+    if not can_access_deal_workspace(current_user, document.introduction):
+        abort(404)
+    envelope = document.esignature_envelope
+    if not envelope or not envelope.signed_filename:
+        abort(404)
+    path = os.path.join(app.config["COMPLETION_DOCS_FOLDER"], envelope.signed_filename)
+    if not os.path.isfile(path):
+        abort(404)
+    record_audit_event(
+        "esignature.signed_document_downloaded", "Signed document downloaded",
+        subject_user_id=document.introduction.seller_id,
+        resource_type="esignature_envelope", resource_id=envelope.id,
+        details={"introduction_id": document.introduction_id},
+    )
+    return send_from_directory(
+        app.config["COMPLETION_DOCS_FOLDER"], envelope.signed_filename,
+        as_attachment=True,
+        download_name=envelope.signed_original_filename or "signed-document.pdf",
+    )
+
+
+@app.route("/webhooks/signable", methods=["POST"])
+@csrf.exempt
+def signable_webhook():
+    expected_username = app.config.get("SIGNABLE_WEBHOOK_USERNAME") or ""
+    expected_password = app.config.get("SIGNABLE_WEBHOOK_PASSWORD") or ""
+    supplied = request.authorization
+    authenticated = bool(
+        supplied
+        and expected_username
+        and expected_password
+        and hmac.compare_digest(supplied.username or "", expected_username)
+        and hmac.compare_digest(supplied.password or "", expected_password)
+    )
+    if not authenticated:
+        return jsonify(error="Authentication required."), 401, {
+            "WWW-Authenticate": 'Basic realm="Ownerlane Signable webhook"'
+        }
+    if not signable_is_configured():
+        return jsonify(error="Signable is not configured."), 503
+
+    payload = request.form.to_dict(flat=True)
+    fingerprint = (payload.get("envelope_fingerprint") or "").strip()
+    action = (payload.get("action") or "unknown")[:60]
+    if not fingerprint:
+        return jsonify(error="Missing envelope fingerprint."), 400
+    envelope = ESignatureEnvelope.query.filter_by(
+        provider="signable", provider_envelope_id=fingerprint
+    ).first()
+    if not envelope:
+        # The Signable account may contain envelopes created outside Ownerlane.
+        return jsonify(ok=True)
+
+    event_identity = "|".join([
+        fingerprint,
+        action,
+        payload.get("signature_fingerprint") or "",
+        payload.get("action_date") or "",
+        payload.get("contact_email") or "",
+    ])
+    payload_hash = hashlib.sha256(event_identity.encode()).hexdigest()
+    event = ESignatureEvent.query.filter_by(payload_hash=payload_hash).first()
+    if event and event.processed_at:
+        return jsonify(ok=True)
+    if event is None:
+        event = ESignatureEvent(
+            envelope_id=envelope.id,
+            payload_hash=payload_hash,
+            action=action,
+            action_at=parse_provider_datetime(payload.get("action_date")),
+        )
+        db.session.add(event)
+        db.session.flush()
+
+    previous_status = envelope.status
+    try:
+        sync_signable_envelope(envelope)
+    except SignableAPIError as exc:
+        event.processing_error = str(exc)[:500]
+        db.session.commit()
+        return jsonify(error="Provider reconciliation failed."), 503
+    event.processed_at = utcnow()
+    event.processing_error = None
+    db.session.commit()
+    record_audit_event(
+        "esignature.webhook_processed", "Signable event reconciled",
+        subject_user_id=envelope.document.introduction.seller_id,
+        resource_type="esignature_envelope", resource_id=envelope.id,
+        actor_id=None,
+        details={
+            "introduction_id": envelope.document.introduction_id,
+            "action": action,
+            "status": envelope.status,
+        },
+    )
+    if previous_status != envelope.status and envelope.status in {
+        "signed", "rejected", "cancelled", "expired", "failed"
+    }:
+        intro = envelope.document.introduction
+        for recipient in (intro.buyer, intro.seller):
+            publish_notification(
+                recipient,
+                event_type="esignature_status",
+                title=f"Electronic signature {envelope.status}",
+                body=f"{envelope.document.title} is now {envelope.status} in Signable.",
+                target_url=url_for("completion_workspace", intro_id=intro.id),
+                dedupe_key=f"esignature-status:{envelope.id}:{envelope.status}:{recipient.id}",
+            )
+    return jsonify(ok=True)
+
+
 @app.route("/completion/signature-documents/<int:document_id>/status", methods=["POST"])
 @login_required
 def update_signature_document(document_id):
@@ -8018,6 +8522,9 @@ def update_signature_document(document_id):
         abort(404)
     ensure_completion_open(intro)
     action = (request.form.get("action") or "").strip()
+    envelope = document.esignature_envelope
+    if envelope and action in {"ready", "sign"}:
+        abort(400)
     if action == "ready":
         if current_user.id != document.uploaded_by_id and party != "seller":
             abort(404)
@@ -8039,6 +8546,16 @@ def update_signature_document(document_id):
     elif action == "void":
         if current_user.id != document.uploaded_by_id and party != "seller":
             abort(404)
+        if envelope and envelope.status in {"creating", "processing", "sent"}:
+            if not envelope.provider_envelope_id:
+                abort(409)
+            try:
+                get_signable_client().cancel_envelope(envelope.provider_envelope_id)
+            except SignableAPIError as exc:
+                flash(str(exc), "error")
+                return redirect(url_for("completion_workspace", intro_id=intro.id))
+            envelope.status = "cancelled"
+            envelope.updated_at = utcnow()
         document.status = "void"
         document.voided_at = utcnow()
         document.is_required = False

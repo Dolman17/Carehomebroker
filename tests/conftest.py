@@ -23,6 +23,11 @@ def seeded_app(monkeypatch):
         ADMIN_WEBAUTHN_REQUIRED=False,
         WEBAUTHN_ORIGIN="http://localhost",
         WEBAUTHN_RP_ID="localhost",
+        SIGNABLE_API_KEY=None,
+        SIGNABLE_API_BASE_URL="https://api.signable.co.uk/v1",
+        SIGNABLE_WEBHOOK_USERNAME=None,
+        SIGNABLE_WEBHOOK_PASSWORD=None,
+        SIGNABLE_ENABLED=False,
     )
     monkeypatch.setattr(application, "send_email", lambda *args, **kwargs: True)
 
