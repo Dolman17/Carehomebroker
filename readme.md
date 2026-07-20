@@ -93,6 +93,10 @@ Aggregate market insights and private, reproducible seller valuation reports
 
 Listing matching logic
 
+Explainable assisted matching with published criterion weights, fit/gap evidence and separate data-coverage scores
+
+Human-controlled matching outcomes: scores never approve, reject or prevent marketplace actions
+
 Confidential listing handling
 
 Privacy-safe activity and audit log

@@ -2441,70 +2441,17 @@ def compute_matches_for_buyer(buyer, limit=None):
             for l in listings
         ]
 
-    # Base: live listings
-    q = Listing.query.filter_by(status="live")
-
-    # Decode CSV fields
-    region_list = []
-    if profile.preferred_regions:
-        region_list = [
-            r.strip() for r in profile.preferred_regions.split(",") if r.strip()
-        ]
-        if region_list:
-            q = q.filter(Listing.region.in_(region_list))
-
-    care_list = []
-    if profile.care_types:
-        care_list = [
-            c.strip() for c in profile.care_types.split(",") if c.strip()
-        ]
-        if care_list:
-            q = q.filter(Listing.care_type.in_(care_list))
-
-    if profile.beds_min is not None:
-        q = q.filter(Listing.beds >= profile.beds_min)
-    if profile.beds_max is not None:
-        q = q.filter(Listing.beds <= profile.beds_max)
-
-    listings = q.order_by(Listing.created_at.desc()).all()
-
+    listings = Listing.query.filter_by(status="live").order_by(
+        Listing.created_at.desc()
+    ).all()
     results = []
-    for l in listings:
-        score = 0
-        reasons = []
-
-        # Region match
-        if region_list and l.region in region_list:
-            score += 30
-            reasons.append("Region match")
-
-        # Care type match
-        if care_list and l.care_type in care_list:
-            score += 30
-            reasons.append("Sector / industry match")
-
-        # Beds range
-        if profile.beds_min is not None and l.beds is not None:
-            if l.beds >= profile.beds_min:
-                score += 10
-                reasons.append("Meets minimum size")
-        if profile.beds_max is not None and l.beds is not None:
-            if l.beds <= profile.beds_max:
-                score += 10
-                reasons.append("Within size range")
-
-        # Rough quality match
-        if profile.quality_preference and l.cqc_rating:
-            if profile.quality_preference.lower() in l.cqc_rating.lower():
-                score += 10
-                reasons.append("Quality / accreditation match")
-
-        # If no specific matches triggered, still include with a low base score
-        if score == 0:
-            score = 5
-            reasons.append("General match (live & within broad filters)")
-
-        results.append((l, score, reasons))
+    for listing in listings:
+        explanation = explain_buyer_listing_match(listing, profile)
+        reasons = [
+            item["summary"] for item in explanation["criteria"]
+            if item["status"] in {"fit", "gap"}
+        ] or ["More buyer criteria are needed for a useful comparison"]
+        results.append((listing, explanation["score"], reasons))
 
     results.sort(key=lambda t: t[1], reverse=True)
 
@@ -2515,47 +2462,129 @@ def compute_matches_for_buyer(buyer, limit=None):
 
 
 def compute_buyer_listing_match(listing: Listing, profile: BuyerProfile):
-    """Score one listing using the same profile signals used by matching views."""
-    score = 0
-    reasons = []
-    regions = parse_csv(profile.preferred_regions)
-    care_types = parse_csv(profile.care_types)
+    """Compatibility tuple backed by the full explainable matching result."""
+    result = explain_buyer_listing_match(listing, profile)
+    reasons = [
+        item["summary"] for item in result["criteria"]
+        if item["status"] in {"fit", "gap"}
+    ]
+    return result["score"], result["label"], reasons
 
-    if regions:
-        if listing.region not in regions:
-            return 0, "No match", ["Region outside buyer mandate"]
-        score += 30
-        reasons.append("Region match")
 
-    if care_types:
-        if listing.care_type not in care_types:
-            return 0, "No match", ["Sector / industry outside buyer mandate"]
-        score += 30
-        reasons.append("Sector / industry match")
+MATCH_CRITERIA_WEIGHTS = {
+    "sector": 25, "region": 20, "budget": 25,
+    "size": 15, "quality": 10, "structure": 5,
+}
 
-    if profile.beds_min is not None:
-        if listing.beds is None or listing.beds < profile.beds_min:
-            return 0, "No match", ["Below minimum size"]
-        score += 10
-        reasons.append("Meets minimum size")
 
-    if profile.beds_max is not None:
-        if listing.beds is None or listing.beds > profile.beds_max:
-            return 0, "No match", ["Above maximum size"]
-        score += 10
-        reasons.append("Within maximum size")
+def _normalised_values(*values):
+    return {str(value).strip().casefold() for value in values if value and str(value).strip()}
 
-    if profile.quality_preference and listing.cqc_rating:
-        if profile.quality_preference.lower() in listing.cqc_rating.lower():
-            score += 10
-            reasons.append("Quality preference match")
 
-    if score == 0:
-        score = 5
-        reasons.append("General live opportunity")
+def _profile_money(value):
+    raw = (value or "").strip().rstrip("+").strip()
+    return parse_amount_to_pence(raw)
 
-    label = "Strong match" if score >= 60 else "Good match" if score >= 30 else "Possible match"
-    return score, label, reasons
+
+def explain_buyer_listing_match(listing: Listing, profile: BuyerProfile):
+    """Return an auditable fit assessment without making an eligibility decision."""
+    criteria = []
+
+    def add(key, status, buyer_value, listing_value, summary):
+        criteria.append({
+            "key": key, "label": key.title(), "weight": MATCH_CRITERIA_WEIGHTS[key],
+            "status": status, "buyer_value": buyer_value,
+            "listing_value": listing_value, "summary": summary,
+        })
+
+    buyer_sectors = _normalised_values(*parse_csv(profile.care_types))
+    listing_sectors = _normalised_values(
+        listing.care_type, listing.sector_name,
+        listing.sector.slug if listing.sector else None,
+    )
+    if not buyer_sectors:
+        add("sector", "not_set", "Not specified", ", ".join(sorted(listing_sectors)) or "Missing", "Buyer sector criteria not set")
+    elif not listing_sectors:
+        add("sector", "missing", ", ".join(sorted(buyer_sectors)), "Missing", "Listing sector evidence is missing")
+    elif buyer_sectors & listing_sectors:
+        add("sector", "fit", ", ".join(sorted(buyer_sectors)), ", ".join(sorted(listing_sectors)), "Sector is within the buyer mandate")
+    else:
+        add("sector", "gap", ", ".join(sorted(buyer_sectors)), ", ".join(sorted(listing_sectors)), "Sector is outside the stated buyer mandate")
+
+    buyer_regions = _normalised_values(*parse_csv(profile.preferred_regions))
+    listing_region = (listing.region or "").strip()
+    if not buyer_regions:
+        add("region", "not_set", "Not specified", listing_region or "Missing", "Buyer region criteria not set")
+    elif not listing_region:
+        add("region", "missing", ", ".join(sorted(buyer_regions)), "Missing", "Listing region evidence is missing")
+    elif listing_region.casefold() in buyer_regions:
+        add("region", "fit", ", ".join(sorted(buyer_regions)), listing_region, "Region is within the buyer mandate")
+    else:
+        add("region", "gap", ", ".join(sorted(buyer_regions)), listing_region, "Region is outside the stated buyer mandate")
+
+    minimum = _profile_money(profile.min_budget)
+    maximum = _profile_money(profile.max_budget)
+    price = listing.asking_price_minor or parse_amount_to_pence(listing.guide_price_band)
+    budget_text = f"{format_minor_units(minimum, listing.currency) if minimum is not None else 'No minimum'} – {format_minor_units(maximum, listing.currency) if maximum is not None else 'No maximum'}"
+    if minimum is None and maximum is None:
+        add("budget", "not_set", "Not specified", format_minor_units(price, listing.currency) if price else "Missing", "Buyer budget criteria not set or could not be parsed")
+    elif price is None:
+        add("budget", "missing", budget_text, "Price on request", "Listing price evidence is missing")
+    elif (minimum is not None and price < minimum) or (maximum is not None and price > maximum):
+        add("budget", "gap", budget_text, format_minor_units(price, listing.currency), "Guide price is outside the stated budget")
+    else:
+        add("budget", "fit", budget_text, format_minor_units(price, listing.currency), "Guide price is within the stated budget")
+
+    size_set = profile.beds_min is not None or profile.beds_max is not None
+    size_text = f"{profile.beds_min if profile.beds_min is not None else 'No minimum'} – {profile.beds_max if profile.beds_max is not None else 'No maximum'}"
+    if not size_set:
+        add("size", "not_set", "Not specified", str(listing.beds) if listing.beds is not None else "Missing", "Buyer size criteria not set")
+    elif listing.beds is None:
+        add("size", "missing", size_text, "Missing", "Listing size evidence is missing")
+    elif (profile.beds_min is not None and listing.beds < profile.beds_min) or (profile.beds_max is not None and listing.beds > profile.beds_max):
+        add("size", "gap", size_text, str(listing.beds), "Business size is outside the stated range")
+    else:
+        add("size", "fit", size_text, str(listing.beds), "Business size is within the stated range")
+
+    quality = (profile.quality_preference or "").strip()
+    listing_quality = (listing.cqc_rating or "").strip()
+    if not quality:
+        add("quality", "not_set", "Not specified", listing_quality or "Missing", "Buyer quality preference not set")
+    elif not listing_quality:
+        add("quality", "missing", quality, "Missing", "Listing quality evidence is missing")
+    else:
+        ratings = {"inadequate": 0, "requires improvement": 1, "good": 2, "outstanding": 3}
+        required = next((score for name, score in ratings.items() if name in quality.casefold()), None)
+        actual = ratings.get(listing_quality.casefold())
+        fits = actual is not None and required is not None and actual >= required
+        if required is None:
+            fits = quality.casefold() in listing_quality.casefold()
+        add("quality", "fit" if fits else "gap", quality, listing_quality, "Quality evidence meets the preference" if fits else "Quality evidence does not meet the stated preference")
+
+    structure = (profile.deal_structure or "").strip()
+    tenure = (listing.tenure or "").strip()
+    if not structure or structure.casefold() == "either":
+        add("structure", "not_set", structure or "Not specified", tenure or "Missing", "No restrictive deal-structure preference")
+    elif not tenure:
+        add("structure", "missing", structure, "Missing", "Listing tenure or structure evidence is missing")
+    else:
+        fits = structure.casefold() in tenure.casefold() or tenure.casefold() in structure.casefold()
+        add("structure", "fit" if fits else "gap", structure, tenure, "Structure appears compatible" if fits else "Structure may not match the stated preference")
+
+    configured_weight = sum(item["weight"] for item in criteria if item["status"] != "not_set")
+    assessed_weight = sum(item["weight"] for item in criteria if item["status"] in {"fit", "gap"})
+    fit_weight = sum(item["weight"] for item in criteria if item["status"] == "fit")
+    score = round(100 * fit_weight / assessed_weight) if assessed_weight else 0
+    coverage = round(100 * assessed_weight / configured_weight) if configured_weight else 0
+    label = "Strong fit" if score >= 80 else "Good fit" if score >= 60 else "Partial fit" if score >= 40 else "Limited fit"
+    return {
+        "score": score, "coverage": coverage, "label": label, "criteria": criteria,
+        "fit_count": sum(item["status"] == "fit" for item in criteria),
+        "gap_count": sum(item["status"] == "gap" for item in criteria),
+        "missing_count": sum(item["status"] == "missing" for item in criteria),
+        "weights": MATCH_CRITERIA_WEIGHTS,
+        "disclaimer": "Assisted ranking only; this result does not approve, reject or recommend a transaction.",
+    }
 
 
 
@@ -4768,6 +4797,13 @@ def seller_buyers():
         seller_id=current_user.id,
         status="live",
     ).all()
+    selected_listing_id = request.args.get("listing_id", type=int)
+    if selected_listing_id and selected_listing_id not in {listing.id for listing in listings}:
+        abort(404)
+    selected_listing = next(
+        (listing for listing in listings if listing.id == selected_listing_id),
+        listings[0] if listings else None,
+    )
 
     # If seller has literally no info at all, push them to set something up
     if not profile and not listings:
@@ -4837,12 +4873,11 @@ def seller_buyers():
         region_match = bool(buyer_regions & seller_regions) if seller_regions else False
         care_match = bool(buyer_care_types & seller_care_types) if seller_care_types else False
 
-        # Simple score: 0–2
-        score = (1 if region_match else 0) + (1 if care_match else 0)
-
-        # If seller has no signals, allow everyone through; otherwise drop zero-scores
-        if (seller_regions or seller_care_types) and score == 0:
-            continue
+        explanation = (
+            explain_buyer_listing_match(selected_listing, bp)
+            if selected_listing else None
+        )
+        score = explanation["score"] if explanation else (50 if region_match or care_match else 0)
 
         matches.append(
             {
@@ -4851,6 +4886,7 @@ def seller_buyers():
                 "region_match": region_match,
                 "care_match": care_match,
                 "score": score,
+                "explanation": explanation,
                 "qualification": BuyerQualification.query.filter_by(user_id=bp.user_id).first(),
             }
         )
@@ -4865,6 +4901,7 @@ def seller_buyers():
         seller_care_types=sorted(seller_care_types),
         profile=profile,
         listings=listings,
+        selected_listing=selected_listing,
     )
 
 
@@ -6390,6 +6427,10 @@ def buyer_dashboard():
     )
     match_results = compute_matches_for_buyer(current_user, limit=6)
     top_matches = [listing for listing, _score, _reasons in match_results]
+    match_explanations = {
+        listing.id: explain_buyer_listing_match(listing, profile)
+        for listing in top_matches
+    } if profile else {}
 
     # Persistent buyer tools
     shortlist_ids = get_shortlist_ids()
@@ -6430,6 +6471,24 @@ def buyer_dashboard():
         qualification=qualification,
         saved_searches=saved_searches,
         data_room_introductions=data_room_introductions,
+        match_explanations=match_explanations,
+    )
+
+
+@app.route("/buyer/matches/<int:listing_id>")
+@login_required
+@role_required("buyer")
+@require_subscription("buyer", "premium")
+def buyer_match_explanation(listing_id):
+    listing = Listing.query.filter_by(id=listing_id, status="live").first_or_404()
+    profile = BuyerProfile.query.filter_by(user_id=current_user.id).first()
+    if not profile:
+        flash("Complete your buyer profile to generate an explainable match.", "warning")
+        return redirect(url_for("buyer_profile"))
+    explanation = explain_buyer_listing_match(listing, profile)
+    return render_template(
+        "buyer/match_explanation.html", listing=listing,
+        profile=profile, explanation=explanation,
     )
 
 
@@ -8137,12 +8196,17 @@ def admin_matches():
         profile = BuyerProfile.query.filter_by(user_id=buyer.id).first()
         is_premium = has_active_subscription(buyer, "buyer", "premium")
         matches = compute_matches_for_buyer(buyer, limit=5)  # list of (listing, score, reasons)
+        match_details = {
+            listing.id: explain_buyer_listing_match(listing, profile)
+            for listing, _score, _reasons in matches
+        } if profile else {}
 
         rows.append({
             "buyer": buyer,
             "profile": profile,
             "is_premium": is_premium,
             "matches": matches,
+            "match_details": match_details,
         })
 
     return render_template("admin/matches.html", rows=rows)

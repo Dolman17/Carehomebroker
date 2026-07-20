@@ -118,12 +118,14 @@
     {% if top_matches %}
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
         {% for l in top_matches %}
-          <a href="{{ url_for('listing_detail', listing_id=l.id) }}"
+          {% set fit = match_explanations.get(l.id) %}
+          <a href="{{ url_for('buyer_match_explanation', listing_id=l.id) }}"
              class="block rounded-md border border-white/10 bg-black/40 p-3 hover:border-ownerMint/80 hover:shadow-lg hover:shadow-black/40 transition">
 
             <p class="text-[10px] font-mono text-white/40 mb-1">
               {{ l.listing_code or "Ref pending" }}
             </p>
+            {% if fit %}<div class="mb-2 flex items-center justify-between text-[10px]"><span class="rounded-full border border-ownerMint/50 px-2 py-1 text-ownerMint">{{ fit.score }}% · {{ fit.label }}</span><span class="text-white/35">{{ fit.coverage }}% evidence coverage</span></div>{% endif %}
 
             <!-- Service name: blurred for non-premium -->
             <p class="font-semibold text-sm mb-1">
@@ -152,6 +154,7 @@
                 <span class="ml-1 text-[10px] text-ownerMint">Premium only</span>
               {% endif %}
             </p>
+            <p class="mt-2 text-[10px] text-white/40">View the evidence, gaps and missing data →</p>
           </a>
         {% endfor %}
       </div>

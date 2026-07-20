@@ -13,7 +13,7 @@ This is a product-readiness review of the current application, not a security ce
 | Authentication | Verified-email registration, expiring one-time password resets, persistent login throttling and stricter admin sessions | 8/10 | Optional admin MFA and security-event audit views |
 | Seller workflow | Profile, listing management, enquiries, buyer matches, introductions, staged data rooms, structured offers, valuation requests and privacy-safe analytics | 9/10 | Portfolio tools and team permissions |
 | Confidentiality | Blurred restricted data, premium access rules, NDAs, staged disclosure permissions and audited private downloads | 9/10 | Retention controls and external storage hardening |
-| Matching | Profile-driven ranking with fit reasons and seller-side buyer matches | 6/10 | Normalised sector criteria and explainable weighting controls |
+| Matching | Deterministic assisted ranking with visible weights, criterion evidence, gaps, missing-data coverage and buyer/seller/admin explanations | 9/10 | Feedback calibration and administrator weighting policy |
 | Introductions and deals | Request/approve/decline lifecycle, private workspaces, tasks, milestones, structured offer negotiation, deal creation, price, commission and status | 9/10 | E-signatures and completion workflow |
 | Adviser workflow | Multi-discipline directory, verification, coverage, availability, private requests, versioned quotes, engagement status and completed-work reviews | 8/10 | Evidence renewal, conflicts workflow and adviser billing |
 | Billing | Stripe checkout, webhooks, subscription state and customer portal | 7/10 | Failed-payment recovery and entitlement audit views |
@@ -80,11 +80,11 @@ Saved-search matches are included in the protected weekly digest task. Immediate
 ### P2 — intelligence and scale
 
 1. **Market benchmarks and valuation reports — delivered.** Completed deals require current buyer and seller consent, administrator publication, anonymous aggregation and a minimum cohort of five; sellers can save reproducible indicative reports.
-2. **Explainable assisted matching** that summarises fit and gaps without making autonomous transaction decisions.
+2. **Explainable assisted matching — delivered.** Buyer, seller and administrator views now share deterministic weighted criteria, fit/gap/missing evidence and a separate coverage score; results never autonomously approve, reject or block a transaction.
 3. **Team accounts and permissions** for buyer groups, seller advisers and internal Ownerlane operators.
 4. **CRM, accounting and e-sign integrations** plus a versioned API and webhooks.
 5. **Portfolio and multi-listing transactions** for groups sold together or in configurable lots.
 
 ## Suggested next build
 
-Build explainable assisted matching next, summarising fit, gaps and evidence without making autonomous transaction decisions.
+Build team accounts and permissions next for buyer groups, seller advisers and internal Ownerlane operators.
