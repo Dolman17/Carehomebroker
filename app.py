@@ -10,6 +10,7 @@ import io
 import ipaddress
 import json
 import socket
+import secrets
 from html import escape
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from urllib.parse import urljoin, urlparse
@@ -48,6 +49,24 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 from sqlalchemy import func, desc, or_
 from sqlalchemy.exc import IntegrityError
+
+from webauthn import (
+    base64url_to_bytes,
+    generate_authentication_options,
+    generate_registration_options,
+    options_to_json,
+    verify_authentication_response,
+    verify_registration_response,
+)
+from webauthn.helpers import bytes_to_base64url
+from webauthn.helpers.exceptions import WebAuthnException
+from webauthn.helpers.structs import (
+    AuthenticatorSelectionCriteria,
+    AuthenticatorTransport,
+    PublicKeyCredentialDescriptor,
+    ResidentKeyRequirement,
+    UserVerificationRequirement,
+)
 
 from flask import current_app
 
@@ -165,6 +184,30 @@ app.config["ADMIN_IDLE_TIMEOUT"] = int(os.getenv("ADMIN_IDLE_TIMEOUT", str(30 * 
 app.config["ADMIN_ABSOLUTE_TIMEOUT"] = int(
     os.getenv("ADMIN_ABSOLUTE_TIMEOUT", str(8 * 60 * 60))
 )
+app.config["ADMIN_WEBAUTHN_REQUIRED"] = True
+app.config["ADMIN_STEP_UP_MAX_AGE"] = int(
+    os.getenv("ADMIN_STEP_UP_MAX_AGE", str(10 * 60))
+)
+app.config["WEBAUTHN_CHALLENGE_MAX_AGE"] = int(
+    os.getenv("WEBAUTHN_CHALLENGE_MAX_AGE", str(5 * 60))
+)
+configured_webauthn_origin = os.getenv("WEBAUTHN_ORIGIN") or app.config["PUBLIC_BASE_URL"]
+app.config["WEBAUTHN_ORIGIN"] = (
+    configured_webauthn_origin.rstrip("/") if configured_webauthn_origin
+    else "http://localhost:5000"
+)
+app.config["WEBAUTHN_RP_ID"] = os.getenv("WEBAUTHN_RP_ID") or (
+    urlparse(app.config["WEBAUTHN_ORIGIN"]).hostname or "localhost"
+)
+app.config["WEBAUTHN_RP_NAME"] = os.getenv("WEBAUTHN_RP_NAME", "Ownerlane")
+if is_production and not app.config["WEBAUTHN_ORIGIN"].startswith("https://"):
+    raise RuntimeError("WEBAUTHN_ORIGIN must use HTTPS in production.")
+webauthn_origin_host = urlparse(app.config["WEBAUTHN_ORIGIN"]).hostname
+if not webauthn_origin_host or not (
+    webauthn_origin_host == app.config["WEBAUTHN_RP_ID"]
+    or webauthn_origin_host.endswith(f".{app.config['WEBAUTHN_RP_ID']}")
+):
+    raise RuntimeError("WEBAUTHN_RP_ID must match the WebAuthn origin hostname.")
 
 # Stripe config
 app.config["STRIPE_SECRET_KEY"] = os.getenv("STRIPE_SECRET_KEY")
@@ -409,6 +452,7 @@ class User(db.Model):
     password_changed_at = db.Column(db.DateTime, default=datetime.utcnow)
     last_login_at = db.Column(db.DateTime)
     security_stamp = db.Column(db.Integer, nullable=False, default=0)
+    webauthn_user_handle = db.Column(db.String(64), unique=True)
 
     # Flask-Login methods
     def is_authenticated(self):
@@ -433,6 +477,36 @@ class User(db.Model):
     @property
     def email_is_verified(self):
         return self.email_verified_at is not None
+
+
+class AdminPasskey(db.Model):
+    __tablename__ = "admin_passkey"
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False, index=True)
+    name = db.Column(db.String(80), nullable=False, default="Passkey")
+    credential_id = db.Column(db.String(1024), unique=True, nullable=False, index=True)
+    public_key = db.Column(db.LargeBinary, nullable=False)
+    sign_count = db.Column(db.Integer, nullable=False, default=0)
+    transports = db.Column(db.String(255))
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    last_used_at = db.Column(db.DateTime)
+
+    user = db.relationship("User", backref=db.backref("admin_passkeys", lazy=True))
+
+
+class WebAuthnChallenge(db.Model):
+    __tablename__ = "webauthn_challenge"
+
+    id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False, index=True)
+    purpose = db.Column(db.String(24), nullable=False, index=True)
+    challenge = db.Column(db.String(128), nullable=False)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    expires_at = db.Column(db.DateTime, nullable=False, index=True)
+    consumed_at = db.Column(db.DateTime)
+
+    user = db.relationship("User")
 
 
 class LoginAttempt(db.Model):
@@ -3697,6 +3771,111 @@ def auth_email_request_allowed(email: str, purpose: str) -> bool:
     return allowed
 
 
+def _admin_passkey_descriptors(user):
+    descriptors = []
+    for passkey in user.admin_passkeys:
+        transports = []
+        for value in (passkey.transports or "").split(","):
+            try:
+                if value:
+                    transports.append(AuthenticatorTransport(value))
+            except ValueError:
+                continue
+        descriptors.append(
+            PublicKeyCredentialDescriptor(
+                id=base64url_to_bytes(passkey.credential_id),
+                transports=transports or None,
+            )
+        )
+    return descriptors
+
+
+def _create_webauthn_challenge(user, purpose):
+    now = utcnow()
+    WebAuthnChallenge.query.filter(
+        WebAuthnChallenge.user_id == user.id,
+        WebAuthnChallenge.purpose == purpose,
+        or_(
+            WebAuthnChallenge.expires_at <= now,
+            WebAuthnChallenge.consumed_at.isnot(None),
+        ),
+    ).delete(synchronize_session=False)
+    challenge_bytes = secrets.token_bytes(32)
+    challenge = WebAuthnChallenge(
+        user_id=user.id,
+        purpose=purpose,
+        challenge=bytes_to_base64url(challenge_bytes),
+        expires_at=now + timedelta(
+            seconds=app.config["WEBAUTHN_CHALLENGE_MAX_AGE"]
+        ),
+    )
+    db.session.add(challenge)
+    db.session.commit()
+    return challenge, challenge_bytes
+
+
+def _consume_webauthn_challenge(challenge_id, user, purpose):
+    now = utcnow()
+    query = WebAuthnChallenge.query.filter(
+        WebAuthnChallenge.id == challenge_id,
+        WebAuthnChallenge.user_id == user.id,
+        WebAuthnChallenge.purpose == purpose,
+        WebAuthnChallenge.consumed_at.is_(None),
+        WebAuthnChallenge.expires_at > now,
+    )
+    consumed = query.update(
+        {WebAuthnChallenge.consumed_at: now}, synchronize_session=False
+    )
+    if consumed != 1:
+        db.session.rollback()
+        return None
+    challenge_value = db.session.query(WebAuthnChallenge.challenge).filter(
+        WebAuthnChallenge.id == challenge_id
+    ).scalar()
+    db.session.commit()
+    return base64url_to_bytes(challenge_value)
+
+
+def _webauthn_options_response(options, challenge_id):
+    payload = json.loads(options_to_json(options))
+    payload["challengeId"] = challenge_id
+    return jsonify(payload)
+
+
+def _admin_login_destination(user, requested_next=None):
+    if is_safe_redirect_target(requested_next):
+        return requested_next
+    if user.role == "buyer":
+        return url_for("buyer_dashboard")
+    if user.role == "seller":
+        return url_for("seller_dashboard")
+    if user.role == "valuer":
+        return url_for("valuer_dashboard")
+    if user.role == "admin":
+        return url_for("admin_dashboard")
+    return url_for("buyer_dashboard")
+
+
+def _complete_login(user, remember=False, requested_next=None, mfa=False):
+    session.clear()
+    login_user(user, remember=remember, fresh=True)
+    user.last_login_at = utcnow()
+    if user.role == "admin":
+        now = int(utcnow().timestamp())
+        session["admin_session_started"] = now
+        session["admin_last_activity"] = now
+        if mfa or not app.config.get("ADMIN_WEBAUTHN_REQUIRED", True):
+            session["admin_step_up_at"] = now
+        session.permanent = False
+    db.session.commit()
+    record_audit_event(
+        "auth.login_succeeded", "Signed in", subject_user_id=user.id,
+        resource_type="user", resource_id=user.id, actor_id=user.id,
+        details={"role": user.role, "passkey_verified": bool(mfa)},
+    )
+    return redirect(_admin_login_destination(user, requested_next))
+
+
 @app.before_request
 def enforce_admin_session_limits():
     if not current_user.is_authenticated:
@@ -3725,6 +3904,62 @@ def enforce_admin_session_limits():
 
     session["admin_session_started"] = started
     session["admin_last_activity"] = now
+    return None
+
+
+@app.before_request
+def enforce_admin_passkeys_and_step_up():
+    if not app.config.get("ADMIN_WEBAUTHN_REQUIRED", True):
+        return None
+    if not current_user.is_authenticated or current_user.role != "admin":
+        return None
+
+    passkey_management = request.endpoint in {
+        "account_passkeys",
+        "begin_passkey_registration",
+        "finish_passkey_registration",
+    }
+    allowed = {
+        "admin_step_up",
+        "begin_admin_step_up",
+        "finish_admin_step_up",
+        "logout",
+        "static",
+    }
+    if request.endpoint in allowed:
+        return None
+
+    if not current_user.admin_passkeys:
+        session["admin_mfa_enrollment_required"] = True
+        if passkey_management:
+            return None
+        flash("Add a passkey before using administrator tools.", "warning")
+        return redirect(url_for("account_passkeys"))
+
+    admin_mutation = (
+        request.method in {"POST", "PUT", "PATCH", "DELETE"}
+        and request.path.startswith("/admin")
+    )
+    if passkey_management or admin_mutation:
+        now = int(utcnow().timestamp())
+        verified_at = int(session.get("admin_step_up_at", 0))
+        if now - verified_at > app.config["ADMIN_STEP_UP_MAX_AGE"]:
+            return_to = (
+                url_for("account_passkeys") if passkey_management
+                else request.referrer
+            )
+            session["admin_step_up_next"] = (
+                return_to if is_safe_redirect_target(return_to)
+                else url_for("admin_dashboard")
+            )
+            if request.endpoint in {
+                "begin_passkey_registration", "finish_passkey_registration"
+            }:
+                return jsonify(
+                    error="Confirm your current passkey before adding another one.",
+                    stepUpUrl=url_for("admin_step_up"),
+                ), 403
+            return redirect(url_for("admin_step_up"), code=303)
     return None
 
 
@@ -5712,6 +5947,249 @@ def reset_password(token):
 
     return render_template("auth/reset_password.html", token=token)
 
+
+def _pending_admin_user():
+    user_id = session.get("pending_admin_mfa_user_id")
+    started = int(session.get("pending_admin_mfa_started", 0))
+    if not user_id or int(utcnow().timestamp()) - started > app.config["WEBAUTHN_CHALLENGE_MAX_AGE"]:
+        session.pop("pending_admin_mfa_user_id", None)
+        session.pop("pending_admin_mfa_started", None)
+        session.pop("pending_admin_mfa_next", None)
+        return None
+    user = db.session.get(User, user_id)
+    return user if user and user.role == "admin" else None
+
+
+def _begin_admin_authentication(user, purpose):
+    challenge, challenge_bytes = _create_webauthn_challenge(user, purpose)
+    options = generate_authentication_options(
+        rp_id=app.config["WEBAUTHN_RP_ID"],
+        challenge=challenge_bytes,
+        allow_credentials=_admin_passkey_descriptors(user),
+        user_verification=UserVerificationRequirement.REQUIRED,
+    )
+    return _webauthn_options_response(options, challenge.id)
+
+
+def _verify_admin_authentication(user, purpose):
+    payload = request.get_json(silent=True) or {}
+    credential = payload.get("credential")
+    credential_id = credential.get("id") if isinstance(credential, dict) else None
+    passkey = (
+        AdminPasskey.query.filter_by(user_id=user.id, credential_id=credential_id).first()
+        if credential_id else None
+    )
+    expected_challenge = _consume_webauthn_challenge(
+        payload.get("challengeId"), user, purpose
+    )
+    if not passkey or expected_challenge is None:
+        return None, (jsonify(error="This passkey challenge is invalid or expired."), 400)
+    try:
+        verification = verify_authentication_response(
+            credential=credential,
+            expected_challenge=expected_challenge,
+            expected_rp_id=app.config["WEBAUTHN_RP_ID"],
+            expected_origin=app.config["WEBAUTHN_ORIGIN"],
+            credential_public_key=bytes(passkey.public_key),
+            credential_current_sign_count=passkey.sign_count,
+            require_user_verification=True,
+        )
+    except (WebAuthnException, ValueError, TypeError):
+        record_audit_event(
+            "auth.passkey_failed", "Passkey verification failed",
+            subject_user_id=user.id, resource_type="user", resource_id=user.id,
+            actor_id=user.id if current_user.is_authenticated else None,
+            details={"purpose": purpose},
+        )
+        return None, (jsonify(error="The passkey could not be verified."), 400)
+    if verification.credential_id != base64url_to_bytes(passkey.credential_id):
+        return None, (jsonify(error="The passkey could not be verified."), 400)
+    passkey.sign_count = verification.new_sign_count
+    passkey.last_used_at = utcnow()
+    db.session.commit()
+    return passkey, None
+
+
+@app.route("/account/passkeys")
+@login_required
+@role_required("admin")
+def account_passkeys():
+    return render_template(
+        "account/passkeys.html",
+        passkeys=current_user.admin_passkeys,
+        enrollment_required=not bool(current_user.admin_passkeys),
+        rp_id=app.config["WEBAUTHN_RP_ID"],
+    )
+
+
+@app.route("/account/passkeys/register/options", methods=["POST"])
+@login_required
+@role_required("admin")
+def begin_passkey_registration():
+    if not current_user.webauthn_user_handle:
+        current_user.webauthn_user_handle = secrets.token_hex(32)
+        db.session.commit()
+    challenge, challenge_bytes = _create_webauthn_challenge(
+        current_user, "registration"
+    )
+    options = generate_registration_options(
+        rp_id=app.config["WEBAUTHN_RP_ID"],
+        rp_name=app.config["WEBAUTHN_RP_NAME"],
+        user_id=bytes.fromhex(current_user.webauthn_user_handle),
+        user_name=current_user.email,
+        user_display_name=current_user.email,
+        challenge=challenge_bytes,
+        exclude_credentials=_admin_passkey_descriptors(current_user),
+        authenticator_selection=AuthenticatorSelectionCriteria(
+            resident_key=ResidentKeyRequirement.PREFERRED,
+            user_verification=UserVerificationRequirement.REQUIRED,
+        ),
+    )
+    return _webauthn_options_response(options, challenge.id)
+
+
+@app.route("/account/passkeys/register/verify", methods=["POST"])
+@login_required
+@role_required("admin")
+def finish_passkey_registration():
+    payload = request.get_json(silent=True) or {}
+    completes_initial_sign_in = bool(session.get("admin_mfa_enrollment_required"))
+    credential = payload.get("credential")
+    expected_challenge = _consume_webauthn_challenge(
+        payload.get("challengeId"), current_user, "registration"
+    )
+    if not isinstance(credential, dict) or expected_challenge is None:
+        return jsonify(error="This registration challenge is invalid or expired."), 400
+    try:
+        verification = verify_registration_response(
+            credential=credential,
+            expected_challenge=expected_challenge,
+            expected_rp_id=app.config["WEBAUTHN_RP_ID"],
+            expected_origin=app.config["WEBAUTHN_ORIGIN"],
+            require_user_verification=True,
+        )
+    except (WebAuthnException, ValueError, TypeError):
+        record_audit_event(
+            "auth.passkey_registration_failed", "Passkey registration failed",
+            subject_user_id=current_user.id, resource_type="user",
+            resource_id=current_user.id,
+        )
+        return jsonify(error="The passkey registration could not be verified."), 400
+
+    response = credential.get("response") or {}
+    transports = [
+        value for value in response.get("transports", [])
+        if value in {transport.value for transport in AuthenticatorTransport}
+    ]
+    passkey = AdminPasskey(
+        user_id=current_user.id,
+        name=((payload.get("name") or "Passkey").strip()[:80] or "Passkey"),
+        credential_id=bytes_to_base64url(verification.credential_id),
+        public_key=verification.credential_public_key,
+        sign_count=verification.sign_count,
+        transports=",".join(transports),
+    )
+    if completes_initial_sign_in:
+        current_user.last_login_at = utcnow()
+    db.session.add(passkey)
+    try:
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        return jsonify(error="That passkey is already registered."), 409
+
+    now = int(utcnow().timestamp())
+    session.pop("admin_mfa_enrollment_required", None)
+    session["admin_step_up_at"] = now
+    record_audit_event(
+        "auth.passkey_registered", "Administrator passkey registered",
+        subject_user_id=current_user.id, resource_type="admin_passkey",
+        resource_id=passkey.id,
+    )
+    if completes_initial_sign_in:
+        record_audit_event(
+            "auth.login_succeeded", "Signed in", subject_user_id=current_user.id,
+            resource_type="user", resource_id=current_user.id,
+            actor_id=current_user.id,
+            details={"role": "admin", "passkey_verified": True},
+        )
+    return jsonify(ok=True, redirect=url_for("admin_dashboard"))
+
+
+@app.route("/admin/mfa")
+def admin_mfa():
+    if not _pending_admin_user():
+        flash("Your passkey sign-in expired. Enter your password again.", "warning")
+        return redirect(url_for("login"))
+    return render_template(
+        "auth/admin_passkey_prompt.html", mode="login",
+        heading="Use your passkey", eyebrow="Administrator sign-in",
+        description="Complete the second sign-in step with your device passkey.",
+        options_url=url_for("begin_admin_mfa"),
+        verify_url=url_for("finish_admin_mfa"),
+    )
+
+
+@app.route("/admin/mfa/options", methods=["POST"])
+def begin_admin_mfa():
+    user = _pending_admin_user()
+    if not user or not user.admin_passkeys:
+        return jsonify(error="Your sign-in session is invalid or expired."), 401
+    return _begin_admin_authentication(user, "admin_login")
+
+
+@app.route("/admin/mfa/verify", methods=["POST"])
+def finish_admin_mfa():
+    user = _pending_admin_user()
+    if not user:
+        return jsonify(error="Your sign-in session is invalid or expired."), 401
+    _passkey, error = _verify_admin_authentication(user, "admin_login")
+    if error:
+        return error
+    requested_next = session.get("pending_admin_mfa_next")
+    response = _complete_login(user, requested_next=requested_next, mfa=True)
+    return jsonify(ok=True, redirect=response.location)
+
+
+@app.route("/admin/step-up")
+@login_required
+@role_required("admin")
+def admin_step_up():
+    return render_template(
+        "auth/admin_passkey_prompt.html", mode="step-up",
+        heading="Confirm it’s you", eyebrow="Protected administrator action",
+        description="Use your passkey again before making this sensitive change.",
+        options_url=url_for("begin_admin_step_up"),
+        verify_url=url_for("finish_admin_step_up"),
+    )
+
+
+@app.route("/admin/step-up/options", methods=["POST"])
+@login_required
+@role_required("admin")
+def begin_admin_step_up():
+    return _begin_admin_authentication(current_user, "admin_step_up")
+
+
+@app.route("/admin/step-up/verify", methods=["POST"])
+@login_required
+@role_required("admin")
+def finish_admin_step_up():
+    _passkey, error = _verify_admin_authentication(current_user, "admin_step_up")
+    if error:
+        return error
+    session["admin_step_up_at"] = int(utcnow().timestamp())
+    requested_next = session.pop("admin_step_up_next", None)
+    record_audit_event(
+        "auth.admin_step_up_succeeded", "Administrator passkey step-up completed",
+        subject_user_id=current_user.id, resource_type="user",
+        resource_id=current_user.id,
+    )
+    return jsonify(
+        ok=True,
+        redirect=requested_next if is_safe_redirect_target(requested_next) else url_for("admin_dashboard"),
+    )
+
 @app.route("/login", methods=["GET", "POST"])
 def login():
     """
@@ -5777,37 +6255,39 @@ def login():
         clear_login_failures(email)
         next_page = request.args.get("next")
         remember = bool(request.form.get("remember")) and user.role != "admin"
-        session.clear()
-        login_user(user, remember=remember, fresh=True)
-        user.last_login_at = utcnow()
-        if user.role == "admin":
+        if user.role == "admin" and app.config.get("ADMIN_WEBAUTHN_REQUIRED", True):
+            session.clear()
+            if user.admin_passkeys:
+                session["pending_admin_mfa_user_id"] = user.id
+                session["pending_admin_mfa_started"] = int(utcnow().timestamp())
+                if is_safe_redirect_target(next_page):
+                    session["pending_admin_mfa_next"] = next_page
+                record_audit_event(
+                    "auth.admin_password_verified",
+                    "Administrator password verified; passkey required",
+                    subject_user_id=user.id, resource_type="user", resource_id=user.id,
+                    actor_id=None,
+                )
+                return redirect(url_for("admin_mfa"))
+
+            login_user(user, remember=False, fresh=True)
             now = int(utcnow().timestamp())
             session["admin_session_started"] = now
             session["admin_last_activity"] = now
+            session["admin_mfa_enrollment_required"] = True
             session.permanent = False
-        db.session.commit()
-        record_audit_event(
-            "auth.login_succeeded", "Signed in", subject_user_id=user.id,
-            resource_type="user", resource_id=user.id, actor_id=user.id,
-            details={"role": user.role},
+            record_audit_event(
+                "auth.admin_passkey_enrollment_required",
+                "Administrator must enrol a passkey",
+                subject_user_id=user.id, resource_type="user", resource_id=user.id,
+                actor_id=user.id,
+            )
+            flash("Set up a passkey to finish securing your administrator account.", "warning")
+            return redirect(url_for("account_passkeys"))
+
+        return _complete_login(
+            user, remember=remember, requested_next=next_page, mfa=False
         )
-
-        # Honour ?next=... if present
-        if is_safe_redirect_target(next_page):
-            return redirect(next_page)
-
-        # Role-aware redirect
-        if user.role == "buyer":
-            return redirect(url_for("buyer_dashboard"))
-        elif user.role == "seller":
-            return redirect(url_for("seller_dashboard"))
-        elif user.role == "valuer":
-            return redirect(url_for("valuer_dashboard"))
-        elif user.role == "admin":
-            return redirect(url_for("admin_dashboard"))
-        else:
-            # Fallback: treat as buyer-ish
-            return redirect(url_for("buyer_dashboard"))
 
     # GET request (or any non-POST fallthrough)
     return render_template("auth/login.html")

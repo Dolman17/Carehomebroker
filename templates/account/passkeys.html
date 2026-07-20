@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Administrator passkeys – Ownerlane{% endblock %}
+{% block content %}
+<div class="mx-auto max-w-2xl space-y-6">
+  <header>
+    <p class="text-[11px] uppercase tracking-[0.2em] text-ownerMint">Administrator security</p>
+    <h1 class="mt-2 text-2xl font-semibold">Passkeys</h1>
+    <p class="mt-2 text-sm leading-6 text-white/60">Passkeys use your device screen lock, fingerprint, face or security key. Ownerlane stores only the public credential needed to verify it.</p>
+  </header>
+
+  {% if enrollment_required %}
+  <div class="rounded-xl border border-ownerCoral/50 bg-ownerCoral/10 p-4 text-sm text-white/80">
+    You must add a passkey before administrator tools are available. Use a device you control and can access whenever you administer Ownerlane.
+  </div>
+  {% endif %}
+
+  <section class="rounded-xl border border-white/10 bg-black/25 p-5">
+    <h2 class="font-semibold">Add a passkey</h2>
+    <p class="mt-2 text-xs leading-5 text-white/55">Passkeys require HTTPS on a live site. Localhost is supported for local testing. This passkey will be bound to <span class="text-white">{{ rp_id }}</span>.</p>
+    <label for="passkey-name" class="mt-5 block text-xs text-white/70">Passkey name</label>
+    <input id="passkey-name" maxlength="80" value="My passkey" class="mt-2 w-full rounded border border-white/15 bg-ownerInk px-3 py-2 text-sm">
+    <button id="register-passkey" type="button" class="mt-4 rounded bg-ownerMint px-5 py-2 text-sm font-semibold text-ownerInk hover:bg-white">Add passkey</button>
+    <p id="passkey-status" role="status" class="mt-3 hidden text-xs"></p>
+  </section>
+
+  <section class="rounded-xl border border-white/10 bg-black/25 p-5">
+    <h2 class="font-semibold">Registered passkeys</h2>
+    <div class="mt-4 space-y-3">
+      {% for passkey in passkeys %}
+      <div class="flex items-center justify-between gap-4 rounded-lg border border-white/10 px-4 py-3">
+        <div><p class="text-sm text-white">{{ passkey.name }}</p><p class="mt-1 text-[11px] text-white/45">Added {{ passkey.created_at.strftime('%d %b %Y') }}{% if passkey.last_used_at %} · Last used {{ passkey.last_used_at.strftime('%d %b %Y') }}{% endif %}</p></div>
+        <span class="rounded-full border border-ownerMint/40 px-2 py-1 text-[10px] text-ownerMint">Active</span>
+      </div>
+      {% else %}
+      <p class="text-sm text-white/50">No passkeys registered yet.</p>
+      {% endfor %}
+    </div>
+  </section>
+</div>
+{% endblock %}
+{% block extra_head %}
+<script defer src="{{ url_for('static', filename='js/passkeys.js') }}"></script>
+{% endblock %}

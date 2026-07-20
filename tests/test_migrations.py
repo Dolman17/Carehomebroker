@@ -69,5 +69,7 @@ def test_initial_migration_builds_a_fresh_database(tmp_path):
         "completion_condition",
         "signature_document",
         "completion_record",
+        "admin_passkey",
+        "webauthn_challenge",
     } <= tables
-    assert revision[0] == "a2d5e0b7c486"
+    assert revision[0] == "b3e6f1a8d927"

@@ -90,6 +90,7 @@
              class="text-white/80 hover:text-ownerMint transition-colors">
             Security
           </a>
+          {% if current_user.role == 'admin' %}<a href="{{ url_for('account_passkeys') }}" class="text-white/80 hover:text-ownerMint transition-colors">Passkeys</a>{% endif %}
           <a href="{{ url_for('teams_index') }}" class="text-white/80 hover:text-ownerMint transition-colors">{{ active_team_membership.team.name if active_team_membership else 'Teams' }}</a>
           <a href="{{ url_for('integrations_index') }}" class="text-white/80 hover:text-ownerMint transition-colors">Integrations</a>
           <a href="{{ url_for('my_dashboard') }}"
@@ -242,6 +243,7 @@
 
         <a href="{{ url_for('security_activity') }}"
            class="py-1 text-white/80 hover:text-ownerMint">Security activity</a>
+        {% if current_user.role == 'admin' %}<a href="{{ url_for('account_passkeys') }}" class="py-1 text-white/80 hover:text-ownerMint">Passkeys</a>{% endif %}
 
         <a href="{{ url_for('teams_index') }}" class="py-1 text-white/80 hover:text-ownerMint">{{ active_team_membership.team.name if active_team_membership else 'Teams' }}</a>
         <a href="{{ url_for('integrations_index') }}" class="py-1 text-white/80 hover:text-ownerMint">Integrations</a>

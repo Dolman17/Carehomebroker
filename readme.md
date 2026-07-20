@@ -25,6 +25,10 @@ Persistent login throttling
 
 Idle and absolute session limits for administrators
 
+Mandatory phishing-resistant passkeys for administrator sign-in
+
+Passkey step-up before sensitive administrator changes
+
 Login/Logout with Flask-Login
 
 ## Seller portal
@@ -203,6 +207,9 @@ flask --app app.py seed-admin
 ```
 
 Both values are required, and weak passwords are rejected.
+On the first successful administrator password sign-in, Ownerlane requires a
+passkey before any administrator tool can be used. Register a platform passkey
+(such as Windows Hello, Touch ID or a hardware security key) in the browser.
 
 7. Run the app in development mode
 flask --app app.py run --debug
@@ -284,6 +291,11 @@ DATABASE_URL=sqlite:///care_broker.db
 PRIVATE_UPLOAD_ROOT=/path/to/persistent/private-storage
 DIGEST_TASK_TOKEN=your-token
 WEBHOOK_TASK_TOKEN=a-different-strong-random-token
+WEBAUTHN_ORIGIN=https://ownerlane.uk
+WEBAUTHN_RP_ID=ownerlane.uk
+WEBAUTHN_RP_NAME=Ownerlane
+ADMIN_STEP_UP_MAX_AGE=600
+WEBAUTHN_CHALLENGE_MAX_AGE=300
 
 SMTP_SERVER=smtp.gmail.com
 SMTP_PORT=587
@@ -299,6 +311,13 @@ Always use a strong SECRET_KEY
 If running multiple containers, use Postgres instead of SQLite
 
 Use a secrets manager (Railway/Render/Heroku env vars)
+
+`WEBAUTHN_ORIGIN` must be the exact HTTPS origin used by administrators and
+`WEBAUTHN_RP_ID` must be its registrable hostname (or a valid parent domain).
+Changing either value can make existing passkeys unusable. There is no
+password-only bypass: if every administrator passkey is lost, an authorised
+operator must use a controlled database recovery procedure before the account
+can enrol a replacement.
 
 ## Integrations
 

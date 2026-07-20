@@ -20,6 +20,9 @@ def seeded_app(monkeypatch):
         TESTING=True,
         WTF_CSRF_ENABLED=False,
         SERVER_NAME="localhost",
+        ADMIN_WEBAUTHN_REQUIRED=False,
+        WEBAUTHN_ORIGIN="http://localhost",
+        WEBAUTHN_RP_ID="localhost",
     )
     monkeypatch.setattr(application, "send_email", lambda *args, **kwargs: True)
 
