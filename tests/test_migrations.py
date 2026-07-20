@@ -61,5 +61,9 @@ def test_initial_migration_builds_a_fresh_database(tmp_path):
         "integration_api_token",
         "webhook_endpoint",
         "webhook_delivery",
+        "portfolio",
+        "portfolio_lot",
+        "portfolio_lot_listing",
+        "portfolio_enquiry",
     } <= tables
-    assert revision[0] == "e0b3c8f5a264"
+    assert revision[0] == "f1c4d9a6b375"

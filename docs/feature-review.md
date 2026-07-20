@@ -11,7 +11,7 @@ This is a product-readiness review of the current application, not a security ce
 | Marketplace discovery | Public live listings, confidentiality gating, keyword/region/sector/price filters, price sorting, list and map views, pagination | 8/10 | More sector-specific filters and search analytics |
 | Buyer workflow | Detailed profile, qualification, matches, shared team shortlists and searches, alerts, enquiries and subscriptions | 9/10 | Formal mandate approval and team billing |
 | Authentication | Verified-email registration, expiring one-time password resets, persistent login throttling and stricter admin sessions | 8/10 | Optional admin MFA and security-event audit views |
-| Seller workflow | Profile, team listing collaboration, advisers, enquiries, buyer matches, introductions, staged data rooms, offers, valuation requests and analytics | 9/10 | Portfolio tools and team billing |
+| Seller workflow | Profile, team listing collaboration, configurable portfolios, advisers, enquiries, buyer matches, introductions, staged data rooms, offers, valuation requests and analytics | 9/10 | Team billing and bulk operations |
 | Confidentiality | Blurred restricted data, premium access rules, NDAs, staged disclosure permissions and audited private downloads | 9/10 | Retention controls and external storage hardening |
 | Matching | Deterministic assisted ranking with visible weights, criterion evidence, gaps, missing-data coverage and buyer/seller/admin explanations | 9/10 | Feedback calibration and administrator weighting policy |
 | Introductions and deals | Request/approve/decline lifecycle, private workspaces, tasks, milestones, structured offer negotiation, deal creation, price, commission and status | 9/10 | E-signatures and completion workflow |
@@ -22,6 +22,7 @@ This is a product-readiness review of the current application, not a security ce
 | Reporting | Seller listing engagement, conversion funnels, buyer quality, time-to-stage, listing comparisons and deal/commission records | 7/10 | Platform revenue analytics and scheduled reports |
 | Multi-sector data model | First-class sectors, configurable attributes and legacy compatibility | 7/10 | Admin-managed sector schemas and buyer criteria migration |
 | Integrations | Scoped read-only API tokens, versioned endpoints, signed retryable webhooks and CRM CSV export | 7/10 | Native CRM apps, accounting sync and e-signatures |
+| Portfolio transactions | Confidential multi-listing opportunities sold as a whole, by configurable lot, or either way | 8/10 | Portfolio-level data rooms and offer allocation |
 
 ## Improvements delivered in this release
 
@@ -60,6 +61,9 @@ This is a product-readiness review of the current application, not a security ce
 - Added versioned read-only profile, listing and introduction endpoints that reuse marketplace confidentiality policies.
 - Added user- and team-scoped HTTPS webhooks with HMAC signatures, SSRF destination checks, delivery history and bounded retries.
 - Added role-scoped CRM CSV export with spreadsheet-formula injection protection.
+- Added confidential multi-listing portfolios with whole-sale, lot-sale or flexible transaction structures.
+- Added seller lot allocation, per-lot guide prices and availability, publication safeguards and premium buyer enquiries targeted to a whole portfolio or selected lot.
+- Reused listing and team permissions throughout, and automatically returns affected portfolios to draft when their composition or a constituent listing changes.
 
 Saved-search matches are included in the protected weekly digest task. Immediate delivery is available for transaction and data-room events when selected in notification preferences.
 
@@ -88,8 +92,8 @@ Saved-search matches are included in the protected weekly digest task. Immediate
 2. **Explainable assisted matching — delivered.** Buyer, seller and administrator views now share deterministic weighted criteria, fit/gap/missing evidence and a separate coverage score; results never autonomously approve, reject or block a transaction.
 3. **Team accounts and permissions — delivered.** Buyer groups share shortlists and searches, seller teams share selected listings and data rooms with advisers, and Ownerlane operators can be organised without team membership granting platform-admin status. Invitations are expiring and email-bound; owner, manager, contributor and viewer permissions are enforced server-side and audited.
 4. **Integrations foundation — delivered.** Scoped read-only API access, signed retryable webhooks and a CRM-ready export are available. Native CRM apps, accounting sync and e-signatures remain future extensions.
-5. **Portfolio and multi-listing transactions** for groups sold together or in configurable lots.
+5. **Portfolio and multi-listing transactions — delivered.** Sellers can package at least two live listings for sale as a whole, by configurable lot or either way, with listing-level confidentiality, team permissions, targeted buyer enquiries and automatic unpublishing when the package changes.
 
 ## Suggested next build
 
-Build portfolio and multi-listing transactions next, supporting groups sold together or split into configurable lots while retaining listing-level confidentiality and permissions.
+Build the transaction-completion workflow next: portfolio-aware diligence checklists, completion conditions, signature-ready documents and a controlled handover record.

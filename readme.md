@@ -107,6 +107,10 @@ HTTPS webhooks with HMAC-SHA256 signatures, delivery history and bounded retries
 
 Role-scoped, spreadsheet-safe CRM CSV export
 
+Confidential multi-listing portfolios marketed as a whole, by configurable lot, or either way
+
+Seller portfolio builder with lot pricing, availability, publication safeguards and targeted premium-buyer enquiries
+
 Confidential listing handling
 
 Privacy-safe activity and audit log

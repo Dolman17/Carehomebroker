@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}Business portfolios · Ownerlane{% endblock %}
+{% block content %}
+<div class="space-y-7">
+  <header class="max-w-3xl"><p class="text-xs font-semibold uppercase tracking-[0.22em] text-ownerMint">Portfolio opportunities</p><h1 class="mt-2 text-3xl font-semibold">Acquire a group, or select the right lot</h1><p class="mt-3 text-sm leading-6 text-white/55">Explore multi-business opportunities structured for a whole-portfolio sale, individual lots, or either route.</p></header>
+  <div class="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
+  {% for portfolio in portfolios %}
+    <a href="{{ url_for('portfolio_detail', portfolio_id=portfolio.id) }}" class="group rounded-2xl border border-white/10 bg-white/5 p-5 hover:border-ownerMint/50">
+      <div class="flex items-start justify-between gap-3"><span class="font-mono text-[10px] text-white/35">{{ portfolio.portfolio_code }}</span><span class="rounded-full bg-ownerMint/10 px-2 py-1 text-[9px] text-ownerMint">{{ portfolio.sale_mode|replace('lots', 'by lot')|title }}</span></div>
+      <h2 class="mt-4 text-lg font-semibold group-hover:text-ownerMint">{{ portfolio.title if portfolio.can_view_sensitive else 'Confidential business portfolio' }}</h2>
+      <p class="mt-2 line-clamp-3 text-xs leading-5 text-white/50">{{ portfolio.summary if portfolio.can_view_sensitive else 'Further portfolio information is available to authorised premium buyers.' }}</p>
+      <div class="mt-5 flex items-center justify-between border-t border-white/10 pt-4 text-xs"><span>{{ portfolio.listing_count }} listings</span><span class="text-white/55">{{ portfolio.asking_price_display if portfolio.can_view_sensitive and portfolio.asking_price_display else 'Price on request' }}</span></div>
+    </a>
+  {% else %}<div class="rounded-2xl border border-dashed border-white/15 p-8 text-sm text-white/45 md:col-span-2">No live portfolio opportunities are available yet.</div>{% endfor %}
+  </div>
+</div>
+{% endblock %}

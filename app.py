@@ -627,6 +627,99 @@ class Listing(db.Model):
         return None
 
 
+class Portfolio(db.Model):
+    __tablename__ = "portfolio"
+
+    id = db.Column(db.Integer, primary_key=True)
+    seller_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False, index=True)
+    team_id = db.Column(db.Integer, db.ForeignKey("team.id"), index=True)
+    portfolio_code = db.Column(db.String(20), nullable=False, unique=True, index=True)
+    title = db.Column(db.String(255), nullable=False)
+    summary = db.Column(db.Text)
+    sale_mode = db.Column(db.String(20), nullable=False, default="whole", index=True)
+    asking_price_minor = db.Column(db.BigInteger)
+    currency = db.Column(db.String(3), nullable=False, default="GBP")
+    is_confidential = db.Column(db.Boolean, nullable=False, default=True)
+    status = db.Column(db.String(20), nullable=False, default="draft", index=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+    seller = db.relationship("User", foreign_keys=[seller_id], backref="portfolios")
+    team = db.relationship("Team", backref="portfolios")
+    lots = db.relationship(
+        "PortfolioLot", backref="portfolio", cascade="all, delete-orphan",
+        order_by="PortfolioLot.sort_order, PortfolioLot.id",
+    )
+
+    @property
+    def asking_price_display(self):
+        return format_minor_units(self.asking_price_minor, self.currency)
+
+    @property
+    def listing_count(self):
+        return sum(len(lot.items) for lot in self.lots)
+
+    @property
+    def listings(self):
+        return [item.listing for lot in self.lots for item in lot.items]
+
+
+class PortfolioLot(db.Model):
+    __tablename__ = "portfolio_lot"
+
+    id = db.Column(db.Integer, primary_key=True)
+    portfolio_id = db.Column(db.Integer, db.ForeignKey("portfolio.id"), nullable=False, index=True)
+    name = db.Column(db.String(160), nullable=False)
+    description = db.Column(db.Text)
+    asking_price_minor = db.Column(db.BigInteger)
+    currency = db.Column(db.String(3), nullable=False, default="GBP")
+    is_available = db.Column(db.Boolean, nullable=False, default=True, index=True)
+    sort_order = db.Column(db.Integer, nullable=False, default=0)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+    items = db.relationship(
+        "PortfolioLotListing", backref="lot", cascade="all, delete-orphan",
+        order_by="PortfolioLotListing.sort_order, PortfolioLotListing.id",
+    )
+
+    @property
+    def asking_price_display(self):
+        return format_minor_units(self.asking_price_minor, self.currency)
+
+
+class PortfolioLotListing(db.Model):
+    __tablename__ = "portfolio_lot_listing"
+    __table_args__ = (
+        db.UniqueConstraint("portfolio_id", "listing_id", name="uq_portfolio_listing"),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    portfolio_id = db.Column(db.Integer, db.ForeignKey("portfolio.id"), nullable=False, index=True)
+    lot_id = db.Column(db.Integer, db.ForeignKey("portfolio_lot.id"), nullable=False, index=True)
+    listing_id = db.Column(db.Integer, db.ForeignKey("listing.id"), nullable=False, index=True)
+    sort_order = db.Column(db.Integer, nullable=False, default=0)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+    listing = db.relationship("Listing", backref="portfolio_memberships")
+
+
+class PortfolioEnquiry(db.Model):
+    __tablename__ = "portfolio_enquiry"
+
+    id = db.Column(db.Integer, primary_key=True)
+    portfolio_id = db.Column(db.Integer, db.ForeignKey("portfolio.id"), nullable=False, index=True)
+    lot_id = db.Column(db.Integer, db.ForeignKey("portfolio_lot.id"), index=True)
+    buyer_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False, index=True)
+    message = db.Column(db.Text, nullable=False)
+    nda_accepted = db.Column(db.Boolean, nullable=False, default=False)
+    status = db.Column(db.String(20), nullable=False, default="new", index=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+    portfolio = db.relationship("Portfolio", backref="enquiries")
+    lot = db.relationship("PortfolioLot", backref="enquiries")
+    buyer = db.relationship("User", backref="portfolio_enquiries")
+
+
 def get_sector_options():
     rows = Sector.query.filter_by(is_active=True).order_by(
         Sector.sort_order.asc(), Sector.name.asc()
@@ -2098,10 +2191,54 @@ def can_edit_seller_listing(user, listing):
     )
 
 
+def can_view_portfolio(user, portfolio):
+    if portfolio.status == "live":
+        return True
+    if not getattr(user, "is_authenticated", False):
+        return False
+    return bool(
+        user.role == "admin" or portfolio.seller_id == user.id
+        or (portfolio.team_id and team_has_permission(user, portfolio.team_id, "resource.view"))
+    )
+
+
+def can_edit_portfolio(user, portfolio):
+    if not getattr(user, "is_authenticated", False):
+        return False
+    return bool(
+        user.role == "admin" or portfolio.seller_id == user.id
+        or (portfolio.team_id and team_has_permission(user, portfolio.team_id, "resource.edit"))
+    )
+
+
+def can_view_portfolio_sensitive(user, portfolio):
+    if not portfolio.is_confidential and portfolio.status == "live":
+        return True
+    if not getattr(user, "is_authenticated", False):
+        return False
+    if can_edit_portfolio(user, portfolio) or user.role == "admin":
+        return True
+    return user.role == "buyer" and is_premium_buyer(user)
+
+
+def eligible_portfolio_listings(user, portfolio=None):
+    query = Listing.query
+    if portfolio and portfolio.team_id:
+        query = query.filter(Listing.team_id == portfolio.team_id)
+    else:
+        membership = active_team_membership(user, "seller")
+        if membership and "resource.edit" in TEAM_ROLE_PERMISSIONS.get(membership.role, set()):
+            query = query.filter(Listing.team_id == membership.team_id)
+        else:
+            query = query.filter(Listing.seller_id == user.id)
+    return [listing for listing in query.order_by(Listing.created_at.desc()).all()
+            if can_edit_seller_listing(user, listing)]
+
+
 API_SCOPES = {"profile:read", "listings:read", "introductions:read"}
 WEBHOOK_EVENT_TYPES = {
     "listing.updated", "listing.status_changed", "introduction.updated",
-    "offer.accepted", "ping",
+    "offer.accepted", "portfolio.updated", "ping",
 }
 
 
@@ -4110,6 +4247,403 @@ def market_insights():
     )
 
 
+def generate_portfolio_code():
+    last = Portfolio.query.order_by(Portfolio.id.desc()).first()
+    return f"PF-{(last.id + 1 if last else 1):04d}"
+
+
+def mark_portfolio_changed(portfolio):
+    portfolio.updated_at = utcnow()
+    if portfolio.status == "live":
+        portfolio.status = "draft"
+
+
+def queue_portfolio_update(portfolio, **extra):
+    payload = {"portfolio_id": portfolio.id, "status": portfolio.status, **extra}
+    queue_integration_event("portfolio.updated", payload, user_id=portfolio.seller_id)
+    if portfolio.team_id:
+        queue_integration_event("portfolio.updated", payload, team_id=portfolio.team_id)
+
+
+def portfolio_is_publishable(portfolio):
+    if portfolio.listing_count < 2 or any(listing.status != "live" for listing in portfolio.listings):
+        return False
+    if portfolio.sale_mode in {"lots", "either"}:
+        return any(lot.is_available and lot.items for lot in portfolio.lots)
+    return True
+
+
+def draft_live_portfolios_for_listing(listing):
+    portfolios_to_draft = Portfolio.query.join(PortfolioLotListing).filter(
+        PortfolioLotListing.listing_id == listing.id, Portfolio.status == "live"
+    ).all()
+    for portfolio in portfolios_to_draft:
+        portfolio.status = "draft"
+        portfolio.updated_at = utcnow()
+    return portfolios_to_draft
+
+
+@app.route("/portfolios")
+def portfolios():
+    rows = Portfolio.query.filter_by(status="live").order_by(
+        Portfolio.created_at.desc()
+    ).all()
+    rows = [portfolio for portfolio in rows if portfolio_is_publishable(portfolio)]
+    for portfolio in rows:
+        portfolio.can_view_sensitive = can_view_portfolio_sensitive(current_user, portfolio)
+    return render_template("portfolios/index.html", portfolios=rows)
+
+
+@app.route("/portfolios/<int:portfolio_id>", methods=["GET", "POST"])
+def portfolio_detail(portfolio_id):
+    portfolio = Portfolio.query.get_or_404(portfolio_id)
+    if not can_view_portfolio(current_user, portfolio):
+        abort(404)
+    if portfolio.status == "live" and not portfolio_is_publishable(portfolio):
+        if not can_edit_portfolio(current_user, portfolio):
+            abort(404)
+    can_view_sensitive = can_view_portfolio_sensitive(current_user, portfolio)
+    can_enquire = bool(
+        current_user.is_authenticated and current_user.role == "buyer"
+        and is_premium_buyer(current_user) and portfolio.status == "live"
+    )
+    if request.method == "POST":
+        if not current_user.is_authenticated:
+            return redirect(url_for("login", next=request.path))
+        if current_user.role != "buyer" or not is_premium_buyer(current_user):
+            flash("Buyer Premium is required to enquire about a portfolio.", "warning")
+            return redirect(url_for("pricing", role="buyer"))
+        if portfolio.status != "live":
+            abort(404)
+        message = (request.form.get("message") or "").strip()
+        nda_accepted = bool(request.form.get("nda_accepted"))
+        lot_id = request.form.get("lot_id", type=int)
+        target_lot = None
+        if portfolio.sale_mode == "lots" and not lot_id:
+            flash("Choose an available lot.", "error")
+            return redirect(request.path)
+        if lot_id:
+            target_lot = PortfolioLot.query.filter_by(
+                id=lot_id, portfolio_id=portfolio.id, is_available=True
+            ).first()
+            if not target_lot or portfolio.sale_mode == "whole":
+                abort(400)
+        if not message:
+            flash("Include a message with your enquiry.", "error")
+            return redirect(request.path)
+        if not nda_accepted:
+            flash("Confirm the confidentiality undertaking before enquiring.", "error")
+            return redirect(request.path)
+        enquiry = PortfolioEnquiry(
+            portfolio_id=portfolio.id, lot_id=target_lot.id if target_lot else None,
+            buyer_id=current_user.id, message=message, nda_accepted=True,
+        )
+        db.session.add(enquiry)
+        db.session.commit()
+        target = target_lot.name if target_lot else "the whole portfolio"
+        publish_notification(
+            portfolio.seller, event_type="portfolio_enquiry",
+            title="New portfolio enquiry",
+            body=f"A buyer enquired about {target} in {portfolio.portfolio_code}.",
+            target_url=url_for("seller_portfolios"),
+            dedupe_key=f"portfolio-enquiry:{enquiry.id}",
+        )
+        record_audit_event(
+            "portfolio.enquiry_created", "Portfolio enquiry submitted",
+            subject_user_id=portfolio.seller_id, resource_type="portfolio_enquiry",
+            resource_id=enquiry.id,
+            details={"portfolio_id": portfolio.id, "lot_id": enquiry.lot_id},
+        )
+        flash("Your portfolio enquiry has been sent.", "success")
+        return redirect(url_for("portfolio_detail", portfolio_id=portfolio.id))
+    if portfolio.is_confidential and can_view_sensitive and current_user.is_authenticated:
+        record_audit_event(
+            "portfolio.sensitive_viewed", "Confidential portfolio details viewed",
+            subject_user_id=current_user.id, resource_type="portfolio",
+            resource_id=portfolio.id,
+        )
+    return render_template(
+        "portfolios/detail.html", portfolio=portfolio,
+        can_view_sensitive=can_view_sensitive, can_enquire=can_enquire,
+        listing_visibility={
+            listing.id: can_view_listing_sensitive(current_user, listing)
+            for listing in portfolio.listings
+        },
+    )
+
+
+@app.route("/seller/portfolios")
+@login_required
+@role_required("seller")
+def seller_portfolios():
+    team_ids = seller_listing_team_ids(current_user)
+    rows = Portfolio.query.filter(or_(
+        Portfolio.seller_id == current_user.id, Portfolio.team_id.in_(team_ids)
+    )).order_by(Portfolio.updated_at.desc()).all()
+    portfolio_ids = [portfolio.id for portfolio in rows]
+    enquiries = PortfolioEnquiry.query.filter(
+        PortfolioEnquiry.portfolio_id.in_(portfolio_ids)
+    ).order_by(PortfolioEnquiry.created_at.desc()).limit(50).all() if portfolio_ids else []
+    return render_template(
+        "seller/portfolios.html", portfolios=rows, enquiries=enquiries,
+    )
+
+
+@app.route("/seller/portfolios/new", methods=["GET", "POST"])
+@login_required
+@role_required("seller")
+def seller_new_portfolio():
+    listings = eligible_portfolio_listings(current_user)
+    if request.method == "POST":
+        title = (request.form.get("title") or "").strip()[:255]
+        sale_mode = (request.form.get("sale_mode") or "whole").strip()
+        currency = (request.form.get("currency") or "GBP").strip().upper()
+        selected_ids = {int(value) for value in request.form.getlist("listing_ids") if value.isdigit()}
+        selected = [listing for listing in listings if listing.id in selected_ids]
+        if not title or sale_mode not in {"whole", "lots", "either"} or currency not in {"GBP", "EUR", "USD"}:
+            flash("Enter a title and valid sale configuration.", "error")
+            return redirect(request.url)
+        if len(selected) < 2:
+            flash("Select at least two listings for a portfolio.", "error")
+            return redirect(request.url)
+        try:
+            asking_price_minor = parse_major_units(request.form.get("asking_price"))
+        except ValueError as exc:
+            flash(str(exc), "error")
+            return redirect(request.url)
+        membership = active_team_membership(current_user, "seller")
+        team_id = membership.team_id if membership and "resource.edit" in TEAM_ROLE_PERMISSIONS.get(membership.role, set()) else None
+        portfolio = Portfolio(
+            seller_id=current_user.id, team_id=team_id,
+            portfolio_code=generate_portfolio_code(), title=title,
+            summary=(request.form.get("summary") or "").strip()[:5000],
+            sale_mode=sale_mode, asking_price_minor=asking_price_minor,
+            currency=currency, is_confidential=bool(request.form.get("is_confidential")),
+        )
+        db.session.add(portfolio)
+        db.session.flush()
+        lot = PortfolioLot(
+            portfolio_id=portfolio.id, name="Portfolio assets", currency=currency,
+        )
+        db.session.add(lot)
+        db.session.flush()
+        for index, listing in enumerate(selected):
+            db.session.add(PortfolioLotListing(
+                portfolio_id=portfolio.id, lot_id=lot.id,
+                listing_id=listing.id, sort_order=index,
+            ))
+        db.session.commit()
+        record_audit_event(
+            "portfolio.created", "Portfolio created",
+            subject_user_id=current_user.id, resource_type="portfolio",
+            resource_id=portfolio.id,
+            details={"listing_count": len(selected), "sale_mode": sale_mode, "team_id": team_id},
+        )
+        flash("Portfolio created as a draft. Configure lots, then publish it.", "success")
+        return redirect(url_for("seller_edit_portfolio", portfolio_id=portfolio.id))
+    return render_template("seller/new_portfolio.html", listings=listings)
+
+
+@app.route("/seller/portfolios/<int:portfolio_id>/edit", methods=["GET", "POST"])
+@login_required
+@role_required("seller")
+def seller_edit_portfolio(portfolio_id):
+    portfolio = Portfolio.query.get_or_404(portfolio_id)
+    if not can_edit_portfolio(current_user, portfolio):
+        abort(404)
+    if request.method == "POST":
+        title = (request.form.get("title") or "").strip()[:255]
+        sale_mode = (request.form.get("sale_mode") or "whole").strip()
+        currency = (request.form.get("currency") or "GBP").strip().upper()
+        if not title or sale_mode not in {"whole", "lots", "either"} or currency not in {"GBP", "EUR", "USD"}:
+            flash("Enter a valid portfolio configuration.", "error")
+            return redirect(request.url)
+        try:
+            portfolio.asking_price_minor = parse_major_units(request.form.get("asking_price"))
+        except ValueError as exc:
+            flash(str(exc), "error")
+            return redirect(request.url)
+        portfolio.title = title
+        portfolio.summary = (request.form.get("summary") or "").strip()[:5000]
+        portfolio.sale_mode = sale_mode
+        portfolio.currency = currency
+        portfolio.is_confidential = bool(request.form.get("is_confidential"))
+        mark_portfolio_changed(portfolio)
+        db.session.commit()
+        queue_portfolio_update(portfolio)
+        flash("Portfolio updated. Republish it if it was previously live.", "success")
+        return redirect(request.url)
+    assigned_ids = {item.listing_id for lot in portfolio.lots for item in lot.items}
+    eligible = [listing for listing in eligible_portfolio_listings(current_user, portfolio) if listing.id not in assigned_ids]
+    return render_template(
+        "seller/edit_portfolio.html", portfolio=portfolio, eligible_listings=eligible,
+    )
+
+
+@app.route("/seller/portfolios/<int:portfolio_id>/lots", methods=["POST"])
+@login_required
+@role_required("seller")
+def seller_add_portfolio_lot(portfolio_id):
+    portfolio = Portfolio.query.get_or_404(portfolio_id)
+    if not can_edit_portfolio(current_user, portfolio):
+        abort(404)
+    name = (request.form.get("name") or "").strip()[:160]
+    if not name:
+        flash("Enter a lot name.", "error")
+        return redirect(url_for("seller_edit_portfolio", portfolio_id=portfolio.id))
+    try:
+        price = parse_major_units(request.form.get("asking_price"))
+    except ValueError as exc:
+        flash(str(exc), "error")
+        return redirect(url_for("seller_edit_portfolio", portfolio_id=portfolio.id))
+    db.session.add(PortfolioLot(
+        portfolio_id=portfolio.id, name=name,
+        description=(request.form.get("description") or "").strip()[:2000],
+        asking_price_minor=price, currency=portfolio.currency,
+        sort_order=len(portfolio.lots),
+    ))
+    mark_portfolio_changed(portfolio)
+    db.session.commit()
+    queue_portfolio_update(portfolio, change="lot_created")
+    record_audit_event(
+        "portfolio.lot_created", "Portfolio lot created",
+        subject_user_id=portfolio.seller_id, resource_type="portfolio",
+        resource_id=portfolio.id, details={"name": name},
+    )
+    flash("Lot added.", "success")
+    return redirect(url_for("seller_edit_portfolio", portfolio_id=portfolio.id))
+
+
+@app.route("/seller/portfolios/<int:portfolio_id>/lots/<int:lot_id>", methods=["POST"])
+@login_required
+@role_required("seller")
+def seller_update_portfolio_lot(portfolio_id, lot_id):
+    portfolio = Portfolio.query.get_or_404(portfolio_id)
+    lot = PortfolioLot.query.filter_by(id=lot_id, portfolio_id=portfolio.id).first_or_404()
+    if not can_edit_portfolio(current_user, portfolio):
+        abort(404)
+    name = (request.form.get("name") or "").strip()[:160]
+    if not name:
+        flash("Lot name cannot be blank.", "error")
+        return redirect(url_for("seller_edit_portfolio", portfolio_id=portfolio.id))
+    try:
+        lot.asking_price_minor = parse_major_units(request.form.get("asking_price"))
+    except ValueError as exc:
+        flash(str(exc), "error")
+        return redirect(url_for("seller_edit_portfolio", portfolio_id=portfolio.id))
+    lot.name = name
+    lot.description = (request.form.get("description") or "").strip()[:2000]
+    lot.is_available = bool(request.form.get("is_available"))
+    mark_portfolio_changed(portfolio)
+    db.session.commit()
+    queue_portfolio_update(portfolio, change="lot_updated", lot_id=lot.id)
+    record_audit_event(
+        "portfolio.lot_updated", "Portfolio lot updated",
+        subject_user_id=portfolio.seller_id, resource_type="portfolio_lot",
+        resource_id=lot.id, details={"portfolio_id": portfolio.id},
+    )
+    flash("Lot updated.", "success")
+    return redirect(url_for("seller_edit_portfolio", portfolio_id=portfolio.id))
+
+
+@app.route("/seller/portfolios/<int:portfolio_id>/listings/<int:listing_id>", methods=["POST"])
+@login_required
+@role_required("seller")
+def seller_assign_portfolio_listing(portfolio_id, listing_id):
+    portfolio = Portfolio.query.get_or_404(portfolio_id)
+    if not can_edit_portfolio(current_user, portfolio):
+        abort(404)
+    listing = Listing.query.get_or_404(listing_id)
+    if listing not in eligible_portfolio_listings(current_user, portfolio):
+        abort(404)
+    lot_id = request.form.get("lot_id", type=int)
+    lot = PortfolioLot.query.filter_by(id=lot_id, portfolio_id=portfolio.id).first_or_404()
+    item = PortfolioLotListing.query.filter_by(
+        portfolio_id=portfolio.id, listing_id=listing.id
+    ).first()
+    if item:
+        item.lot_id = lot.id
+    else:
+        item = PortfolioLotListing(
+            portfolio_id=portfolio.id, lot_id=lot.id, listing_id=listing.id,
+            sort_order=len(lot.items),
+        )
+        db.session.add(item)
+    mark_portfolio_changed(portfolio)
+    db.session.commit()
+    queue_portfolio_update(portfolio, change="listing_assigned", listing_id=listing.id, lot_id=lot.id)
+    record_audit_event(
+        "portfolio.listing_assigned", "Listing assigned to portfolio lot",
+        subject_user_id=portfolio.seller_id, resource_type="portfolio",
+        resource_id=portfolio.id, details={"listing_id": listing.id, "lot_id": lot.id},
+    )
+    flash("Listing assigned to lot.", "success")
+    return redirect(url_for("seller_edit_portfolio", portfolio_id=portfolio.id))
+
+
+@app.route("/seller/portfolios/<int:portfolio_id>/listings/<int:listing_id>/remove", methods=["POST"])
+@login_required
+@role_required("seller")
+def seller_remove_portfolio_listing(portfolio_id, listing_id):
+    portfolio = Portfolio.query.get_or_404(portfolio_id)
+    if not can_edit_portfolio(current_user, portfolio):
+        abort(404)
+    item = PortfolioLotListing.query.filter_by(
+        portfolio_id=portfolio.id, listing_id=listing_id
+    ).first_or_404()
+    db.session.delete(item)
+    mark_portfolio_changed(portfolio)
+    db.session.commit()
+    queue_portfolio_update(portfolio, change="listing_removed", listing_id=listing_id)
+    record_audit_event(
+        "portfolio.listing_removed", "Listing removed from portfolio",
+        subject_user_id=portfolio.seller_id, resource_type="portfolio",
+        resource_id=portfolio.id, details={"listing_id": listing_id},
+    )
+    flash("Listing removed from portfolio.", "success")
+    return redirect(url_for("seller_edit_portfolio", portfolio_id=portfolio.id))
+
+
+@app.route("/seller/portfolios/<int:portfolio_id>/status", methods=["POST"])
+@login_required
+@role_required("seller")
+def seller_update_portfolio_status(portfolio_id):
+    portfolio = Portfolio.query.get_or_404(portfolio_id)
+    if not can_edit_portfolio(current_user, portfolio):
+        abort(404)
+    status = (request.form.get("status") or "").strip()
+    if status not in {"draft", "live", "under_offer", "sold", "archived"}:
+        abort(400)
+    if status == "live":
+        if not is_premium_seller(current_user):
+            flash("Seller Premium is required to publish a portfolio.", "warning")
+            return redirect(url_for("pricing", role="seller"))
+        if portfolio.listing_count < 2:
+            flash("A live portfolio must contain at least two listings.", "error")
+            return redirect(url_for("seller_edit_portfolio", portfolio_id=portfolio.id))
+        if any(listing.status != "live" for listing in portfolio.listings):
+            flash("Every portfolio listing must be live before the portfolio can be published.", "error")
+            return redirect(url_for("seller_edit_portfolio", portfolio_id=portfolio.id))
+        if portfolio.sale_mode in {"lots", "either"} and not any(lot.is_available and lot.items for lot in portfolio.lots):
+            flash("At least one populated lot must be available.", "error")
+            return redirect(url_for("seller_edit_portfolio", portfolio_id=portfolio.id))
+    previous = portfolio.status
+    portfolio.status = status
+    portfolio.updated_at = utcnow()
+    if status == "sold":
+        for lot in portfolio.lots:
+            lot.is_available = False
+    db.session.commit()
+    queue_portfolio_update(portfolio, old_status=previous)
+    record_audit_event(
+        "portfolio.status_changed", "Portfolio status changed",
+        subject_user_id=portfolio.seller_id, resource_type="portfolio",
+        resource_id=portfolio.id, details={"old_status": previous, "status": status},
+    )
+    flash(f"Portfolio marked as {status.replace('_', ' ')}.", "success")
+    return redirect(url_for("seller_edit_portfolio", portfolio_id=portfolio.id))
+
+
 
 @app.route("/listings")
 def listings():
@@ -5496,6 +6030,9 @@ def seller_dashboard():
         .filter(~Introduction.status.in_(["pending_seller_request", "declined", "failed"]))
         .order_by(Introduction.updated_at.desc()).limit(10).all()
     )
+    portfolios = Portfolio.query.filter(or_(
+        Portfolio.seller_id == current_user.id, Portfolio.team_id.in_(team_ids)
+    )).order_by(Portfolio.updated_at.desc()).all()
 
     return render_template(
         "seller/dashboard.html",
@@ -5505,6 +6042,7 @@ def seller_dashboard():
         current_plan_label=current_plan_label,
         active_sub=active_sub,
         workspace_introductions=workspace_introductions,
+        portfolios=portfolios,
         # optional: expose this if you want in template later
         # seller_is_premium=seller_is_premium,
     )
@@ -5941,6 +6479,7 @@ def seller_update_listing_status(listing_id):
     listing.status = status
     if not listing.listing_code:
         listing.listing_code = generate_listing_code()
+    affected_portfolios = draft_live_portfolios_for_listing(listing) if status != "live" else []
     db.session.commit()
     event_payload = {"listing_id": listing.id, "old_status": previous_status, "status": status}
     queue_integration_event("listing.status_changed", event_payload, user_id=listing.seller_id)
@@ -5949,6 +6488,11 @@ def seller_update_listing_status(listing_id):
     if status == "live" and previous_status != "live":
         publish_listing_match_notifications(listing)
     flash(f"Listing marked as {status.replace('_', ' ')}.")
+    if affected_portfolios:
+        flash(
+            f"{len(affected_portfolios)} live portfolio(s) returned to draft because every included listing must remain live.",
+            "info",
+        )
     return redirect(url_for("seller_dashboard"))
 
 @app.route("/seller/listings/<int:listing_id>/request-valuation", methods=["GET", "POST"])
