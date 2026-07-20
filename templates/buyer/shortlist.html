@@ -21,14 +21,14 @@
           <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div class="flex-1">
               <p class="text-[11px] font-mono text-white/50 mb-2">{{ l.listing_code }}</p>
-              <p class="font-semibold text-white text-lg">{{ l.title }}</p>
+              <p class="font-semibold text-white text-lg">{{ l.title if can_view_sensitive else 'Confidential business' }}</p>
               <p class="text-sm text-white/80 mt-1">
                 {{ l.region or "Region" }} •
                 {{ l.sector_name or "Sector / industry" }}
                 {% if l.headline_metric %} • {{ l.headline_metric }}{% endif %}
               </p>
               <p class="text-sm text-ownerMint mt-1">
-                Guide price: {{ l.guide_price_band or "On request" }}
+                Guide price: {{ (l.guide_price_band or "On request") if can_view_sensitive else 'Premium only' }}
               </p>
             </div>
 
@@ -46,7 +46,7 @@
               {% set cover_photo = l.photo_filename %}
             {% endif %}
 
-            {% if cover_photo %}
+            {% if cover_photo and can_view_sensitive %}
               <div class="w-full sm:w-40 h-28 rounded-lg overflow-hidden border border-white/10 shrink-0 group">
                 <img src="{{ url_for('static', filename='uploads/' ~ cover_photo) }}"
                      alt="{{ l.title }}"

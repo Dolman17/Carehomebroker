@@ -434,6 +434,53 @@ class LoginAttempt(db.Model):
     updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
 
 
+class Team(db.Model):
+    __tablename__ = "team"
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(160), nullable=False)
+    team_type = db.Column(db.String(20), nullable=False, index=True)
+    created_by_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+    created_by = db.relationship("User", foreign_keys=[created_by_id])
+
+
+class TeamMembership(db.Model):
+    __tablename__ = "team_membership"
+    __table_args__ = (
+        db.UniqueConstraint("team_id", "user_id", name="uq_team_membership_user"),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    team_id = db.Column(db.Integer, db.ForeignKey("team.id"), nullable=False, index=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False, index=True)
+    role = db.Column(db.String(20), nullable=False, default="viewer", index=True)
+    status = db.Column(db.String(20), nullable=False, default="active", index=True)
+    joined_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+    team = db.relationship("Team", backref="memberships")
+    user = db.relationship("User", backref="team_memberships")
+
+
+class TeamInvitation(db.Model):
+    __tablename__ = "team_invitation"
+
+    id = db.Column(db.Integer, primary_key=True)
+    team_id = db.Column(db.Integer, db.ForeignKey("team.id"), nullable=False, index=True)
+    email = db.Column(db.String(255), nullable=False, index=True)
+    role = db.Column(db.String(20), nullable=False)
+    token_hash = db.Column(db.String(64), nullable=False, unique=True, index=True)
+    invited_by_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
+    expires_at = db.Column(db.DateTime, nullable=False, index=True)
+    accepted_at = db.Column(db.DateTime)
+    revoked_at = db.Column(db.DateTime)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+    team = db.relationship("Team", backref="invitations")
+    invited_by = db.relationship("User", foreign_keys=[invited_by_id])
+
+
 class Listing(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     seller_id = db.Column(
@@ -442,6 +489,7 @@ class Listing(db.Model):
         nullable=False,
         index=True,
     )
+    team_id = db.Column(db.Integer, db.ForeignKey("team.id"), index=True)
     listing_code = db.Column(db.String(20), unique=True)
     title = db.Column(db.String(255), nullable=False)
     region = db.Column(db.String(100))
@@ -470,6 +518,7 @@ class Listing(db.Model):
     photo_filename = db.Column(db.String(255))
 
     seller = db.relationship("User", backref="listings", lazy=True)
+    team = db.relationship("Team", backref="listings")
     sector = db.relationship("Sector", backref="listings", lazy=True)
 
     photos = db.relationship(
@@ -658,15 +707,15 @@ class ShortlistItem(db.Model):
     listing_id = db.Column(
         db.Integer, db.ForeignKey("listing.id"), nullable=False, index=True
     )
+    team_id = db.Column(db.Integer, db.ForeignKey("team.id"), index=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
     buyer = db.relationship("User", backref="shortlist_items", lazy=True)
     listing = db.relationship("Listing", backref="shortlist_items", lazy=True)
+    team = db.relationship("Team", backref="shortlist_items")
 
     __table_args__ = (
-        db.UniqueConstraint(
-            "buyer_id", "listing_id", name="uq_shortlist_item_buyer_listing"
-        ),
+        db.UniqueConstraint("team_id", "listing_id", name="uq_shortlist_item_team_listing"),
     )
 
 
@@ -700,6 +749,7 @@ class SavedSearch(db.Model):
     buyer_id = db.Column(
         db.Integer, db.ForeignKey("user.id"), nullable=False, index=True
     )
+    team_id = db.Column(db.Integer, db.ForeignKey("team.id"), index=True)
     name = db.Column(db.String(120), nullable=False)
     search_term = db.Column(db.String(120))
     region = db.Column(db.String(100))
@@ -708,11 +758,10 @@ class SavedSearch(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
     buyer = db.relationship("User", backref="saved_searches", lazy=True)
+    team = db.relationship("Team", backref="saved_searches")
 
     __table_args__ = (
-        db.UniqueConstraint(
-            "buyer_id", "name", name="uq_saved_search_buyer_name"
-        ),
+        db.UniqueConstraint("team_id", "name", name="uq_saved_search_team_name"),
     )
 
 
@@ -1904,6 +1953,86 @@ def is_premium_buyer(user) -> bool:
     return has_active_subscription(user, "buyer", "premium")
 
 
+TEAM_ROLE_PERMISSIONS = {
+    "owner": {"team.manage", "resource.view", "resource.edit", "resource.share"},
+    "manager": {"team.manage", "resource.view", "resource.edit", "resource.share"},
+    "contributor": {"resource.view", "resource.edit", "resource.share"},
+    "viewer": {"resource.view"},
+}
+
+
+def team_type_for_user(user):
+    return {"buyer": "buyer", "seller": "seller", "admin": "ownerlane"}.get(user.role)
+
+
+def compatible_with_team(user, team):
+    if team.team_type == "ownerlane":
+        return user.role == "admin"
+    if team.team_type == "buyer":
+        return user.role == "buyer"
+    return team.team_type == "seller" and user.role in {"seller", "valuer"}
+
+
+def active_team_membership(user, team_type=None):
+    if not getattr(user, "is_authenticated", False):
+        return None
+    query = TeamMembership.query.join(Team).filter(
+        TeamMembership.user_id == user.id, TeamMembership.status == "active"
+    )
+    active_id = session.get("active_team_id")
+    if not active_id:
+        return None
+    query = query.filter(TeamMembership.team_id == active_id)
+    if team_type:
+        query = query.filter(Team.team_type == team_type)
+    return query.first()
+
+
+def team_membership(user, team_id):
+    if not getattr(user, "is_authenticated", False):
+        return None
+    return TeamMembership.query.filter_by(
+        team_id=team_id, user_id=user.id, status="active"
+    ).first()
+
+
+def team_has_permission(user, team_id, permission):
+    membership = team_membership(user, team_id)
+    return bool(membership and permission in TEAM_ROLE_PERMISSIONS.get(membership.role, set()))
+
+
+def seller_listing_team_ids(user, permission="resource.view"):
+    if not getattr(user, "is_authenticated", False):
+        return set()
+    return {
+        membership.team_id for membership in TeamMembership.query.join(Team).filter(
+            TeamMembership.user_id == user.id, TeamMembership.status == "active",
+            Team.team_type == "seller",
+        ).all()
+        if permission in TEAM_ROLE_PERMISSIONS.get(membership.role, set())
+    }
+
+
+def can_view_seller_listing(user, listing):
+    return bool(
+        getattr(user, "is_authenticated", False)
+        and (
+            user.role == "admin" or listing.seller_id == user.id
+            or (listing.team_id and team_has_permission(user, listing.team_id, "resource.view"))
+        )
+    )
+
+
+def can_edit_seller_listing(user, listing):
+    return bool(
+        getattr(user, "is_authenticated", False)
+        and (
+            user.role == "admin" or listing.seller_id == user.id
+            or (listing.team_id and team_has_permission(user, listing.team_id, "resource.edit"))
+        )
+    )
+
+
 def can_view_listing_sensitive(user, listing: Listing) -> bool:
     """Central disclosure policy for confidential listing fields."""
     if not listing.is_confidential and listing.status == "live":
@@ -1912,7 +2041,7 @@ def can_view_listing_sensitive(user, listing: Listing) -> bool:
         return False
     if user.role == "admin":
         return True
-    if user.role == "seller" and listing.seller_id == user.id:
+    if can_view_seller_listing(user, listing):
         return True
     return user.role == "buyer" and is_premium_buyer(user)
 
@@ -1923,9 +2052,7 @@ def can_access_listing(user, listing: Listing) -> bool:
         return True
     if not getattr(user, "is_authenticated", False):
         return False
-    return user.role == "admin" or (
-        user.role == "seller" and listing.seller_id == user.id
-    )
+    return user.role == "admin" or can_view_seller_listing(user, listing)
 
 
 def is_safe_redirect_target(target: str | None) -> bool:
@@ -2174,7 +2301,7 @@ def data_room_category_label(category: str | None) -> str:
 def can_manage_data_room(user, listing: Listing) -> bool:
     return bool(
         getattr(user, "is_authenticated", False)
-        and (user.role == "admin" or (user.role == "seller" and listing.seller_id == user.id))
+        and (user.role == "admin" or can_edit_seller_listing(user, listing))
     )
 
 
@@ -2387,12 +2514,16 @@ def get_shortlist_ids():
             if imported_legacy_item:
                 db.session.commit()
 
-        return {
-            row[0]
-            for row in db.session.query(ShortlistItem.listing_id)
-            .filter_by(buyer_id=current_user.id)
-            .all()
-        }
+        membership = active_team_membership(current_user, "buyer")
+        query = db.session.query(ShortlistItem.listing_id)
+        if membership and "resource.view" in TEAM_ROLE_PERMISSIONS.get(membership.role, set()):
+            query = query.filter(ShortlistItem.team_id == membership.team_id)
+        else:
+            query = query.filter(
+                ShortlistItem.buyer_id == current_user.id,
+                ShortlistItem.team_id.is_(None),
+            )
+        return {row[0] for row in query.all()}
 
     ids = session.get("shortlist", [])
     if not isinstance(ids, list):
@@ -3181,6 +3312,25 @@ def inject_notification_state():
     return {"unread_notification_count": unread_count}
 
 
+@app.context_processor
+def inject_team_state():
+    membership = None
+    memberships = []
+    try:
+        if current_user.is_authenticated:
+            memberships = TeamMembership.query.filter_by(
+                user_id=current_user.id, status="active"
+            ).all()
+            active_id = session.get("active_team_id")
+            membership = next((item for item in memberships if item.team_id == active_id), None)
+            if active_id and not membership:
+                session.pop("active_team_id", None)
+    except Exception:
+        membership = None
+        memberships = []
+    return {"active_team_membership": membership, "current_team_memberships": memberships}
+
+
 
 
 @app.template_filter("date_short")
@@ -3267,6 +3417,221 @@ def accessibility_statement():
 @app.route("/complaints")
 def complaints_procedure():
     return render_template("legal/complaints.html")
+
+
+@app.route("/teams", methods=["GET", "POST"])
+@login_required
+def teams_index():
+    allowed_type = team_type_for_user(current_user)
+    memberships = TeamMembership.query.filter_by(
+        user_id=current_user.id, status="active"
+    ).order_by(TeamMembership.joined_at.asc()).all()
+    if not allowed_type and not memberships:
+        abort(404)
+    if request.method == "POST":
+        if not allowed_type:
+            abort(403)
+        name = (request.form.get("name") or "").strip()[:160]
+        if not name:
+            flash("Enter a team name.", "error")
+            return redirect(request.url)
+        team = Team(name=name, team_type=allowed_type, created_by_id=current_user.id)
+        db.session.add(team)
+        db.session.flush()
+        db.session.add(TeamMembership(
+            team_id=team.id, user_id=current_user.id, role="owner", status="active"
+        ))
+        db.session.commit()
+        session["active_team_id"] = team.id
+        record_audit_event(
+            "team.created", "Team created", subject_user_id=current_user.id,
+            resource_type="team", resource_id=team.id,
+            details={"team_type": team.team_type},
+        )
+        flash("Team created. It is now your active workspace.", "success")
+        return redirect(url_for("team_detail", team_id=team.id))
+    return render_template(
+        "teams/index.html", memberships=memberships,
+        allowed_type=allowed_type, active_team_id=session.get("active_team_id"),
+    )
+
+
+@app.route("/teams/<int:team_id>")
+@login_required
+def team_detail(team_id):
+    team = Team.query.get_or_404(team_id)
+    membership = team_membership(current_user, team.id)
+    if not membership:
+        abort(404)
+    listings = Listing.query.filter_by(team_id=team.id).order_by(Listing.created_at.desc()).all()
+    searches = SavedSearch.query.filter_by(team_id=team.id).order_by(SavedSearch.created_at.desc()).all()
+    shortlist = ShortlistItem.query.filter_by(team_id=team.id).order_by(
+        ShortlistItem.created_at.desc()
+    ).all()
+    owned_listings = Listing.query.filter_by(seller_id=current_user.id).filter(
+        or_(Listing.team_id.is_(None), Listing.team_id == team.id)
+    ).order_by(Listing.created_at.desc()).all() if team.team_type == "seller" else []
+    return render_template(
+        "teams/detail.html", team=team, membership=membership,
+        permissions=TEAM_ROLE_PERMISSIONS.get(membership.role, set()),
+        listings=listings, searches=searches, shortlist=shortlist,
+        owned_listings=owned_listings, now=utcnow(),
+    )
+
+
+@app.route("/teams/<int:team_id>/activate", methods=["POST"])
+@login_required
+def activate_team(team_id):
+    membership = team_membership(current_user, team_id)
+    if not membership:
+        abort(404)
+    session["active_team_id"] = team_id
+    flash(f"{membership.team.name} is now your active team.", "success")
+    requested_next = request.form.get("next")
+    next_url = requested_next if is_safe_redirect_target(requested_next) else url_for(
+        "team_detail", team_id=team_id
+    )
+    return redirect(next_url)
+
+
+@app.route("/teams/deactivate", methods=["POST"])
+@login_required
+def deactivate_team():
+    session.pop("active_team_id", None)
+    flash("Personal workspace is now active.", "success")
+    return redirect(url_for("teams_index"))
+
+
+@app.route("/teams/<int:team_id>/invite", methods=["POST"])
+@login_required
+def invite_team_member(team_id):
+    team = Team.query.get_or_404(team_id)
+    if not team_has_permission(current_user, team.id, "team.manage"):
+        abort(404)
+    email = (request.form.get("email") or "").strip().lower()[:255]
+    role = (request.form.get("role") or "viewer").strip()
+    if not valid_email_address(email) or role not in {"manager", "contributor", "viewer"}:
+        flash("Enter a valid email and team role.", "error")
+        return redirect(url_for("team_detail", team_id=team.id))
+    existing_user = User.query.filter(func.lower(User.email) == email).first()
+    if existing_user and not compatible_with_team(existing_user, team):
+        flash("That account type is not compatible with this team.", "error")
+        return redirect(url_for("team_detail", team_id=team.id))
+    if existing_user and team_membership(existing_user, team.id):
+        flash("That person is already an active member.", "info")
+        return redirect(url_for("team_detail", team_id=team.id))
+    TeamInvitation.query.filter_by(team_id=team.id, email=email).filter(
+        TeamInvitation.accepted_at.is_(None), TeamInvitation.revoked_at.is_(None)
+    ).update({"revoked_at": utcnow()})
+    token = uuid.uuid4().hex + uuid.uuid4().hex
+    invitation = TeamInvitation(
+        team_id=team.id, email=email, role=role,
+        token_hash=hashlib.sha256(token.encode()).hexdigest(),
+        invited_by_id=current_user.id, expires_at=utcnow() + timedelta(days=7),
+    )
+    db.session.add(invitation)
+    db.session.commit()
+    accept_url = url_for("accept_team_invitation", token=token, _external=True)
+    send_email(
+        email, f"Invitation to join {team.name} on Ownerlane",
+        f"<p>You have been invited to join <strong>{escape(team.name)}</strong> as {escape(role)}.</p><p><a href=\"{accept_url}\">Accept invitation</a></p><p>This link expires in seven days.</p>",
+        f"Join {team.name} as {role}: {accept_url}\nThis link expires in seven days.",
+    )
+    record_audit_event(
+        "team.invitation_created", "Team invitation created",
+        resource_type="team_invitation", resource_id=invitation.id,
+        details={"team_id": team.id, "role": role},
+    )
+    flash("Invitation sent and valid for seven days.", "success")
+    return redirect(url_for("team_detail", team_id=team.id))
+
+
+@app.route("/teams/invitations/<token>", methods=["GET", "POST"])
+@login_required
+def accept_team_invitation(token):
+    token_hash = hashlib.sha256(token.encode()).hexdigest()
+    invitation = TeamInvitation.query.filter_by(token_hash=token_hash).first_or_404()
+    if invitation.accepted_at or invitation.revoked_at or invitation.expires_at < utcnow():
+        flash("This invitation is no longer valid.", "error")
+        return redirect(url_for("teams_index"))
+    if current_user.email.casefold() != invitation.email.casefold():
+        abort(403)
+    if not compatible_with_team(current_user, invitation.team):
+        flash("Your account type cannot join this team.", "error")
+        return redirect(url_for("teams_index"))
+    if request.method == "POST":
+        membership = TeamMembership.query.filter_by(
+            team_id=invitation.team_id, user_id=current_user.id
+        ).first()
+        if membership:
+            membership.status = "active"
+            membership.role = invitation.role
+            membership.joined_at = utcnow()
+        else:
+            db.session.add(TeamMembership(
+                team_id=invitation.team_id, user_id=current_user.id,
+                role=invitation.role, status="active",
+            ))
+        invitation.accepted_at = utcnow()
+        db.session.commit()
+        session["active_team_id"] = invitation.team_id
+        record_audit_event(
+            "team.invitation_accepted", "Team invitation accepted",
+            subject_user_id=current_user.id, resource_type="team",
+            resource_id=invitation.team_id,
+        )
+        flash("Invitation accepted.", "success")
+        return redirect(url_for("team_detail", team_id=invitation.team_id))
+    return render_template("teams/accept.html", invitation=invitation)
+
+
+@app.route("/teams/<int:team_id>/members/<int:membership_id>", methods=["POST"])
+@login_required
+def update_team_member(team_id, membership_id):
+    if not team_has_permission(current_user, team_id, "team.manage"):
+        abort(404)
+    membership = TeamMembership.query.filter_by(id=membership_id, team_id=team_id).first_or_404()
+    if membership.role == "owner":
+        flash("The team owner cannot be changed or removed here.", "error")
+        return redirect(url_for("team_detail", team_id=team_id))
+    action = (request.form.get("action") or "").strip()
+    if action == "remove":
+        membership.status = "removed"
+        summary = "Team member removed"
+    else:
+        role = (request.form.get("role") or "").strip()
+        if role not in {"manager", "contributor", "viewer"}:
+            abort(400)
+        membership.role = role
+        summary = "Team member role updated"
+    db.session.commit()
+    record_audit_event(
+        "team.membership_updated", summary, subject_user_id=membership.user_id,
+        resource_type="team", resource_id=team_id,
+        details={"role": membership.role, "status": membership.status},
+    )
+    flash(summary + ".", "success")
+    return redirect(url_for("team_detail", team_id=team_id))
+
+
+@app.route("/teams/<int:team_id>/listings/<int:listing_id>/share", methods=["POST"])
+@login_required
+def share_listing_with_team(team_id, listing_id):
+    team = Team.query.get_or_404(team_id)
+    listing = Listing.query.get_or_404(listing_id)
+    if team.team_type != "seller" or listing.seller_id != current_user.id:
+        abort(404)
+    if not team_has_permission(current_user, team.id, "resource.share"):
+        abort(404)
+    listing.team_id = None if request.form.get("action") == "unshare" else team.id
+    db.session.commit()
+    record_audit_event(
+        "team.listing_sharing_updated", "Listing team sharing updated",
+        subject_user_id=listing.seller_id, resource_type="listing", resource_id=listing.id,
+        details={"team_id": listing.team_id},
+    )
+    flash("Listing sharing updated.", "success")
+    return redirect(url_for("team_detail", team_id=team.id))
 
 
 @app.route("/market-insights")
@@ -4499,7 +4864,10 @@ def _seller_analytics_snapshot(seller_id, selected_listings, start_at, now):
 @login_required
 @role_required("seller")
 def seller_analytics():
-    seller_listings = Listing.query.filter_by(seller_id=current_user.id).order_by(
+    team_ids = seller_listing_team_ids(current_user)
+    seller_listings = Listing.query.filter(
+        or_(Listing.seller_id == current_user.id, Listing.team_id.in_(team_ids))
+    ).order_by(
         Listing.created_at.desc()
     ).all()
     listing_id = request.args.get("listing_id", type=int)
@@ -4534,10 +4902,10 @@ def seller_analytics():
 @role_required("seller")
 def seller_benchmark_report(listing_id):
     listing = Listing.query.get_or_404(listing_id)
-    if listing.seller_id != current_user.id:
+    if not can_edit_seller_listing(current_user, listing):
         abort(404)
     reports = BenchmarkReport.query.filter_by(
-        listing_id=listing.id, seller_id=current_user.id
+        listing_id=listing.id, seller_id=listing.seller_id
     ).order_by(BenchmarkReport.generated_at.desc()).all()
     if request.method == "POST":
         if not listing.sector_id:
@@ -4576,7 +4944,7 @@ def seller_benchmark_report(listing_id):
             mid = round(listing.revenue_minor * summary["revenue_multiple_median"])
             high = round(listing.revenue_minor * summary["revenue_multiple_high"])
         report = BenchmarkReport(
-            listing_id=listing.id, seller_id=current_user.id,
+            listing_id=listing.id, seller_id=listing.seller_id,
             sector_id=listing.sector_id, region=region, currency=listing.currency,
             sample_size=len(records), input_revenue_minor=listing.revenue_minor,
             input_ebitda_minor=listing.ebitda_minor,
@@ -4605,7 +4973,7 @@ def seller_benchmark_report(listing_id):
 @login_required
 def benchmark_report_detail(report_id):
     report = BenchmarkReport.query.get_or_404(report_id)
-    if current_user.role != "admin" and current_user.id != report.seller_id:
+    if current_user.role != "admin" and not can_view_seller_listing(current_user, report.listing):
         abort(404)
     return render_template("benchmarks/report.html", report=report)
 
@@ -4657,10 +5025,11 @@ def seller_dashboard():
     profile = SellerProfile.query.filter_by(user_id=current_user.id).first()
 
     # Get listings with enquiry counts
+    team_ids = seller_listing_team_ids(current_user)
     raw = (
         db.session.query(Listing, func.count(Enquiry.id).label("total_enquiries"))
         .outerjoin(Enquiry, Enquiry.listing_id == Listing.id)
-        .filter(Listing.seller_id == current_user.id)
+        .filter(or_(Listing.seller_id == current_user.id, Listing.team_id.in_(team_ids)))
         .group_by(Listing.id)
         .order_by(Listing.created_at.desc())
         .all()
@@ -4687,8 +5056,9 @@ def seller_dashboard():
     current_plan_label = None
     if active_sub:
         current_plan_label = f"{active_sub.role.capitalize()} {active_sub.tier.capitalize()}"
+    accessible_listing_ids = [listing.id for listing in listings]
     workspace_introductions = (
-        Introduction.query.filter_by(seller_id=current_user.id)
+        Introduction.query.filter(Introduction.listing_id.in_(accessible_listing_ids))
         .filter(~Introduction.status.in_(["pending_seller_request", "declined", "failed"]))
         .order_by(Introduction.updated_at.desc()).limit(10).all()
     )
@@ -4727,7 +5097,7 @@ def seller_request_introduction(buyer_id):
     listing = Listing.query.get_or_404(listing_id)
 
     # Ensure listing belongs to this seller
-    if listing.seller_id != current_user.id:
+    if not can_edit_seller_listing(current_user, listing):
         flash("You can only request introductions for your own listings.", "danger")
         return redirect(url_for("seller_dashboard"))
 
@@ -4745,7 +5115,7 @@ def seller_request_introduction(buyer_id):
     # Ensure no duplicate introduction
     existing = Introduction.query.filter_by(
         buyer_id=buyer.id,
-        seller_id=current_user.id,
+        seller_id=listing.seller_id,
         listing_id=listing.id,
     ).first()
 
@@ -4755,7 +5125,7 @@ def seller_request_introduction(buyer_id):
 
     intro = Introduction(
         buyer_id=buyer.id,
-        seller_id=current_user.id,
+        seller_id=listing.seller_id,
         listing_id=listing.id,
         status="pending_seller_request",
     )
@@ -4793,9 +5163,10 @@ def seller_buyers():
     profile = SellerProfile.query.filter_by(user_id=current_user.id).first()
 
     # Seller's live listings
-    listings = Listing.query.filter_by(
-        seller_id=current_user.id,
-        status="live",
+    team_ids = seller_listing_team_ids(current_user)
+    listings = Listing.query.filter(
+        Listing.status == "live",
+        or_(Listing.seller_id == current_user.id, Listing.team_id.in_(team_ids)),
     ).all()
     selected_listing_id = request.args.get("listing_id", type=int)
     if selected_listing_id and selected_listing_id not in {listing.id for listing in listings}:
@@ -4938,8 +5309,10 @@ def seller_new_listing():
             currency = "GBP"
 
         listing_code = generate_listing_code()
+        membership = active_team_membership(current_user, "seller")
         listing = Listing(
             seller_id=current_user.id,
+            team_id=(membership.team_id if membership and "resource.edit" in TEAM_ROLE_PERMISSIONS.get(membership.role, set()) else None),
             listing_code=listing_code,
             title=title,
             region=request.form.get("region") or None,
@@ -5012,7 +5385,7 @@ def seller_edit_listing(listing_id):
     # Ensure seller only edits their own listing
     listing = Listing.query.get_or_404(listing_id)
 
-    if current_user.role != "seller" or listing.seller_id != current_user.id:
+    if not can_edit_seller_listing(current_user, listing):
         flash("You do not have permission to edit this listing.")
         return redirect(url_for("seller_dashboard"))
 
@@ -5100,7 +5473,7 @@ def seller_edit_listing(listing_id):
 @role_required("seller")
 def seller_update_listing_status(listing_id):
     listing = Listing.query.get_or_404(listing_id)
-    if listing.seller_id != current_user.id:
+    if not can_edit_seller_listing(current_user, listing):
         flash("You can only update your own listings.")
         return redirect(url_for("seller_dashboard"))
 
@@ -5133,7 +5506,7 @@ def seller_update_listing_status(listing_id):
 @role_required("seller")
 def request_valuation(listing_id):
     listing = Listing.query.get_or_404(listing_id)
-    if listing.seller_id != current_user.id:
+    if not can_edit_seller_listing(current_user, listing):
         abort(404)
 
     # Basic valuer list (all valuers with a profile)
@@ -5239,9 +5612,10 @@ def request_valuation(listing_id):
 @login_required
 @role_required("seller")
 def seller_enquiries():
+    team_ids = seller_listing_team_ids(current_user)
     enquiries = (
         Enquiry.query.join(Listing, Enquiry.listing_id == Listing.id)
-        .filter(Listing.seller_id == current_user.id)
+        .filter(or_(Listing.seller_id == current_user.id, Listing.team_id.in_(team_ids)))
         .order_by(Enquiry.created_at.desc())
         .all()
     )
@@ -5253,7 +5627,7 @@ def seller_enquiries():
 @role_required("seller")
 def seller_set_enquiry_status(enquiry_id):
     enquiry = Enquiry.query.get_or_404(enquiry_id)
-    if enquiry.listing.seller_id != current_user.id:
+    if not can_edit_seller_listing(current_user, enquiry.listing):
         flash("You can only update enquiries on your own listings.")
         return redirect(url_for("seller_enquiries"))
 
@@ -6445,8 +6819,16 @@ def buyer_dashboard():
             .order_by(Listing.created_at.desc())
             .all()
         )
+    buyer_team_membership = active_team_membership(current_user, "buyer")
+    saved_search_query = SavedSearch.query
+    if buyer_team_membership:
+        saved_search_query = saved_search_query.filter_by(team_id=buyer_team_membership.team_id)
+    else:
+        saved_search_query = saved_search_query.filter(
+            SavedSearch.buyer_id == current_user.id, SavedSearch.team_id.is_(None)
+        )
     saved_searches = (
-        SavedSearch.query.filter_by(buyer_id=current_user.id)
+        saved_search_query
         .order_by(SavedSearch.created_at.desc())
         .limit(5)
         .all()
@@ -6652,7 +7034,10 @@ def buyer_shortlist():
             .order_by(Listing.created_at.desc())
             .all()
         )
-    return render_template("buyer/shortlist.html", listings=listings)
+    return render_template(
+        "buyer/shortlist.html", listings=listings,
+        can_view_sensitive=is_premium_buyer(current_user),
+    )
 
 @app.route("/listings/<int:listing_id>/toggle-shortlist", methods=["POST"])
 @login_required
@@ -6663,8 +7048,12 @@ def toggle_shortlist(listing_id):
     Expects a POST from listing_detail or listings views.
     """
     listing = Listing.query.get_or_404(listing_id)
-    item = ShortlistItem.query.filter_by(
-        buyer_id=current_user.id, listing_id=listing.id
+    membership = active_team_membership(current_user, "buyer")
+    if membership and "resource.edit" not in TEAM_ROLE_PERMISSIONS.get(membership.role, set()):
+        abort(403)
+    item_query = ShortlistItem.query.filter_by(listing_id=listing.id)
+    item = item_query.filter_by(team_id=membership.team_id).first() if membership else item_query.filter_by(
+        buyer_id=current_user.id, team_id=None
     ).first()
 
     if item:
@@ -6673,12 +7062,21 @@ def toggle_shortlist(listing_id):
         flash("Listing removed from your shortlist.", "info")
     else:
         db.session.add(
-            ShortlistItem(buyer_id=current_user.id, listing_id=listing.id)
+            ShortlistItem(
+                buyer_id=current_user.id, listing_id=listing.id,
+                team_id=membership.team_id if membership else None,
+            )
         )
         analytics_event_type = "shortlist_added"
         flash("Listing added to your shortlist.", "success")
     db.session.commit()
     record_listing_analytics_event(listing, analytics_event_type)
+    if membership:
+        record_audit_event(
+            f"team.{analytics_event_type}", "Team shortlist updated",
+            subject_user_id=current_user.id, resource_type="listing", resource_id=listing.id,
+            details={"team_id": membership.team_id},
+        )
 
     # Go back to where the user came from, or fallback to shortlist page
     requested_next = request.form.get("next") or request.referrer
@@ -6690,8 +7088,12 @@ def toggle_shortlist(listing_id):
 @login_required
 @role_required("buyer")
 def buyer_saved_searches():
+    membership = active_team_membership(current_user, "buyer")
+    query = SavedSearch.query.filter_by(team_id=membership.team_id) if membership else SavedSearch.query.filter(
+        SavedSearch.buyer_id == current_user.id, SavedSearch.team_id.is_(None)
+    )
     searches = (
-        SavedSearch.query.filter_by(buyer_id=current_user.id)
+        query
         .order_by(SavedSearch.created_at.desc())
         .all()
     )
@@ -6709,23 +7111,33 @@ def save_buyer_search():
     parts = [part for part in (search_term, region, care_type) if part]
     name = supplied_name or (" · ".join(parts) if parts else "All live opportunities")
 
-    existing = SavedSearch.query.filter_by(
-        buyer_id=current_user.id, name=name
+    membership = active_team_membership(current_user, "buyer")
+    if membership and "resource.edit" not in TEAM_ROLE_PERMISSIONS.get(membership.role, set()):
+        abort(403)
+    existing_query = SavedSearch.query.filter_by(name=name)
+    existing = existing_query.filter_by(team_id=membership.team_id).first() if membership else existing_query.filter_by(
+        buyer_id=current_user.id, team_id=None
     ).first()
     if existing:
         flash("You already have a saved search with that name.", "info")
     else:
-        db.session.add(
-            SavedSearch(
+        saved_search = SavedSearch(
                 buyer_id=current_user.id,
+                team_id=membership.team_id if membership else None,
                 name=name,
                 search_term=search_term,
                 region=region,
                 care_type=care_type,
                 email_alerts=bool(request.form.get("email_alerts")),
             )
-        )
+        db.session.add(saved_search)
         db.session.commit()
+        if membership:
+            record_audit_event(
+                "team.saved_search_created", "Team saved search created",
+                subject_user_id=current_user.id, resource_type="saved_search",
+                resource_id=saved_search.id, details={"team_id": membership.team_id},
+            )
         flash("Search saved. You can manage it from your buyer dashboard.", "success")
 
     return redirect(url_for("buyer_saved_searches"))
@@ -6735,11 +7147,21 @@ def save_buyer_search():
 @login_required
 @role_required("buyer")
 def toggle_saved_search_alerts(search_id):
-    saved_search = SavedSearch.query.filter_by(
-        id=search_id, buyer_id=current_user.id
+    membership = active_team_membership(current_user, "buyer")
+    query = SavedSearch.query.filter_by(id=search_id)
+    saved_search = query.filter_by(team_id=membership.team_id).first_or_404() if membership else query.filter_by(
+        buyer_id=current_user.id, team_id=None
     ).first_or_404()
+    if membership and "resource.edit" not in TEAM_ROLE_PERMISSIONS.get(membership.role, set()):
+        abort(403)
     saved_search.email_alerts = not saved_search.email_alerts
     db.session.commit()
+    if membership:
+        record_audit_event(
+            "team.saved_search_updated", "Team saved-search alerts updated",
+            subject_user_id=current_user.id, resource_type="saved_search",
+            resource_id=saved_search.id, details={"team_id": membership.team_id},
+        )
     state = "on" if saved_search.email_alerts else "off"
     flash(f"Email alerts turned {state} for {saved_search.name}.", "success")
     return redirect(url_for("buyer_saved_searches"))
@@ -6749,11 +7171,22 @@ def toggle_saved_search_alerts(search_id):
 @login_required
 @role_required("buyer")
 def delete_saved_search(search_id):
-    saved_search = SavedSearch.query.filter_by(
-        id=search_id, buyer_id=current_user.id
+    membership = active_team_membership(current_user, "buyer")
+    query = SavedSearch.query.filter_by(id=search_id)
+    saved_search = query.filter_by(team_id=membership.team_id).first_or_404() if membership else query.filter_by(
+        buyer_id=current_user.id, team_id=None
     ).first_or_404()
+    if membership and "resource.edit" not in TEAM_ROLE_PERMISSIONS.get(membership.role, set()):
+        abort(403)
+    resource_id = saved_search.id
     db.session.delete(saved_search)
     db.session.commit()
+    if membership:
+        record_audit_event(
+            "team.saved_search_deleted", "Team saved search deleted",
+            subject_user_id=current_user.id, resource_type="saved_search",
+            resource_id=resource_id, details={"team_id": membership.team_id},
+        )
     flash("Saved search deleted.", "info")
     return redirect(url_for("buyer_saved_searches"))
 
@@ -6861,10 +7294,15 @@ def request_adviser(profile_id):
     profile = ValuerProfile.query.get_or_404(profile_id)
     service_categories = [service.category for service in profile.adviser_services]
     if current_user.role == "seller":
-        accessible_listings = Listing.query.filter_by(seller_id=current_user.id).order_by(
+        team_ids = seller_listing_team_ids(current_user)
+        accessible_listings = Listing.query.filter(
+            or_(Listing.seller_id == current_user.id, Listing.team_id.in_(team_ids))
+        ).order_by(
             Listing.created_at.desc()
         ).all()
-        accessible_introductions = Introduction.query.filter_by(seller_id=current_user.id).all()
+        accessible_introductions = Introduction.query.filter(
+            Introduction.listing_id.in_([listing.id for listing in accessible_listings])
+        ).all()
     else:
         accessible_introductions = Introduction.query.filter_by(buyer_id=current_user.id).filter(
             ~Introduction.status.in_(["pending_seller_request", "declined", "failed"])

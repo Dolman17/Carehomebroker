@@ -55,4 +55,7 @@ def test_initial_migration_builds_a_fresh_database(tmp_path):
         "benchmark_consent",
         "benchmark_record",
         "benchmark_report",
+        "team",
+        "team_membership",
+        "team_invitation",
     } <= tables

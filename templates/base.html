@@ -88,6 +88,7 @@
              class="text-white/80 hover:text-ownerMint transition-colors">
             Security
           </a>
+          <a href="{{ url_for('teams_index') }}" class="text-white/80 hover:text-ownerMint transition-colors">{{ active_team_membership.team.name if active_team_membership else 'Teams' }}</a>
           <a href="{{ url_for('my_dashboard') }}"
              class="text-white/80 hover:text-ownerMint transition-colors">
             My Dashboard
@@ -237,6 +238,8 @@
 
         <a href="{{ url_for('security_activity') }}"
            class="py-1 text-white/80 hover:text-ownerMint">Security activity</a>
+
+        <a href="{{ url_for('teams_index') }}" class="py-1 text-white/80 hover:text-ownerMint">{{ active_team_membership.team.name if active_team_membership else 'Teams' }}</a>
 
         <a href="{{ url_for('my_dashboard') }}"
            class="py-1 text-white/80 hover:text-ownerMint">

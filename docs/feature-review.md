@@ -9,9 +9,9 @@ This is a product-readiness review of the current application, not a security ce
 | Area | What works today | Readiness | Main gap |
 |---|---|---:|---|
 | Marketplace discovery | Public live listings, confidentiality gating, keyword/region/sector/price filters, price sorting, list and map views, pagination | 8/10 | More sector-specific filters and search analytics |
-| Buyer workflow | Detailed profile, reviewed qualification, proof-of-funds evidence, trust badges, matches, shortlist, saved searches, alerts, enquiries and subscriptions | 9/10 | Team buying groups and mandate approval |
+| Buyer workflow | Detailed profile, qualification, matches, shared team shortlists and searches, alerts, enquiries and subscriptions | 9/10 | Formal mandate approval and team billing |
 | Authentication | Verified-email registration, expiring one-time password resets, persistent login throttling and stricter admin sessions | 8/10 | Optional admin MFA and security-event audit views |
-| Seller workflow | Profile, listing management, enquiries, buyer matches, introductions, staged data rooms, structured offers, valuation requests and privacy-safe analytics | 9/10 | Portfolio tools and team permissions |
+| Seller workflow | Profile, team listing collaboration, advisers, enquiries, buyer matches, introductions, staged data rooms, offers, valuation requests and analytics | 9/10 | Portfolio tools and team billing |
 | Confidentiality | Blurred restricted data, premium access rules, NDAs, staged disclosure permissions and audited private downloads | 9/10 | Retention controls and external storage hardening |
 | Matching | Deterministic assisted ranking with visible weights, criterion evidence, gaps, missing-data coverage and buyer/seller/admin explanations | 9/10 | Feedback calibration and administrator weighting policy |
 | Introductions and deals | Request/approve/decline lifecycle, private workspaces, tasks, milestones, structured offer negotiation, deal creation, price, commission and status | 9/10 | E-signatures and completion workflow |
@@ -81,10 +81,10 @@ Saved-search matches are included in the protected weekly digest task. Immediate
 
 1. **Market benchmarks and valuation reports — delivered.** Completed deals require current buyer and seller consent, administrator publication, anonymous aggregation and a minimum cohort of five; sellers can save reproducible indicative reports.
 2. **Explainable assisted matching — delivered.** Buyer, seller and administrator views now share deterministic weighted criteria, fit/gap/missing evidence and a separate coverage score; results never autonomously approve, reject or block a transaction.
-3. **Team accounts and permissions** for buyer groups, seller advisers and internal Ownerlane operators.
+3. **Team accounts and permissions — delivered.** Buyer groups share shortlists and searches, seller teams share selected listings and data rooms with advisers, and Ownerlane operators can be organised without team membership granting platform-admin status. Invitations are expiring and email-bound; owner, manager, contributor and viewer permissions are enforced server-side and audited.
 4. **CRM, accounting and e-sign integrations** plus a versioned API and webhooks.
 5. **Portfolio and multi-listing transactions** for groups sold together or in configurable lots.
 
 ## Suggested next build
 
-Build team accounts and permissions next for buyer groups, seller advisers and internal Ownerlane operators.
+Build CRM, accounting and e-sign integrations next, starting with a versioned API, signed webhooks and one high-value CRM export.

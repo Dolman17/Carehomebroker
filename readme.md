@@ -97,6 +97,10 @@ Explainable assisted matching with published criterion weights, fit/gap evidence
 
 Human-controlled matching outcomes: scores never approve, reject or prevent marketplace actions
 
+Buyer, seller and Ownerlane teams with expiring email invitations and owner/manager/contributor/viewer permissions
+
+Active team workspaces with shared buyer shortlists/searches and permissioned seller listing/data-room collaboration
+
 Confidential listing handling
 
 Privacy-safe activity and audit log
