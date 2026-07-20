@@ -70,6 +70,9 @@ app.config["REMEMBER_COOKIE_DURATION"] = timedelta(days=30)
 app.config["MAX_CONTENT_LENGTH"] = int(
     os.getenv("MAX_CONTENT_LENGTH", str(16 * 1024 * 1024))
 )
+app.config["BENCHMARK_MIN_SAMPLE_SIZE"] = max(
+    5, int(os.getenv("BENCHMARK_MIN_SAMPLE_SIZE", "5"))
+)
 
 # Public legal identity. Configure the optional registration fields before launch.
 app.config["LEGAL_ENTITY_NAME"] = os.getenv("LEGAL_ENTITY_NAME", "Ownerlane")
@@ -80,7 +83,7 @@ app.config["LEGAL_CONTACT_EMAIL"] = os.getenv(
     "LEGAL_CONTACT_EMAIL", "hello@ownerlane.uk"
 )
 app.config["LEGAL_LAST_UPDATED"] = os.getenv(
-    "LEGAL_LAST_UPDATED", "19 July 2026"
+    "LEGAL_LAST_UPDATED", "20 July 2026"
 )
 railway_public_domain = os.getenv("RAILWAY_PUBLIC_DOMAIN")
 public_base_url = os.getenv("PUBLIC_BASE_URL") or (
@@ -1588,6 +1591,86 @@ class Deal(db.Model):
     )
 
 
+class BenchmarkConsent(db.Model):
+    __tablename__ = "benchmark_consent"
+    __table_args__ = (
+        db.UniqueConstraint("deal_id", "user_id", name="uq_benchmark_consent_party"),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    deal_id = db.Column(db.Integer, db.ForeignKey("deals.id"), nullable=False, index=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False, index=True)
+    status = db.Column(db.String(20), nullable=False, default="granted", index=True)
+    granted_at = db.Column(db.DateTime)
+    revoked_at = db.Column(db.DateTime)
+    updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+    deal = db.relationship("Deal", backref="benchmark_consents")
+    user = db.relationship("User")
+
+
+class BenchmarkRecord(db.Model):
+    __tablename__ = "benchmark_record"
+
+    id = db.Column(db.Integer, primary_key=True)
+    source_deal_id = db.Column(
+        db.Integer, db.ForeignKey("deals.id"), nullable=False, unique=True, index=True
+    )
+    sector_id = db.Column(db.Integer, db.ForeignKey("sector.id"), nullable=False, index=True)
+    region = db.Column(db.String(100), index=True)
+    completed_on = db.Column(db.Date, nullable=False, index=True)
+    price_minor = db.Column(db.BigInteger, nullable=False)
+    revenue_minor = db.Column(db.BigInteger)
+    ebitda_minor = db.Column(db.BigInteger)
+    currency = db.Column(db.String(3), nullable=False, default="GBP", index=True)
+    is_active = db.Column(db.Boolean, nullable=False, default=True, index=True)
+    published_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    published_by_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
+    withdrawn_at = db.Column(db.DateTime)
+
+    source_deal = db.relationship("Deal", backref=db.backref("benchmark_record", uselist=False))
+    sector = db.relationship("Sector")
+    published_by = db.relationship("User", foreign_keys=[published_by_id])
+
+
+class BenchmarkReport(db.Model):
+    __tablename__ = "benchmark_report"
+
+    id = db.Column(db.Integer, primary_key=True)
+    listing_id = db.Column(db.Integer, db.ForeignKey("listing.id"), nullable=False, index=True)
+    seller_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False, index=True)
+    sector_id = db.Column(db.Integer, db.ForeignKey("sector.id"), nullable=False)
+    region = db.Column(db.String(100))
+    currency = db.Column(db.String(3), nullable=False)
+    sample_size = db.Column(db.Integer, nullable=False)
+    input_revenue_minor = db.Column(db.BigInteger)
+    input_ebitda_minor = db.Column(db.BigInteger)
+    estimated_low_minor = db.Column(db.BigInteger, nullable=False)
+    estimated_mid_minor = db.Column(db.BigInteger, nullable=False)
+    estimated_high_minor = db.Column(db.BigInteger, nullable=False)
+    method = db.Column(db.String(50), nullable=False)
+    median_revenue_multiple = db.Column(db.Float)
+    median_ebitda_multiple = db.Column(db.Float)
+    filters = db.Column(db.JSON, nullable=False, default=dict)
+    generated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, index=True)
+
+    listing = db.relationship("Listing")
+    seller = db.relationship("User")
+    sector = db.relationship("Sector")
+
+    @property
+    def low_display(self):
+        return format_minor_units(self.estimated_low_minor, self.currency)
+
+    @property
+    def mid_display(self):
+        return format_minor_units(self.estimated_mid_minor, self.currency)
+
+    @property
+    def high_display(self):
+        return format_minor_units(self.estimated_high_minor, self.currency)
+
+
 class PageContent(db.Model):
     __tablename__ = "page_content"
 
@@ -1896,6 +1979,70 @@ def parse_amount_to_pence(amount_str: str | None) -> int | None:
         return int(round(pounds * 100))
     except ValueError:
         return None
+
+
+def percentile(values, fraction):
+    values = sorted(value for value in values if value is not None)
+    if not values:
+        return None
+    if len(values) == 1:
+        return float(values[0])
+    position = (len(values) - 1) * fraction
+    lower = math.floor(position)
+    upper = math.ceil(position)
+    if lower == upper:
+        return float(values[lower])
+    return float(values[lower] + (values[upper] - values[lower]) * (position - lower))
+
+
+def benchmark_consent_complete(deal):
+    granted_ids = {
+        consent.user_id for consent in deal.benchmark_consents
+        if consent.status == "granted"
+    }
+    return {deal.introduction.buyer_id, deal.introduction.seller_id} <= granted_ids
+
+
+def benchmark_cohort(sector_id=None, region=None, currency="GBP", years=5):
+    query = BenchmarkRecord.query.filter_by(is_active=True, currency=currency)
+    if sector_id:
+        query = query.filter(BenchmarkRecord.sector_id == sector_id)
+    if region:
+        query = query.filter(BenchmarkRecord.region == region)
+    if years:
+        query = query.filter(
+            BenchmarkRecord.completed_on >= (utcnow().date() - timedelta(days=365 * years))
+        )
+    return query.order_by(BenchmarkRecord.completed_on.desc()).all()
+
+
+def benchmark_summary(records, currency="GBP"):
+    prices = [record.price_minor for record in records if record.price_minor]
+    revenue_multiples = [
+        record.price_minor / record.revenue_minor
+        for record in records if record.price_minor and record.revenue_minor and record.revenue_minor > 0
+    ]
+    ebitda_multiples = [
+        record.price_minor / record.ebitda_minor
+        for record in records if record.price_minor and record.ebitda_minor and record.ebitda_minor > 0
+    ]
+    return {
+        "sample_size": len(records),
+        "price_low_minor": round(percentile(prices, 0.25)) if prices else None,
+        "price_median_minor": round(percentile(prices, 0.5)) if prices else None,
+        "price_high_minor": round(percentile(prices, 0.75)) if prices else None,
+        "price_low": format_minor_units(round(percentile(prices, 0.25)), currency) if prices else None,
+        "price_median": format_minor_units(round(percentile(prices, 0.5)), currency) if prices else None,
+        "price_high": format_minor_units(round(percentile(prices, 0.75)), currency) if prices else None,
+        "revenue_multiple_low": round(percentile(revenue_multiples, 0.25), 2) if revenue_multiples else None,
+        "revenue_multiple_median": round(percentile(revenue_multiples, 0.5), 2) if revenue_multiples else None,
+        "revenue_multiple_high": round(percentile(revenue_multiples, 0.75), 2) if revenue_multiples else None,
+        "revenue_multiple_sample": len(revenue_multiples),
+        "ebitda_multiple_low": round(percentile(ebitda_multiples, 0.25), 2) if ebitda_multiples else None,
+        "ebitda_multiple_median": round(percentile(ebitda_multiples, 0.5), 2) if ebitda_multiples else None,
+        "ebitda_multiple_high": round(percentile(ebitda_multiples, 0.75), 2) if ebitda_multiples else None,
+        "ebitda_multiple_sample": len(ebitda_multiples),
+    }
 
 
 def send_email(
@@ -3022,6 +3169,11 @@ def format_money_filter(value, currency="GBP"):
     return format_minor_units(value, currency) or ""
 
 
+@app.template_filter("money_minor")
+def money_minor_filter(value, currency="GBP"):
+    return format_minor_units(value, currency) or ""
+
+
 
 # -------------------------------------------------------------------
 # Public routes
@@ -3086,6 +3238,48 @@ def accessibility_statement():
 @app.route("/complaints")
 def complaints_procedure():
     return render_template("legal/complaints.html")
+
+
+@app.route("/market-insights")
+@login_required
+def market_insights():
+    if current_user.role not in {"buyer", "seller", "admin"}:
+        abort(404)
+    sectors = Sector.query.filter_by(is_active=True).order_by(Sector.name.asc()).all()
+    sector_id = request.args.get("sector_id", type=int)
+    if sector_id and sector_id not in {sector.id for sector in sectors}:
+        sector_id = None
+    region = (request.args.get("region") or "").strip()[:100] or None
+    currency = (request.args.get("currency") or "GBP").strip().upper()
+    if currency not in {"GBP", "EUR", "USD"}:
+        currency = "GBP"
+    period = (request.args.get("period") or "5").strip()
+    years = None if period == "all" else int(period) if period in {"3", "5", "10"} else 5
+    records = benchmark_cohort(sector_id, region, currency, years)
+    minimum = app.config["BENCHMARK_MIN_SAMPLE_SIZE"]
+    summary = benchmark_summary(records, currency) if len(records) >= minimum else None
+    if summary:
+        if summary["revenue_multiple_sample"] < minimum:
+            for key in ("revenue_multiple_low", "revenue_multiple_median", "revenue_multiple_high"):
+                summary[key] = None
+        if summary["ebitda_multiple_sample"] < minimum:
+            for key in ("ebitda_multiple_low", "ebitda_multiple_median", "ebitda_multiple_high"):
+                summary[key] = None
+    regions = [
+        row[0] for row in db.session.query(
+            BenchmarkRecord.region, func.count(BenchmarkRecord.id)
+        ).filter(
+            BenchmarkRecord.is_active.is_(True), BenchmarkRecord.region.isnot(None)
+        ).group_by(BenchmarkRecord.region).having(
+            func.count(BenchmarkRecord.id) >= minimum
+        ).order_by(BenchmarkRecord.region.asc()).all()
+    ]
+    return render_template(
+        "benchmarks/insights.html", sectors=sectors, regions=regions,
+        selected_sector_id=sector_id, selected_region=region,
+        selected_currency=currency, selected_period=period,
+        summary=summary, cohort_size=len(records), minimum_sample=minimum,
+    )
 
 
 
@@ -4306,6 +4500,126 @@ def seller_analytics():
     )
 
 
+@app.route("/seller/listings/<int:listing_id>/benchmark-report", methods=["GET", "POST"])
+@login_required
+@role_required("seller")
+def seller_benchmark_report(listing_id):
+    listing = Listing.query.get_or_404(listing_id)
+    if listing.seller_id != current_user.id:
+        abort(404)
+    reports = BenchmarkReport.query.filter_by(
+        listing_id=listing.id, seller_id=current_user.id
+    ).order_by(BenchmarkReport.generated_at.desc()).all()
+    if request.method == "POST":
+        if not listing.sector_id:
+            flash("Choose a normalised sector before generating a benchmark report.", "error")
+            return redirect(request.url)
+        period = (request.form.get("period") or "5").strip()
+        years = None if period == "all" else int(period) if period in {"3", "5", "10"} else 5
+        region = listing.region if request.form.get("regional") else None
+        records = benchmark_cohort(listing.sector_id, region, listing.currency, years)
+        minimum = app.config["BENCHMARK_MIN_SAMPLE_SIZE"]
+        if len(records) < minimum:
+            flash(
+                f"This cohort has {len(records)} permissioned transactions; at least {minimum} are required.",
+                "error",
+            )
+            return redirect(request.url)
+        summary = benchmark_summary(records, listing.currency)
+        method = "comparable_price_range"
+        low = summary["price_low_minor"]
+        mid = summary["price_median_minor"]
+        high = summary["price_high_minor"]
+        if (
+            listing.ebitda_minor and listing.ebitda_minor > 0
+            and summary["ebitda_multiple_sample"] >= minimum
+        ):
+            method = "ebitda_multiple"
+            low = round(listing.ebitda_minor * summary["ebitda_multiple_low"])
+            mid = round(listing.ebitda_minor * summary["ebitda_multiple_median"])
+            high = round(listing.ebitda_minor * summary["ebitda_multiple_high"])
+        elif (
+            listing.revenue_minor and listing.revenue_minor > 0
+            and summary["revenue_multiple_sample"] >= minimum
+        ):
+            method = "revenue_multiple"
+            low = round(listing.revenue_minor * summary["revenue_multiple_low"])
+            mid = round(listing.revenue_minor * summary["revenue_multiple_median"])
+            high = round(listing.revenue_minor * summary["revenue_multiple_high"])
+        report = BenchmarkReport(
+            listing_id=listing.id, seller_id=current_user.id,
+            sector_id=listing.sector_id, region=region, currency=listing.currency,
+            sample_size=len(records), input_revenue_minor=listing.revenue_minor,
+            input_ebitda_minor=listing.ebitda_minor,
+            estimated_low_minor=low, estimated_mid_minor=mid,
+            estimated_high_minor=high, method=method,
+            median_revenue_multiple=summary["revenue_multiple_median"],
+            median_ebitda_multiple=summary["ebitda_multiple_median"],
+            filters={"period": period, "region": region, "sector_id": listing.sector_id},
+        )
+        db.session.add(report)
+        db.session.commit()
+        record_audit_event(
+            "benchmark.report_generated", "Benchmark valuation report generated",
+            subject_user_id=current_user.id, resource_type="benchmark_report",
+            resource_id=report.id,
+            details={"listing_id": listing.id, "sample_size": report.sample_size, "method": method},
+        )
+        return redirect(url_for("benchmark_report_detail", report_id=report.id))
+    return render_template(
+        "benchmarks/generate.html", listing=listing, reports=reports,
+        minimum_sample=app.config["BENCHMARK_MIN_SAMPLE_SIZE"],
+    )
+
+
+@app.route("/benchmark-reports/<int:report_id>")
+@login_required
+def benchmark_report_detail(report_id):
+    report = BenchmarkReport.query.get_or_404(report_id)
+    if current_user.role != "admin" and current_user.id != report.seller_id:
+        abort(404)
+    return render_template("benchmarks/report.html", report=report)
+
+
+@app.route("/deals/<int:deal_id>/benchmark-consent", methods=["POST"])
+@login_required
+def update_benchmark_consent(deal_id):
+    deal = Deal.query.get_or_404(deal_id)
+    intro = deal.introduction
+    if current_user.id not in {intro.buyer_id, intro.seller_id} or deal.status != "completed":
+        abort(404)
+    action = (request.form.get("action") or "").strip()
+    if action not in {"grant", "revoke"}:
+        abort(400)
+    consent = BenchmarkConsent.query.filter_by(
+        deal_id=deal.id, user_id=current_user.id
+    ).first()
+    if not consent:
+        consent = BenchmarkConsent(deal_id=deal.id, user_id=current_user.id)
+        db.session.add(consent)
+    now = utcnow()
+    consent.status = "granted" if action == "grant" else "revoked"
+    consent.granted_at = now if action == "grant" else consent.granted_at
+    consent.revoked_at = now if action == "revoke" else None
+    consent.updated_at = now
+    if action == "revoke" and deal.benchmark_record:
+        deal.benchmark_record.is_active = False
+        deal.benchmark_record.withdrawn_at = now
+    db.session.commit()
+    record_audit_event(
+        f"benchmark.consent_{'granted' if action == 'grant' else 'revoked'}",
+        f"Benchmark data consent {'granted' if action == 'grant' else 'revoked'}",
+        subject_user_id=current_user.id, resource_type="deal", resource_id=deal.id,
+    )
+    flash(
+        "Consent saved. Both parties must consent before an anonymised record can be published."
+        if action == "grant" else
+        "Consent withdrawn. Any published benchmark record has been removed from future cohorts.",
+        "success",
+    )
+    return redirect(url_for("deal_workspace", intro_id=intro.id))
+
+
 @app.route("/seller/dashboard")
 @login_required
 @role_required("seller")
@@ -5302,12 +5616,16 @@ def deal_workspace(intro_id):
     offers = StructuredOffer.query.filter_by(introduction_id=intro.id).order_by(
         StructuredOffer.sequence.desc()
     ).all()
+    benchmark_consents = {
+        consent.user_id: consent.status for consent in (intro.deal.benchmark_consents if intro.deal else [])
+    }
     return render_template(
         "workspace/index.html", introduction=intro, messages=messages,
         tasks=tasks, milestones=milestones, offers=offers,
         participants=(intro.buyer, intro.seller),
         can_negotiate=can_negotiate_offer(current_user, intro),
         has_accepted_offer=any(offer.status == "accepted" for offer in offers),
+        benchmark_consents=benchmark_consents,
     )
 
 
@@ -7044,6 +7362,71 @@ def admin_dashboard():
         recent_valuations=recent_valuations,
         recent_deals=recent_deals,
     )
+
+
+@app.route("/admin/benchmarks")
+@login_required
+@role_required("admin")
+def admin_benchmarks():
+    deals = (
+        Deal.query.join(Introduction, Deal.introduction_id == Introduction.id)
+        .filter(Deal.status == "completed")
+        .order_by(Deal.completion_date.desc(), Deal.id.desc()).all()
+    )
+    return render_template(
+        "admin/benchmarks.html", deals=deals,
+        minimum_sample=app.config["BENCHMARK_MIN_SAMPLE_SIZE"],
+    )
+
+
+@app.route("/admin/benchmarks/deals/<int:deal_id>/publish", methods=["POST"])
+@login_required
+@role_required("admin")
+def admin_publish_benchmark(deal_id):
+    deal = Deal.query.get_or_404(deal_id)
+    intro = deal.introduction
+    listing = intro.listing
+    if deal.status != "completed" or not deal.completion_date:
+        flash("Only completed deals with a completion date can be published.", "error")
+        return redirect(url_for("admin_benchmarks"))
+    if not benchmark_consent_complete(deal):
+        flash("Both transaction parties must currently consent before publication.", "error")
+        return redirect(url_for("admin_benchmarks"))
+    if not listing.sector_id:
+        flash("The listing needs a normalised sector before publication.", "error")
+        return redirect(url_for("admin_benchmarks"))
+    accepted_offer = StructuredOffer.query.filter_by(
+        introduction_id=intro.id, status="accepted"
+    ).order_by(StructuredOffer.responded_at.desc()).first()
+    price_minor = accepted_offer.amount_minor if accepted_offer else parse_amount_to_pence(deal.agreed_price)
+    currency = accepted_offer.currency if accepted_offer else (listing.currency or "GBP")
+    if not price_minor or price_minor <= 0:
+        flash("Record an accepted offer or a valid agreed price before publication.", "error")
+        return redirect(url_for("admin_benchmarks"))
+    record = deal.benchmark_record
+    if not record:
+        record = BenchmarkRecord(source_deal_id=deal.id, published_by_id=current_user.id)
+        db.session.add(record)
+    now = utcnow()
+    record.sector_id = listing.sector_id
+    record.region = (listing.region or "").strip()[:100] or None
+    record.completed_on = deal.completion_date.date()
+    record.price_minor = price_minor
+    record.revenue_minor = listing.revenue_minor
+    record.ebitda_minor = listing.ebitda_minor
+    record.currency = currency
+    record.is_active = True
+    record.published_at = now
+    record.published_by_id = current_user.id
+    record.withdrawn_at = None
+    db.session.commit()
+    record_audit_event(
+        "benchmark.record_published", "Anonymised benchmark record published",
+        resource_type="benchmark_record", resource_id=record.id,
+        details={"deal_id": deal.id, "sector_id": record.sector_id, "currency": currency},
+    )
+    flash("Anonymised transaction record published to eligible aggregate cohorts.", "success")
+    return redirect(url_for("admin_benchmarks"))
 
 
 

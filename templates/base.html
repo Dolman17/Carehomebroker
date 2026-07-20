@@ -168,6 +168,7 @@
             <a href="{{ url_for('listings') }}" class="hover:text-ownerMint">Business opportunities</a>
             <a href="{{ url_for('pricing') }}" class="hover:text-ownerMint">Plans & pricing</a>
             <a href="{{ url_for('adviser_directory') }}" class="hover:text-ownerMint">Adviser marketplace</a>
+            {% if current_user.is_authenticated and current_user.role in ['buyer', 'seller', 'admin'] %}<a href="{{ url_for('market_insights') }}" class="hover:text-ownerMint">Market insights</a>{% endif %}
             <a href="{{ url_for('register_buyer') }}" class="hover:text-ownerMint">Join as a buyer</a>
             <a href="{{ url_for('register_seller') }}" class="hover:text-ownerMint">Join as a seller</a>
             <a href="{{ url_for('register_valuer') }}" class="hover:text-ownerMint">Join as an adviser</a>

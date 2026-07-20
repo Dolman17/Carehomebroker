@@ -55,6 +55,29 @@
     </div>
   </section>
 
+  {% if introduction.deal and introduction.deal.status == 'completed' %}
+  <section class="rounded-xl border border-ownerMint/20 bg-ownerMint/5 p-5">
+    <div class="grid gap-5 lg:grid-cols-[1fr_auto] lg:items-center">
+      <div>
+        <h2 class="text-sm font-semibold">Anonymised market benchmarks</h2>
+        <p class="mt-2 max-w-3xl text-xs leading-5 text-white/60">You can permit Ownerlane to use this completed transaction in anonymous, aggregated market statistics. Buyer and seller must both consent. Individual transactions, identities and listing details are never shown as comparable rows, and cohorts below the minimum sample are suppressed.</p>
+        <div class="mt-3 flex flex-wrap gap-2 text-[10px]">
+          <span class="rounded-full border border-white/15 px-3 py-1">Buyer: {{ 'Consented' if benchmark_consents.get(introduction.buyer_id) == 'granted' else 'Not consented' }}</span>
+          <span class="rounded-full border border-white/15 px-3 py-1">Seller: {{ 'Consented' if benchmark_consents.get(introduction.seller_id) == 'granted' else 'Not consented' }}</span>
+          {% if introduction.deal.benchmark_record and introduction.deal.benchmark_record.is_active %}<span class="rounded-full bg-ownerMint/15 px-3 py-1 text-ownerMint">Published anonymously</span>{% endif %}
+        </div>
+      </div>
+      {% if current_user.id in [introduction.buyer_id, introduction.seller_id] %}
+      <form method="post" action="{{ url_for('update_benchmark_consent', deal_id=introduction.deal.id) }}">
+        {% set granted = benchmark_consents.get(current_user.id) == 'granted' %}
+        <input type="hidden" name="action" value="{{ 'revoke' if granted else 'grant' }}">
+        <button class="rounded {{ 'border border-ownerCoral/50 text-ownerCoral' if granted else 'bg-ownerMint text-ownerInk' }} px-4 py-2 text-xs font-semibold">{{ 'Withdraw consent' if granted else 'Consent to aggregate use' }}</button>
+      </form>
+      {% endif %}
+    </div>
+  </section>
+  {% endif %}
+
   <div class="grid gap-6 lg:grid-cols-[1.25fr_.75fr]">
     <section class="rounded-xl border border-white/10 bg-black/25 p-5">
       <h2 class="text-sm font-semibold">Messages and Q&amp;A</h2>

@@ -85,6 +85,12 @@ Multi-discipline adviser marketplace with verification, coverage and availabilit
 
 Private scoped requests, versioned quotes, engagement tracking and completed-work reviews
 
+Two-party consent for anonymous use of completed transaction data
+
+Administrator-controlled benchmark publication with a hard minimum cohort of five
+
+Aggregate market insights and private, reproducible seller valuation reports
+
 Listing matching logic
 
 Confidential listing handling

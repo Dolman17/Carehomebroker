@@ -79,7 +79,7 @@ Saved-search matches are included in the protected weekly digest task. Immediate
 
 ### P2 — intelligence and scale
 
-1. **Market benchmarks and valuation reports** using completed, permissioned and anonymised transaction data.
+1. **Market benchmarks and valuation reports — delivered.** Completed deals require current buyer and seller consent, administrator publication, anonymous aggregation and a minimum cohort of five; sellers can save reproducible indicative reports.
 2. **Explainable assisted matching** that summarises fit and gaps without making autonomous transaction decisions.
 3. **Team accounts and permissions** for buyer groups, seller advisers and internal Ownerlane operators.
 4. **CRM, accounting and e-sign integrations** plus a versioned API and webhooks.
@@ -87,4 +87,4 @@ Saved-search matches are included in the protected weekly digest task. Immediate
 
 ## Suggested next build
 
-Build permissioned market benchmarks and valuation reports next, using completed and anonymised transaction data with minimum-sample safeguards.
+Build explainable assisted matching next, summarising fit, gaps and evidence without making autonomous transaction decisions.
