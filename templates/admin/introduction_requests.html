@@ -18,7 +18,8 @@
         <article class="rounded-lg border border-white/10 bg-black/30 p-4 text-sm">
           <p><strong>Seller:</strong> {{ intro.seller.email }}</p>
           <p><strong>Buyer:</strong> {{ intro.buyer.email }}</p>
-          <p><strong>Listing:</strong> {{ intro.listing.title }} ({{ intro.listing.listing_code }})</p>
+          {% if intro.portfolio %}<p><strong>Portfolio:</strong> {{ intro.portfolio.title }} ({{ intro.portfolio.portfolio_code }}) · {{ intro.portfolio_lot.name if intro.portfolio_lot else 'Whole portfolio' }}</p>{% endif %}
+          <p><strong>Primary listing:</strong> {{ intro.listing.title }} ({{ intro.listing.listing_code }})</p>
           <div class="flex gap-2 mt-3">
             <form method="post" action="{{ url_for('admin_approve_intro_request', intro_id=intro.id) }}">
               <button class="px-3 py-1.5 bg-ownerMint text-black text-xs rounded">Approve</button>

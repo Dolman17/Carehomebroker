@@ -1,10 +1,10 @@
 {% extends "base.html" %}
-{% block title %}Deal workspace – {{ introduction.listing.listing_code or introduction.id }}{% endblock %}
+{% block title %}Deal workspace – {{ introduction.portfolio.portfolio_code if introduction.portfolio else (introduction.listing.listing_code or introduction.id) }}{% endblock %}
 {% block content %}
 <div class="space-y-6">
   <div class="flex flex-wrap items-end justify-between gap-3">
-    <div><p class="text-[11px] uppercase tracking-[0.2em] text-ownerMint">Introduction #{{ introduction.id }}</p><h1 class="mt-2 text-2xl font-semibold">Deal workspace</h1><p class="mt-1 text-sm text-white/55">{{ introduction.listing.listing_code or 'Opportunity' }} · {{ introduction.status|replace('_', ' ')|title }}</p></div>
-    <div class="flex gap-2"><a href="{{ url_for('introduction_data_room', intro_id=introduction.id) }}" class="rounded border border-white/20 px-3 py-2 text-xs hover:text-ownerMint">Data room</a><a href="{{ url_for('my_dashboard') }}" class="rounded border border-white/20 px-3 py-2 text-xs hover:text-ownerMint">Dashboard</a></div>
+    <div><p class="text-[11px] uppercase tracking-[0.2em] text-ownerMint">Introduction #{{ introduction.id }}</p><h1 class="mt-2 text-2xl font-semibold">Deal workspace</h1><p class="mt-1 text-sm text-white/55">{% if introduction.portfolio %}{{ introduction.portfolio.portfolio_code }} · {{ introduction.portfolio_lot.name if introduction.portfolio_lot else 'Whole portfolio' }}{% else %}{{ introduction.listing.listing_code or 'Opportunity' }}{% endif %} · {{ introduction.status|replace('_', ' ')|title }}</p></div>
+    <div class="flex gap-2"><a href="{{ url_for('completion_workspace', intro_id=introduction.id) }}" class="rounded border border-ownerMint/40 px-3 py-2 text-xs text-ownerMint">Completion</a><a href="{{ url_for('introduction_data_room', intro_id=introduction.id) }}" class="rounded border border-white/20 px-3 py-2 text-xs hover:text-ownerMint">Data room</a><a href="{{ url_for('my_dashboard') }}" class="rounded border border-white/20 px-3 py-2 text-xs hover:text-ownerMint">Dashboard</a></div>
   </div>
 
   <section class="rounded-xl border border-ownerMint/20 bg-black/25 p-5">

@@ -65,5 +65,9 @@ def test_initial_migration_builds_a_fresh_database(tmp_path):
         "portfolio_lot",
         "portfolio_lot_listing",
         "portfolio_enquiry",
+        "completion_checklist_item",
+        "completion_condition",
+        "signature_document",
+        "completion_record",
     } <= tables
-    assert revision[0] == "f1c4d9a6b375"
+    assert revision[0] == "a2d5e0b7c486"

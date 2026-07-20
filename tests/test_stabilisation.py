@@ -93,13 +93,13 @@ def test_introduction_detail_and_deal_work_without_scalar_backref(client, seeded
     assert response.status_code == 302
     response = client.post(
         "/admin/introductions/1/status",
-        data={"status": "completed"},
+        data={"status": "failed"},
     )
     assert response.status_code == 302
     with seeded_app.app.app_context():
         deal = seeded_app.Deal.query.filter_by(introduction_id=1).first()
         assert deal is not None
-        assert deal.status == "completed"
+        assert deal.status == "aborted"
 
 
 def test_csrf_rejects_state_change_without_token(client, seeded_app):
@@ -119,7 +119,7 @@ def test_core_route_set_is_preserved_with_legal_pages(seeded_app):
     assert "/valuer/dashboard" in rules
     assert "/admin" in rules
     assert "/my/dashboard" in rules
-    assert len(route_rules) == 161
+    assert len(route_rules) == 171
 
 
 def test_buyer_shortlist_persists_in_database(client, seeded_app):

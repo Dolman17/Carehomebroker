@@ -14,7 +14,7 @@ This is a product-readiness review of the current application, not a security ce
 | Seller workflow | Profile, team listing collaboration, configurable portfolios, advisers, enquiries, buyer matches, introductions, staged data rooms, offers, valuation requests and analytics | 9/10 | Team billing and bulk operations |
 | Confidentiality | Blurred restricted data, premium access rules, NDAs, staged disclosure permissions and audited private downloads | 9/10 | Retention controls and external storage hardening |
 | Matching | Deterministic assisted ranking with visible weights, criterion evidence, gaps, missing-data coverage and buyer/seller/admin explanations | 9/10 | Feedback calibration and administrator weighting policy |
-| Introductions and deals | Request/approve/decline lifecycle, private workspaces, tasks, milestones, structured offer negotiation, deal creation, price, commission and status | 9/10 | E-signatures and completion workflow |
+| Introductions and deals | Request/approve/decline lifecycle, private workspaces, tasks, milestones, offers, completion conditions, signature-document tracking, two-party handover and deal synchronisation | 9/10 | Native e-signature provider and funds-flow integrations |
 | Adviser workflow | Multi-discipline directory, verification, coverage, availability, private requests, versioned quotes, engagement status and completed-work reviews | 8/10 | Evidence renewal, conflicts workflow and adviser billing |
 | Billing | Stripe checkout, webhooks, subscription state and customer portal | 7/10 | Failed-payment recovery and entitlement audit views |
 | Admin | Role directories, listing approval, enquiries, matches, introductions, data-room access, audit log, deals, subscriptions, content and impersonation | 8/10 | Operational reporting and bulk actions |
@@ -23,6 +23,7 @@ This is a product-readiness review of the current application, not a security ce
 | Multi-sector data model | First-class sectors, configurable attributes and legacy compatibility | 7/10 | Admin-managed sector schemas and buyer criteria migration |
 | Integrations | Scoped read-only API tokens, versioned endpoints, signed retryable webhooks and CRM CSV export | 7/10 | Native CRM apps, accounting sync and e-signatures |
 | Portfolio transactions | Confidential multi-listing opportunities sold as a whole, by configurable lot, or either way | 8/10 | Portfolio-level data rooms and offer allocation |
+| Transaction completion | Required checklists, conditions, private checksummed signature documents and controlled two-party handover | 8/10 | Native e-signatures, identity assurance and completion payments |
 
 ## Improvements delivered in this release
 
@@ -64,6 +65,10 @@ This is a product-readiness review of the current application, not a security ce
 - Added confidential multi-listing portfolios with whole-sale, lot-sale or flexible transaction structures.
 - Added seller lot allocation, per-lot guide prices and availability, publication safeguards and premium buyer enquiries targeted to a whole portfolio or selected lot.
 - Reused listing and team permissions throughout, and automatically returns affected portfolios to draft when their composition or a constituent listing changes.
+- Added portfolio-aware introduction requests so qualified whole-portfolio and lot enquiries enter the governed approval and deal-workspace workflow.
+- Added assigned completion checklists and conditions with required-item blockers and confirmation invalidation when the record changes.
+- Added private checksummed signature-ready documents with separate buyer and seller acknowledgements and clear non-reliance wording.
+- Added a two-party controlled handover that alone can complete the introduction and deal, mark the relevant listings sold, and update whole portfolios or selected lots.
 
 Saved-search matches are included in the protected weekly digest task. Immediate delivery is available for transaction and data-room events when selected in notification preferences.
 
@@ -94,6 +99,10 @@ Saved-search matches are included in the protected weekly digest task. Immediate
 4. **Integrations foundation — delivered.** Scoped read-only API access, signed retryable webhooks and a CRM-ready export are available. Native CRM apps, accounting sync and e-signatures remain future extensions.
 5. **Portfolio and multi-listing transactions — delivered.** Sellers can package at least two live listings for sale as a whole, by configurable lot or either way, with listing-level confidentiality, team permissions, targeted buyer enquiries and automatic unpublishing when the package changes.
 
+### P3 — completion and assurance
+
+1. **Transaction completion workflow — delivered.** Portfolio-aware introductions now support assigned completion checklists, conditions, checksummed execution-document tracking and buyer/seller handover confirmation. Administrator status changes cannot bypass the controlled completion gate.
+
 ## Suggested next build
 
-Build the transaction-completion workflow next: portfolio-aware diligence checklists, completion conditions, signature-ready documents and a controlled handover record.
+Add phishing-resistant administrator MFA and step-up authentication next, followed by a native e-signature provider integration using the new completion-document model.

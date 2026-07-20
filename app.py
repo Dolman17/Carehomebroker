@@ -230,6 +230,10 @@ BUYER_EVIDENCE_FOLDER = os.path.join(PRIVATE_UPLOAD_ROOT, "buyer_evidence")
 os.makedirs(BUYER_EVIDENCE_FOLDER, exist_ok=True)
 app.config["BUYER_EVIDENCE_FOLDER"] = BUYER_EVIDENCE_FOLDER
 
+COMPLETION_DOCS_FOLDER = os.path.join(PRIVATE_UPLOAD_ROOT, "completion_docs")
+os.makedirs(COMPLETION_DOCS_FOLDER, exist_ok=True)
+app.config["COMPLETION_DOCS_FOLDER"] = COMPLETION_DOCS_FOLDER
+
 # -------------------------------------------------------------------
 # Deal / introduction status pipeline
 # -------------------------------------------------------------------
@@ -1465,6 +1469,11 @@ class Introduction(db.Model):
         nullable=False,
         index=True,
     )
+    portfolio_id = db.Column(db.Integer, db.ForeignKey("portfolio.id"), index=True)
+    portfolio_lot_id = db.Column(db.Integer, db.ForeignKey("portfolio_lot.id"), index=True)
+    portfolio_enquiry_id = db.Column(
+        db.Integer, db.ForeignKey("portfolio_enquiry.id"), unique=True, index=True
+    )
 
     # Deal status pipeline
     status = db.Column(
@@ -1488,6 +1497,9 @@ class Introduction(db.Model):
     buyer = db.relationship("User", foreign_keys=[buyer_id])
     seller = db.relationship("User", foreign_keys=[seller_id])
     listing = db.relationship("Listing")
+    portfolio = db.relationship("Portfolio", foreign_keys=[portfolio_id])
+    portfolio_lot = db.relationship("PortfolioLot", foreign_keys=[portfolio_lot_id])
+    portfolio_enquiry = db.relationship("PortfolioEnquiry", foreign_keys=[portfolio_enquiry_id])
 
 
 class WorkspaceMessage(db.Model):
@@ -1542,6 +1554,94 @@ class WorkspaceMilestone(db.Model):
 
     introduction = db.relationship("Introduction", backref="workspace_milestones")
     created_by = db.relationship("User", foreign_keys=[created_by_id])
+
+
+class CompletionChecklistItem(db.Model):
+    __tablename__ = "completion_checklist_item"
+
+    id = db.Column(db.Integer, primary_key=True)
+    introduction_id = db.Column(db.Integer, db.ForeignKey("introductions.id"), nullable=False, index=True)
+    title = db.Column(db.String(200), nullable=False)
+    category = db.Column(db.String(30), nullable=False, default="other", index=True)
+    assigned_to = db.Column(db.String(20), nullable=False, default="joint", index=True)
+    is_required = db.Column(db.Boolean, nullable=False, default=True)
+    status = db.Column(db.String(20), nullable=False, default="pending", index=True)
+    due_date = db.Column(db.Date, index=True)
+    note = db.Column(db.Text)
+    created_by_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
+    completed_by_id = db.Column(db.Integer, db.ForeignKey("user.id"))
+    completed_at = db.Column(db.DateTime)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+    introduction = db.relationship("Introduction", backref="completion_checklist_items")
+    created_by = db.relationship("User", foreign_keys=[created_by_id])
+    completed_by = db.relationship("User", foreign_keys=[completed_by_id])
+
+
+class CompletionCondition(db.Model):
+    __tablename__ = "completion_condition"
+
+    id = db.Column(db.Integer, primary_key=True)
+    introduction_id = db.Column(db.Integer, db.ForeignKey("introductions.id"), nullable=False, index=True)
+    title = db.Column(db.String(200), nullable=False)
+    description = db.Column(db.Text)
+    responsible_party = db.Column(db.String(20), nullable=False, default="joint", index=True)
+    status = db.Column(db.String(20), nullable=False, default="outstanding", index=True)
+    due_date = db.Column(db.Date, index=True)
+    created_by_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
+    resolved_by_id = db.Column(db.Integer, db.ForeignKey("user.id"))
+    resolved_at = db.Column(db.DateTime)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+    introduction = db.relationship("Introduction", backref="completion_conditions")
+    created_by = db.relationship("User", foreign_keys=[created_by_id])
+    resolved_by = db.relationship("User", foreign_keys=[resolved_by_id])
+
+
+class SignatureDocument(db.Model):
+    __tablename__ = "signature_document"
+
+    id = db.Column(db.Integer, primary_key=True)
+    introduction_id = db.Column(db.Integer, db.ForeignKey("introductions.id"), nullable=False, index=True)
+    title = db.Column(db.String(200), nullable=False)
+    filename = db.Column(db.String(255), nullable=False)
+    original_filename = db.Column(db.String(255), nullable=False)
+    mime_type = db.Column(db.String(100))
+    size_bytes = db.Column(db.Integer)
+    checksum_sha256 = db.Column(db.String(64), nullable=False)
+    requires_buyer = db.Column(db.Boolean, nullable=False, default=True)
+    requires_seller = db.Column(db.Boolean, nullable=False, default=True)
+    is_required = db.Column(db.Boolean, nullable=False, default=True)
+    status = db.Column(db.String(20), nullable=False, default="prepared", index=True)
+    buyer_signed_at = db.Column(db.DateTime)
+    seller_signed_at = db.Column(db.DateTime)
+    voided_at = db.Column(db.DateTime)
+    uploaded_by_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+    introduction = db.relationship("Introduction", backref="signature_documents")
+    uploaded_by = db.relationship("User", foreign_keys=[uploaded_by_id])
+
+
+class CompletionRecord(db.Model):
+    __tablename__ = "completion_record"
+
+    id = db.Column(db.Integer, primary_key=True)
+    introduction_id = db.Column(
+        db.Integer, db.ForeignKey("introductions.id"), nullable=False, unique=True, index=True
+    )
+    handover_notes = db.Column(db.Text)
+    buyer_confirmed_at = db.Column(db.DateTime)
+    seller_confirmed_at = db.Column(db.DateTime)
+    completed_at = db.Column(db.DateTime)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+    introduction = db.relationship(
+        "Introduction", backref=db.backref("completion_record", uselist=False)
+    )
 
 
 class StructuredOffer(db.Model):
@@ -2647,6 +2747,138 @@ def workspace_recipients(introduction: Introduction, exclude_user_id=None):
         user for user in (introduction.buyer, introduction.seller)
         if user.id != exclude_user_id
     ]
+
+
+def completion_party_for_user(user, introduction):
+    if user.id == introduction.buyer_id:
+        return "buyer"
+    if user.id == introduction.seller_id:
+        return "seller"
+    return None
+
+
+def can_update_completion_item(user, introduction, assigned_to):
+    party = completion_party_for_user(user, introduction)
+    return bool(party and assigned_to in {party, "joint"})
+
+
+def reset_completion_confirmations(introduction):
+    record = introduction.completion_record
+    if record and not record.completed_at:
+        record.buyer_confirmed_at = None
+        record.seller_confirmed_at = None
+        record.updated_at = utcnow()
+
+
+def ensure_completion_open(introduction):
+    if introduction.completion_record and introduction.completion_record.completed_at:
+        abort(409)
+
+
+def completion_blockers(introduction):
+    blockers = []
+    if introduction.status != "offer_accepted":
+        blockers.append("An offer must be accepted before handover can complete.")
+    for item in introduction.completion_checklist_items:
+        if item.is_required and item.status not in {"completed", "waived"}:
+            blockers.append(f"Checklist: {item.title}")
+    for condition in introduction.completion_conditions:
+        if condition.status not in {"satisfied", "waived"}:
+            blockers.append(f"Condition: {condition.title}")
+    for document in introduction.signature_documents:
+        if document.is_required and document.status != "signed":
+            blockers.append(f"Signature: {document.title}")
+    return blockers
+
+
+def completion_target_label(introduction):
+    if introduction.portfolio_lot:
+        return f"{introduction.portfolio.portfolio_code} · {introduction.portfolio_lot.name}"
+    if introduction.portfolio:
+        return f"{introduction.portfolio.portfolio_code} · whole portfolio"
+    return introduction.listing.listing_code or f"Listing {introduction.listing_id}"
+
+
+def finalize_completion(introduction, record):
+    now = utcnow()
+    old_status = introduction.status
+    introduction.status = "completed"
+    introduction.updated_at = now
+    record.completed_at = now
+    record.updated_at = now
+    db.session.add(IntroductionStatusHistory(
+        introduction_id=introduction.id, old_status=old_status,
+        new_status="completed", changed_by_user_id=current_user.id,
+        note="Buyer and seller confirmed controlled handover",
+    ))
+    deal = introduction.deal
+    if deal is None:
+        deal = Deal(introduction_id=introduction.id)
+        db.session.add(deal)
+    deal.status = "completed"
+    deal.completion_date = now
+    affected_listings = []
+    if introduction.portfolio:
+        portfolio = introduction.portfolio
+        if introduction.portfolio_lot:
+            lot = introduction.portfolio_lot
+            lot.is_available = False
+            affected_listings = [item.listing for item in lot.items]
+            portfolio.status = (
+                "sold" if not any(
+                    other.is_available and other.items
+                    for other in portfolio.lots if other.id != lot.id
+                )
+                else "draft"
+            )
+        else:
+            affected_listings = portfolio.listings
+            portfolio.status = "sold"
+            for lot in portfolio.lots:
+                lot.is_available = False
+        portfolio.updated_at = now
+    else:
+        affected_listings = [introduction.listing]
+    for listing in affected_listings:
+        listing.status = "sold"
+        draft_live_portfolios_for_listing(listing)
+    db.session.commit()
+    queue_integration_event(
+        "introduction.updated",
+        {"introduction_id": introduction.id, "listing_id": introduction.listing_id,
+         "old_status": old_status, "status": "completed"},
+        user_id=introduction.buyer_id,
+    )
+    queue_integration_event(
+        "introduction.updated",
+        {"introduction_id": introduction.id, "listing_id": introduction.listing_id,
+         "old_status": old_status, "status": "completed"},
+        user_id=introduction.seller_id,
+    )
+    if introduction.listing.team_id:
+        queue_integration_event(
+            "introduction.updated",
+            {"introduction_id": introduction.id, "listing_id": introduction.listing_id,
+             "old_status": old_status, "status": "completed"},
+            team_id=introduction.listing.team_id,
+        )
+    if introduction.portfolio:
+        queue_portfolio_update(introduction.portfolio, change="completion")
+    record_audit_event(
+        "completion.finalised", "Transaction completion finalised",
+        subject_user_id=introduction.seller_id, resource_type="introduction",
+        resource_id=introduction.id,
+        details={"target": completion_target_label(introduction),
+                 "listing_ids": [listing.id for listing in affected_listings]},
+    )
+    for recipient in (introduction.buyer, introduction.seller):
+        publish_notification(
+            recipient, event_type="transaction_completed",
+            title="Transaction handover completed",
+            body=f"Both parties confirmed completion for {completion_target_label(introduction)}.",
+            target_url=url_for("completion_workspace", intro_id=introduction.id),
+            dedupe_key=f"completion:{introduction.id}",
+        )
 
 
 def _listing_analytics_visitor_hash() -> str:
@@ -4387,6 +4619,60 @@ def seller_portfolios():
     return render_template(
         "seller/portfolios.html", portfolios=rows, enquiries=enquiries,
     )
+
+
+@app.route("/seller/portfolio-enquiries/<int:enquiry_id>/introduction", methods=["POST"])
+@login_required
+@role_required("seller")
+def seller_request_portfolio_introduction(enquiry_id):
+    enquiry = PortfolioEnquiry.query.get_or_404(enquiry_id)
+    portfolio = enquiry.portfolio
+    if not can_edit_portfolio(current_user, portfolio):
+        abort(404)
+    if enquiry.status == "introduced" or Introduction.query.filter_by(
+        portfolio_enquiry_id=enquiry.id
+    ).first():
+        flash("An introduction already exists for this portfolio enquiry.", "info")
+        return redirect(url_for("seller_portfolios"))
+    target_listings = (
+        [item.listing for item in enquiry.lot.items]
+        if enquiry.lot else portfolio.listings
+    )
+    if not target_listings:
+        flash("This portfolio target has no listings.", "error")
+        return redirect(url_for("seller_portfolios"))
+    primary_listing = target_listings[0]
+    existing = Introduction.query.filter_by(
+        buyer_id=enquiry.buyer_id, seller_id=portfolio.seller_id,
+        listing_id=primary_listing.id,
+    ).first()
+    if existing:
+        flash("An introduction already exists for this buyer and the portfolio's primary listing.", "error")
+        return redirect(url_for("seller_portfolios"))
+    intro = Introduction(
+        buyer_id=enquiry.buyer_id, seller_id=portfolio.seller_id,
+        listing_id=primary_listing.id, portfolio_id=portfolio.id,
+        portfolio_lot_id=enquiry.lot_id, portfolio_enquiry_id=enquiry.id,
+        status="pending_seller_request",
+    )
+    enquiry.status = "introduced"
+    db.session.add(intro)
+    db.session.commit()
+    publish_role_notification(
+        "admin", event_type="introduction_request",
+        title="New portfolio introduction request",
+        body=f"A seller requested an introduction for {portfolio.portfolio_code}.",
+        target_url=url_for("admin_introduction_requests"),
+        dedupe_key=f"portfolio-introduction-request:{intro.id}",
+    )
+    record_audit_event(
+        "portfolio.introduction_requested", "Portfolio introduction requested",
+        subject_user_id=portfolio.seller_id, resource_type="introduction",
+        resource_id=intro.id,
+        details={"portfolio_id": portfolio.id, "lot_id": enquiry.lot_id, "enquiry_id": enquiry.id},
+    )
+    flash("Portfolio introduction submitted for administrator approval.", "success")
+    return redirect(url_for("seller_portfolios"))
 
 
 @app.route("/seller/portfolios/new", methods=["GET", "POST"])
@@ -7034,6 +7320,340 @@ def deal_workspace(intro_id):
     )
 
 
+@app.route("/introductions/<int:intro_id>/completion")
+@login_required
+def completion_workspace(intro_id):
+    intro = Introduction.query.get_or_404(intro_id)
+    if not can_access_deal_workspace(current_user, intro):
+        abort(404)
+    checklist = CompletionChecklistItem.query.filter_by(introduction_id=intro.id).order_by(
+        CompletionChecklistItem.category, CompletionChecklistItem.due_date,
+        CompletionChecklistItem.created_at,
+    ).all()
+    conditions = CompletionCondition.query.filter_by(introduction_id=intro.id).order_by(
+        CompletionCondition.status, CompletionCondition.due_date,
+        CompletionCondition.created_at,
+    ).all()
+    documents = SignatureDocument.query.filter_by(introduction_id=intro.id).order_by(
+        SignatureDocument.created_at.desc()
+    ).all()
+    return render_template(
+        "completion/index.html", introduction=intro, checklist=checklist,
+        conditions=conditions, documents=documents,
+        completion=intro.completion_record, blockers=completion_blockers(intro),
+        current_party=completion_party_for_user(current_user, intro),
+    )
+
+
+def parse_completion_due_date(value):
+    value = (value or "").strip()
+    if not value:
+        return None
+    try:
+        return datetime.strptime(value, "%Y-%m-%d").date()
+    except ValueError as exc:
+        raise ValueError("Choose a valid due date.") from exc
+
+
+@app.route("/introductions/<int:intro_id>/completion/checklist", methods=["POST"])
+@login_required
+def add_completion_checklist_item(intro_id):
+    intro = Introduction.query.get_or_404(intro_id)
+    party = completion_party_for_user(current_user, intro)
+    if not party or not can_access_deal_workspace(current_user, intro):
+        abort(404)
+    ensure_completion_open(intro)
+    title = (request.form.get("title") or "").strip()[:200]
+    category = (request.form.get("category") or "other").strip()
+    assigned_to = (request.form.get("assigned_to") or "joint").strip()
+    if not title or category not in {"legal", "financial", "regulatory", "operational", "handover", "other"} or assigned_to not in {"buyer", "seller", "joint"}:
+        flash("Enter a valid checklist item.", "error")
+        return redirect(url_for("completion_workspace", intro_id=intro.id))
+    try:
+        due_date = parse_completion_due_date(request.form.get("due_date"))
+    except ValueError as exc:
+        flash(str(exc), "error")
+        return redirect(url_for("completion_workspace", intro_id=intro.id))
+    item = CompletionChecklistItem(
+        introduction_id=intro.id, title=title, category=category,
+        assigned_to=assigned_to, is_required=bool(request.form.get("is_required")),
+        due_date=due_date, note=(request.form.get("note") or "").strip()[:3000] or None,
+        created_by_id=current_user.id,
+    )
+    db.session.add(item)
+    reset_completion_confirmations(intro)
+    db.session.commit()
+    record_audit_event(
+        "completion.checklist_created", "Completion checklist item created",
+        subject_user_id=intro.seller_id, resource_type="completion_checklist_item",
+        resource_id=item.id, details={"introduction_id": intro.id, "assigned_to": assigned_to},
+    )
+    flash("Completion checklist item added.", "success")
+    return redirect(url_for("completion_workspace", intro_id=intro.id))
+
+
+@app.route("/completion/checklist/<int:item_id>", methods=["POST"])
+@login_required
+def update_completion_checklist_item(item_id):
+    item = CompletionChecklistItem.query.get_or_404(item_id)
+    intro = item.introduction
+    if not can_access_deal_workspace(current_user, intro) or not can_update_completion_item(current_user, intro, item.assigned_to):
+        abort(404)
+    ensure_completion_open(intro)
+    status = (request.form.get("status") or "").strip()
+    if status not in {"pending", "completed", "waived"}:
+        abort(400)
+    item.status = status
+    item.completed_by_id = current_user.id if status in {"completed", "waived"} else None
+    item.completed_at = utcnow() if status in {"completed", "waived"} else None
+    item.updated_at = utcnow()
+    reset_completion_confirmations(intro)
+    db.session.commit()
+    record_audit_event(
+        "completion.checklist_updated", "Completion checklist item updated",
+        subject_user_id=intro.seller_id, resource_type="completion_checklist_item",
+        resource_id=item.id, details={"introduction_id": intro.id, "status": status},
+    )
+    return redirect(url_for("completion_workspace", intro_id=intro.id))
+
+
+@app.route("/introductions/<int:intro_id>/completion/conditions", methods=["POST"])
+@login_required
+def add_completion_condition(intro_id):
+    intro = Introduction.query.get_or_404(intro_id)
+    party = completion_party_for_user(current_user, intro)
+    if not party or not can_access_deal_workspace(current_user, intro):
+        abort(404)
+    ensure_completion_open(intro)
+    title = (request.form.get("title") or "").strip()[:200]
+    responsible = (request.form.get("responsible_party") or "joint").strip()
+    if not title or responsible not in {"buyer", "seller", "joint"}:
+        flash("Enter a valid completion condition.", "error")
+        return redirect(url_for("completion_workspace", intro_id=intro.id))
+    try:
+        due_date = parse_completion_due_date(request.form.get("due_date"))
+    except ValueError as exc:
+        flash(str(exc), "error")
+        return redirect(url_for("completion_workspace", intro_id=intro.id))
+    condition = CompletionCondition(
+        introduction_id=intro.id, title=title,
+        description=(request.form.get("description") or "").strip()[:3000] or None,
+        responsible_party=responsible, due_date=due_date,
+        created_by_id=current_user.id,
+    )
+    db.session.add(condition)
+    reset_completion_confirmations(intro)
+    db.session.commit()
+    record_audit_event(
+        "completion.condition_created", "Completion condition created",
+        subject_user_id=intro.seller_id, resource_type="completion_condition",
+        resource_id=condition.id, details={"introduction_id": intro.id},
+    )
+    flash("Completion condition added.", "success")
+    return redirect(url_for("completion_workspace", intro_id=intro.id))
+
+
+@app.route("/completion/conditions/<int:condition_id>", methods=["POST"])
+@login_required
+def update_completion_condition(condition_id):
+    condition = CompletionCondition.query.get_or_404(condition_id)
+    intro = condition.introduction
+    if not can_access_deal_workspace(current_user, intro) or not can_update_completion_item(current_user, intro, condition.responsible_party):
+        abort(404)
+    ensure_completion_open(intro)
+    status = (request.form.get("status") or "").strip()
+    if status not in {"outstanding", "satisfied", "waived"}:
+        abort(400)
+    condition.status = status
+    condition.resolved_by_id = current_user.id if status in {"satisfied", "waived"} else None
+    condition.resolved_at = utcnow() if status in {"satisfied", "waived"} else None
+    condition.updated_at = utcnow()
+    reset_completion_confirmations(intro)
+    db.session.commit()
+    record_audit_event(
+        "completion.condition_updated", "Completion condition updated",
+        subject_user_id=intro.seller_id, resource_type="completion_condition",
+        resource_id=condition.id, details={"introduction_id": intro.id, "status": status},
+    )
+    return redirect(url_for("completion_workspace", intro_id=intro.id))
+
+
+@app.route("/introductions/<int:intro_id>/completion/signature-documents", methods=["POST"])
+@login_required
+def upload_signature_document(intro_id):
+    intro = Introduction.query.get_or_404(intro_id)
+    if not completion_party_for_user(current_user, intro) or not can_access_deal_workspace(current_user, intro):
+        abort(404)
+    ensure_completion_open(intro)
+    upload = request.files.get("document")
+    title = (request.form.get("title") or "").strip()[:200]
+    if not upload or not upload.filename or not allowed_document(upload.filename):
+        flash("Upload a PDF, Word or spreadsheet document.", "error")
+        return redirect(url_for("completion_workspace", intro_id=intro.id))
+    mime_type = (upload.mimetype or "application/octet-stream")[:100]
+    if mime_type not in app.config["ALLOWED_DOCUMENT_MIME_TYPES"]:
+        flash("That document type is not allowed.", "error")
+        return redirect(url_for("completion_workspace", intro_id=intro.id))
+    requires_buyer = bool(request.form.get("requires_buyer"))
+    requires_seller = bool(request.form.get("requires_seller"))
+    if not requires_buyer and not requires_seller:
+        flash("Choose at least one signing party.", "error")
+        return redirect(url_for("completion_workspace", intro_id=intro.id))
+    original = secure_filename(upload.filename)[:255]
+    filename = f"completion_{intro.id}_{uuid.uuid4().hex}_{original}"
+    path = os.path.join(app.config["COMPLETION_DOCS_FOLDER"], filename)
+    upload.save(path)
+    checksum = hashlib.sha256()
+    with open(path, "rb") as stored_file:
+        for chunk in iter(lambda: stored_file.read(1024 * 1024), b""):
+            checksum.update(chunk)
+    document = SignatureDocument(
+        introduction_id=intro.id, title=title or original,
+        filename=filename, original_filename=original, mime_type=mime_type,
+        size_bytes=os.path.getsize(path), checksum_sha256=checksum.hexdigest(),
+        requires_buyer=requires_buyer, requires_seller=requires_seller,
+        is_required=bool(request.form.get("is_required")),
+        uploaded_by_id=current_user.id,
+    )
+    db.session.add(document)
+    reset_completion_confirmations(intro)
+    db.session.commit()
+    record_audit_event(
+        "completion.signature_document_uploaded", "Signature document uploaded",
+        subject_user_id=intro.seller_id, resource_type="signature_document",
+        resource_id=document.id,
+        details={"introduction_id": intro.id, "checksum_sha256": document.checksum_sha256},
+    )
+    flash("Signature-ready document uploaded.", "success")
+    return redirect(url_for("completion_workspace", intro_id=intro.id))
+
+
+@app.route("/completion/signature-documents/<int:document_id>/status", methods=["POST"])
+@login_required
+def update_signature_document(document_id):
+    document = SignatureDocument.query.get_or_404(document_id)
+    intro = document.introduction
+    party = completion_party_for_user(current_user, intro)
+    if not party or not can_access_deal_workspace(current_user, intro):
+        abort(404)
+    ensure_completion_open(intro)
+    action = (request.form.get("action") or "").strip()
+    if action == "ready":
+        if current_user.id != document.uploaded_by_id and party != "seller":
+            abort(404)
+        if document.status in {"signed", "void"}:
+            abort(400)
+        document.status = "ready"
+    elif action == "sign":
+        if document.status == "void":
+            abort(400)
+        if party == "buyer" and document.requires_buyer:
+            document.buyer_signed_at = utcnow()
+        elif party == "seller" and document.requires_seller:
+            document.seller_signed_at = utcnow()
+        else:
+            abort(403)
+        buyer_complete = not document.requires_buyer or document.buyer_signed_at
+        seller_complete = not document.requires_seller or document.seller_signed_at
+        document.status = "signed" if buyer_complete and seller_complete else "ready"
+    elif action == "void":
+        if current_user.id != document.uploaded_by_id and party != "seller":
+            abort(404)
+        document.status = "void"
+        document.voided_at = utcnow()
+        document.is_required = False
+    else:
+        abort(400)
+    reset_completion_confirmations(intro)
+    db.session.commit()
+    record_audit_event(
+        f"completion.signature_{action}", "Signature document status updated",
+        subject_user_id=intro.seller_id, resource_type="signature_document",
+        resource_id=document.id, details={"introduction_id": intro.id, "status": document.status},
+    )
+    return redirect(url_for("completion_workspace", intro_id=intro.id))
+
+
+@app.route("/completion/signature-documents/<int:document_id>/download")
+@login_required
+def download_signature_document(document_id):
+    document = SignatureDocument.query.get_or_404(document_id)
+    if not can_access_deal_workspace(current_user, document.introduction):
+        abort(404)
+    path = os.path.join(app.config["COMPLETION_DOCS_FOLDER"], document.filename)
+    if not os.path.isfile(path):
+        abort(404)
+    record_audit_event(
+        "completion.signature_document_downloaded", "Signature document downloaded",
+        subject_user_id=document.introduction.seller_id,
+        resource_type="signature_document", resource_id=document.id,
+        details={"introduction_id": document.introduction_id},
+    )
+    return send_from_directory(
+        app.config["COMPLETION_DOCS_FOLDER"], document.filename,
+        as_attachment=True, download_name=document.original_filename,
+    )
+
+
+@app.route("/introductions/<int:intro_id>/completion/handover", methods=["POST"])
+@login_required
+def confirm_completion_handover(intro_id):
+    intro = Introduction.query.filter_by(id=intro_id).with_for_update().first_or_404()
+    party = completion_party_for_user(current_user, intro)
+    if not party or not can_access_deal_workspace(current_user, intro):
+        abort(404)
+    record = intro.completion_record
+    if record is None:
+        record = CompletionRecord(introduction_id=intro.id)
+        db.session.add(record)
+        db.session.flush()
+    if record.completed_at:
+        flash("This transaction has already completed.", "info")
+        return redirect(url_for("completion_workspace", intro_id=intro.id))
+    action = (request.form.get("action") or "confirm").strip()
+    if action == "revoke":
+        if party == "buyer":
+            record.buyer_confirmed_at = None
+        else:
+            record.seller_confirmed_at = None
+        record.updated_at = utcnow()
+        db.session.commit()
+        flash("Your handover confirmation was withdrawn.", "success")
+        return redirect(url_for("completion_workspace", intro_id=intro.id))
+    blockers = completion_blockers(intro)
+    if blockers:
+        db.session.rollback()
+        flash("Clear every required completion blocker before confirming handover.", "error")
+        return redirect(url_for("completion_workspace", intro_id=intro.id))
+    record.handover_notes = (request.form.get("handover_notes") or record.handover_notes or "").strip()[:5000] or None
+    now = utcnow()
+    if party == "buyer":
+        record.buyer_confirmed_at = now
+    else:
+        record.seller_confirmed_at = now
+    record.updated_at = now
+    db.session.commit()
+    record_audit_event(
+        "completion.handover_confirmed", "Transaction handover confirmed",
+        subject_user_id=intro.seller_id, resource_type="completion_record",
+        resource_id=record.id, details={"introduction_id": intro.id, "party": party},
+    )
+    if record.buyer_confirmed_at and record.seller_confirmed_at:
+        finalize_completion(intro, record)
+        flash("Both parties confirmed handover. The transaction is complete.", "success")
+    else:
+        other = intro.seller if party == "buyer" else intro.buyer
+        publish_notification(
+            other, event_type="completion_confirmation",
+            title="Handover confirmation requested",
+            body=f"The {party} confirmed handover for {completion_target_label(intro)}.",
+            target_url=url_for("completion_workspace", intro_id=intro.id),
+            dedupe_key=f"completion-confirmation:{intro.id}:{party}",
+        )
+        flash("Your handover confirmation was recorded.", "success")
+    return redirect(url_for("completion_workspace", intro_id=intro.id))
+
+
 @app.route("/introductions/<int:intro_id>/workspace/offers", methods=["POST"])
 @login_required
 def submit_structured_offer(intro_id):
@@ -7183,6 +7803,18 @@ def respond_to_structured_offer(offer_id):
                 ))
             recipient = offer.creator
             event_type, title = "offer_accepted", "Offer accepted"
+            if intro.portfolio:
+                if intro.portfolio_lot:
+                    intro.portfolio_lot.is_available = False
+                    if not any(
+                        lot.is_available and lot.items
+                        for lot in intro.portfolio.lots
+                        if lot.id != intro.portfolio_lot.id
+                    ):
+                        intro.portfolio.status = "under_offer"
+                else:
+                    intro.portfolio.status = "under_offer"
+                intro.portfolio.updated_at = now
     else:
         flash("Choose a valid offer action.", "error")
         return redirect(url_for("deal_workspace", intro_id=intro.id))
@@ -7200,6 +7832,8 @@ def respond_to_structured_offer(offer_id):
         queue_integration_event("offer.accepted", event_payload, user_id=intro.seller_id)
         if intro.listing.team_id:
             queue_integration_event("offer.accepted", event_payload, team_id=intro.listing.team_id)
+        if intro.portfolio:
+            queue_portfolio_update(intro.portfolio, change="offer_accepted", offer_id=offer.id)
     record_audit_event(
         f"offer.{offer.status}", f"Structured offer {offer.status}",
         subject_user_id=recipient.id, resource_type="structured_offer", resource_id=offer.id,
@@ -9469,6 +10103,11 @@ def admin_update_introduction_status(intro_id):
     if new_status not in valid_keys:
         flash("Invalid status.", "error")
         return redirect(request.referrer or url_for("admin_introductions"))
+    if new_status == "completed" and not (
+        intro.completion_record and intro.completion_record.completed_at
+    ):
+        flash("Completion must be confirmed by both transaction parties in the completion workspace.", "error")
+        return redirect(request.referrer or url_for("admin_introduction_detail", intro_id=intro.id))
 
     old_status = intro.status or "initiated"
     if new_status == old_status:
@@ -9571,6 +10210,11 @@ def admin_introduction_deal(intro_id):
                 completion_date = datetime.strptime(completion_date_raw, "%Y-%m-%d")
             except ValueError:
                 completion_date = None
+        if completion_date and not (
+            intro.completion_record and intro.completion_record.completed_at
+        ):
+            flash("A completion date can be recorded only after both parties confirm handover.", "error")
+            return redirect(url_for("admin_introduction_deal", intro_id=intro.id))
 
         # Attempt to auto-calc commission_amount if parseable
         broker_commission_amount = deal.broker_commission_amount

@@ -111,6 +111,14 @@ Confidential multi-listing portfolios marketed as a whole, by configurable lot, 
 
 Seller portfolio builder with lot pricing, availability, publication safeguards and targeted premium-buyer enquiries
 
+Portfolio-aware governed introductions that retain the selected whole-portfolio or lot context
+
+Transaction completion workspace with assigned checklists, conditions and automatic blocker calculation
+
+Private SHA-256 checksummed signature-ready documents with separate buyer and seller acknowledgements
+
+Two-party controlled handover that synchronises introductions, deals, listings and portfolio lots
+
 Confidential listing handling
 
 Privacy-safe activity and audit log
@@ -339,6 +347,11 @@ They are stored beneath `PRIVATE_UPLOAD_ROOT` (default:
 `instance/private_uploads`). In Railway or another ephemeral environment, mount
 a persistent volume and set `PRIVATE_UPLOAD_ROOT` to that mount path before
 accepting production documents.
+
+Completion and signature-ready documents are stored under the same private
+root in `completion_docs`. Ownerlane records file integrity and party
+acknowledgements; this workflow is not itself a qualified electronic-signature
+service. Configure a native e-sign provider before presenting it as one.
 
 🧪 Future Enhancements (ready when you are)
 

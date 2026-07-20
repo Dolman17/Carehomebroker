@@ -121,7 +121,7 @@ def test_live_brand_sources_do_not_reference_legacy_names():
 def test_rebrand_preserves_route_contract():
     rules = {rule.rule for rule in app.url_map.iter_rules()}
 
-    assert len(rules) == 160
+    assert len(rules) == 170
     assert "/" in rules
     assert "/listings" in rules
     assert "/pricing" in rules
