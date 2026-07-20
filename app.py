@@ -5,12 +5,18 @@ import smtplib
 import math
 import hashlib
 import hmac
+import csv
+import io
+import ipaddress
+import json
+import socket
 from html import escape
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from urllib.parse import urljoin, urlparse
 from email.message import EmailMessage
 from datetime import UTC, datetime, timedelta
 import stripe
+import requests as http_requests
 
 from flask import (
     Flask,
@@ -23,6 +29,7 @@ from flask import (
     abort,
     make_response,
     send_from_directory,
+    jsonify,
 )
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
@@ -73,6 +80,7 @@ app.config["MAX_CONTENT_LENGTH"] = int(
 app.config["BENCHMARK_MIN_SAMPLE_SIZE"] = max(
     5, int(os.getenv("BENCHMARK_MIN_SAMPLE_SIZE", "5"))
 )
+app.config["WEBHOOK_TASK_TOKEN"] = os.getenv("WEBHOOK_TASK_TOKEN")
 
 # Public legal identity. Configure the optional registration fields before launch.
 app.config["LEGAL_ENTITY_NAME"] = os.getenv("LEGAL_ENTITY_NAME", "Ownerlane")
@@ -479,6 +487,63 @@ class TeamInvitation(db.Model):
 
     team = db.relationship("Team", backref="invitations")
     invited_by = db.relationship("User", foreign_keys=[invited_by_id])
+
+
+class IntegrationApiToken(db.Model):
+    __tablename__ = "integration_api_token"
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False, index=True)
+    team_id = db.Column(db.Integer, db.ForeignKey("team.id"), index=True)
+    name = db.Column(db.String(120), nullable=False)
+    token_prefix = db.Column(db.String(16), nullable=False, index=True)
+    token_hash = db.Column(db.String(64), nullable=False, unique=True, index=True)
+    scopes = db.Column(db.String(255), nullable=False)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    last_used_at = db.Column(db.DateTime)
+    expires_at = db.Column(db.DateTime, index=True)
+    revoked_at = db.Column(db.DateTime)
+
+    user = db.relationship("User", backref="integration_api_tokens")
+    team = db.relationship("Team", backref="integration_api_tokens")
+
+
+class WebhookEndpoint(db.Model):
+    __tablename__ = "webhook_endpoint"
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False, index=True)
+    team_id = db.Column(db.Integer, db.ForeignKey("team.id"), index=True)
+    name = db.Column(db.String(120), nullable=False)
+    url = db.Column(db.String(1000), nullable=False)
+    signing_salt = db.Column(db.String(64), nullable=False, unique=True)
+    event_types = db.Column(db.String(500), nullable=False)
+    is_active = db.Column(db.Boolean, nullable=False, default=True, index=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    disabled_at = db.Column(db.DateTime)
+
+    user = db.relationship("User", backref="webhook_endpoints")
+    team = db.relationship("Team", backref="webhook_endpoints")
+
+
+class WebhookDelivery(db.Model):
+    __tablename__ = "webhook_delivery"
+
+    id = db.Column(db.Integer, primary_key=True)
+    endpoint_id = db.Column(db.Integer, db.ForeignKey("webhook_endpoint.id"), nullable=False, index=True)
+    event_id = db.Column(db.String(36), nullable=False, unique=True, index=True)
+    event_type = db.Column(db.String(80), nullable=False, index=True)
+    payload = db.Column(db.JSON, nullable=False)
+    status = db.Column(db.String(20), nullable=False, default="pending", index=True)
+    attempts = db.Column(db.Integer, nullable=False, default=0)
+    next_attempt_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, index=True)
+    last_attempt_at = db.Column(db.DateTime)
+    delivered_at = db.Column(db.DateTime)
+    response_status = db.Column(db.Integer)
+    response_excerpt = db.Column(db.String(500))
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+    endpoint = db.relationship("WebhookEndpoint", backref="deliveries")
 
 
 class Listing(db.Model):
@@ -2031,6 +2096,130 @@ def can_edit_seller_listing(user, listing):
             or (listing.team_id and team_has_permission(user, listing.team_id, "resource.edit"))
         )
     )
+
+
+API_SCOPES = {"profile:read", "listings:read", "introductions:read"}
+WEBHOOK_EVENT_TYPES = {
+    "listing.updated", "listing.status_changed", "introduction.updated",
+    "offer.accepted", "ping",
+}
+
+
+def integration_token_hash(raw_token):
+    return hmac.new(
+        app.config["SECRET_KEY"].encode(), raw_token.encode(), hashlib.sha256
+    ).hexdigest()
+
+
+def webhook_signing_secret(endpoint):
+    return hmac.new(
+        app.config["SECRET_KEY"].encode(),
+        f"webhook:{endpoint.signing_salt}".encode(), hashlib.sha256,
+    ).hexdigest()
+
+
+def validate_webhook_url(value):
+    parsed = urlparse((value or "").strip())
+    if parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password:
+        return None, "Webhook URLs must use HTTPS without embedded credentials."
+    if parsed.hostname.casefold() in {"localhost", "localhost.localdomain"}:
+        return None, "Local webhook destinations are not allowed."
+    try:
+        addresses = socket.getaddrinfo(parsed.hostname, parsed.port or 443, type=socket.SOCK_STREAM)
+    except OSError:
+        return None, "The webhook hostname could not be resolved."
+    for address in addresses:
+        ip = ipaddress.ip_address(address[4][0])
+        if not ip.is_global:
+            return None, "Private, loopback and reserved webhook destinations are not allowed."
+    return parsed.geturl()[:1000], None
+
+
+def queue_integration_event(event_type, payload, *, user_id=None, team_id=None):
+    if event_type not in WEBHOOK_EVENT_TYPES:
+        return 0
+    query = WebhookEndpoint.query.filter_by(is_active=True)
+    if team_id:
+        query = query.filter(WebhookEndpoint.team_id == team_id)
+    elif user_id:
+        query = query.filter(
+            WebhookEndpoint.user_id == user_id, WebhookEndpoint.team_id.is_(None)
+        )
+    else:
+        return 0
+    endpoints = [
+        endpoint for endpoint in query.all()
+        if event_type in parse_csv(endpoint.event_types)
+    ]
+    now_iso = utcnow().isoformat(timespec="seconds") + "Z"
+    for endpoint in endpoints:
+        event_id = str(uuid.uuid4())
+        db.session.add(WebhookDelivery(
+            endpoint_id=endpoint.id, event_id=event_id, event_type=event_type,
+            payload={
+                "id": event_id, "type": event_type, "created_at": now_iso,
+                "data": payload,
+            },
+        ))
+    if endpoints:
+        db.session.commit()
+    return len(endpoints)
+
+
+def api_scope_required(scope):
+    from functools import wraps
+
+    def decorator(view):
+        @wraps(view)
+        def wrapped(*args, **kwargs):
+            header = request.headers.get("Authorization", "")
+            if not header.startswith("Bearer "):
+                return jsonify({"error": "missing_token"}), 401
+            raw_token = header[7:].strip()
+            token = IntegrationApiToken.query.filter_by(
+                token_hash=integration_token_hash(raw_token), revoked_at=None
+            ).first()
+            if not token or (token.expires_at and token.expires_at <= utcnow()):
+                return jsonify({"error": "invalid_token"}), 401
+            if scope not in parse_csv(token.scopes):
+                return jsonify({"error": "insufficient_scope", "required": scope}), 403
+            if token.team_id and not team_membership(token.user, token.team_id):
+                return jsonify({"error": "team_access_revoked"}), 403
+            token.last_used_at = utcnow()
+            db.session.commit()
+            request.integration_token = token
+            return view(*args, **kwargs)
+        return wrapped
+    return decorator
+
+
+def api_accessible_listing_query(token):
+    user = token.user
+    query = Listing.query
+    if user.role == "admin":
+        return query
+    if token.team_id:
+        team = token.team
+        if team.team_type == "seller":
+            return query.filter(Listing.team_id == team.id)
+        if team.team_type == "buyer":
+            return query.filter(Listing.status == "live")
+    if user.role == "seller":
+        return query.filter(Listing.seller_id == user.id)
+    return query.filter(Listing.status == "live")
+
+
+def api_listing_payload(listing, user):
+    sensitive = can_view_listing_sensitive(user, listing)
+    return {
+        "id": listing.id, "code": listing.listing_code,
+        "title": listing.title if sensitive else "Confidential business",
+        "region": listing.region, "sector": listing.sector_name,
+        "status": listing.status,
+        "asking_price_minor": listing.asking_price_minor if sensitive else None,
+        "currency": listing.currency if sensitive else None,
+        "created_at": listing.created_at.isoformat() + "Z" if listing.created_at else None,
+    }
 
 
 def can_view_listing_sensitive(user, listing: Listing) -> bool:
@@ -3632,6 +3821,251 @@ def share_listing_with_team(team_id, listing_id):
     )
     flash("Listing sharing updated.", "success")
     return redirect(url_for("team_detail", team_id=team.id))
+
+
+def current_integration_team():
+    membership = active_team_membership(current_user)
+    if membership and "team.manage" in TEAM_ROLE_PERMISSIONS.get(membership.role, set()):
+        return membership.team
+    return None
+
+
+@app.route("/integrations")
+@login_required
+def integrations_index():
+    return render_integrations_page()
+
+
+def render_integrations_page(*, new_api_token=None, new_webhook_secret=None):
+    team = current_integration_team()
+    token_query = IntegrationApiToken.query
+    endpoint_query = WebhookEndpoint.query
+    if team:
+        token_query = token_query.filter_by(team_id=team.id)
+        endpoint_query = endpoint_query.filter_by(team_id=team.id)
+    else:
+        token_query = token_query.filter(
+            IntegrationApiToken.user_id == current_user.id,
+            IntegrationApiToken.team_id.is_(None),
+        )
+        endpoint_query = endpoint_query.filter(
+            WebhookEndpoint.user_id == current_user.id,
+            WebhookEndpoint.team_id.is_(None),
+        )
+    return render_template(
+        "integrations/index.html", team=team,
+        tokens=token_query.order_by(IntegrationApiToken.created_at.desc()).all(),
+        endpoints=endpoint_query.order_by(WebhookEndpoint.created_at.desc()).all(),
+        api_scopes=sorted(API_SCOPES), event_types=sorted(WEBHOOK_EVENT_TYPES - {"ping"}),
+        new_api_token=new_api_token, new_webhook_secret=new_webhook_secret,
+    )
+
+
+@app.route("/integrations/api-tokens", methods=["POST"])
+@login_required
+def create_integration_token():
+    team = current_integration_team()
+    active_membership = active_team_membership(current_user)
+    if active_membership and not team:
+        abort(403)
+    name = (request.form.get("name") or "").strip()[:120]
+    scopes = sorted(set(request.form.getlist("scopes")) & API_SCOPES)
+    if not name or not scopes:
+        flash("Enter a token name and choose at least one scope.", "error")
+        return redirect(url_for("integrations_index"))
+    raw_token = "ol_live_" + uuid.uuid4().hex + uuid.uuid4().hex
+    token = IntegrationApiToken(
+        user_id=current_user.id, team_id=team.id if team else None,
+        name=name, token_prefix=raw_token[:16],
+        token_hash=integration_token_hash(raw_token), scopes=",".join(scopes),
+    )
+    db.session.add(token)
+    db.session.commit()
+    record_audit_event(
+        "integration.api_token_created", "Integration API token created",
+        subject_user_id=current_user.id, resource_type="integration_api_token",
+        resource_id=token.id, details={"team_id": token.team_id, "scopes": scopes},
+    )
+    return render_integrations_page(new_api_token=raw_token)
+
+
+@app.route("/integrations/api-tokens/<int:token_id>/revoke", methods=["POST"])
+@login_required
+def revoke_integration_token(token_id):
+    token = IntegrationApiToken.query.get_or_404(token_id)
+    allowed = token.user_id == current_user.id and token.team_id is None
+    if token.team_id and team_has_permission(current_user, token.team_id, "team.manage"):
+        allowed = True
+    if not allowed:
+        abort(404)
+    token.revoked_at = token.revoked_at or utcnow()
+    db.session.commit()
+    record_audit_event(
+        "integration.api_token_revoked", "Integration API token revoked",
+        subject_user_id=token.user_id, resource_type="integration_api_token",
+        resource_id=token.id, details={"team_id": token.team_id},
+    )
+    flash("API token revoked.", "success")
+    return redirect(url_for("integrations_index"))
+
+
+@app.route("/integrations/webhooks", methods=["POST"])
+@login_required
+def create_webhook_endpoint():
+    team = current_integration_team()
+    active_membership = active_team_membership(current_user)
+    if active_membership and not team:
+        abort(403)
+    name = (request.form.get("name") or "").strip()[:120]
+    endpoint_url, error = validate_webhook_url(request.form.get("url"))
+    event_types = sorted(set(request.form.getlist("event_types")) & WEBHOOK_EVENT_TYPES)
+    if not name or error or not event_types:
+        flash(error or "Enter a name and choose at least one event.", "error")
+        return redirect(url_for("integrations_index"))
+    endpoint = WebhookEndpoint(
+        user_id=current_user.id, team_id=team.id if team else None,
+        name=name, url=endpoint_url, signing_salt=uuid.uuid4().hex + uuid.uuid4().hex,
+        event_types=",".join(event_types),
+    )
+    db.session.add(endpoint)
+    db.session.commit()
+    record_audit_event(
+        "integration.webhook_created", "Webhook endpoint created",
+        subject_user_id=current_user.id, resource_type="webhook_endpoint",
+        resource_id=endpoint.id, details={"team_id": endpoint.team_id, "events": event_types},
+    )
+    return render_integrations_page(new_webhook_secret=webhook_signing_secret(endpoint))
+
+
+@app.route("/integrations/webhooks/<int:endpoint_id>/test", methods=["POST"])
+@login_required
+def test_webhook_endpoint(endpoint_id):
+    endpoint = WebhookEndpoint.query.get_or_404(endpoint_id)
+    allowed = endpoint.user_id == current_user.id and endpoint.team_id is None
+    if endpoint.team_id and team_has_permission(current_user, endpoint.team_id, "team.manage"):
+        allowed = True
+    if not allowed:
+        abort(404)
+    if not endpoint.is_active:
+        flash("This webhook endpoint is disabled.", "error")
+        return redirect(url_for("integrations_index"))
+    event_id = str(uuid.uuid4())
+    db.session.add(WebhookDelivery(
+        endpoint_id=endpoint.id, event_id=event_id, event_type="ping",
+        payload={"id": event_id, "type": "ping", "created_at": utcnow().isoformat() + "Z", "data": {"message": "Ownerlane webhook test"}},
+    ))
+    db.session.commit()
+    flash("Test delivery queued.", "success")
+    return redirect(url_for("integrations_index"))
+
+
+@app.route("/integrations/webhooks/<int:endpoint_id>/disable", methods=["POST"])
+@login_required
+def disable_webhook_endpoint(endpoint_id):
+    endpoint = WebhookEndpoint.query.get_or_404(endpoint_id)
+    allowed = endpoint.user_id == current_user.id and endpoint.team_id is None
+    if endpoint.team_id and team_has_permission(current_user, endpoint.team_id, "team.manage"):
+        allowed = True
+    if not allowed:
+        abort(404)
+    endpoint.is_active = False
+    endpoint.disabled_at = utcnow()
+    db.session.commit()
+    record_audit_event(
+        "integration.webhook_disabled", "Webhook endpoint disabled",
+        subject_user_id=endpoint.user_id, resource_type="webhook_endpoint",
+        resource_id=endpoint.id, details={"team_id": endpoint.team_id},
+    )
+    flash("Webhook disabled.", "success")
+    return redirect(url_for("integrations_index"))
+
+
+def csv_safe(value):
+    text = "" if value is None else str(value)
+    return "'" + text if text.startswith(("=", "+", "-", "@")) else text
+
+
+@app.route("/integrations/crm-export.csv")
+@login_required
+def crm_export():
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["record_type", "name", "email", "listing_code", "status", "created_at"])
+    if current_user.role in {"seller", "valuer", "admin"}:
+        team_ids = seller_listing_team_ids(current_user)
+        listing_query = Listing.query if current_user.role == "admin" else Listing.query.filter(
+            or_(Listing.seller_id == current_user.id, Listing.team_id.in_(team_ids))
+        )
+        listing_ids = [listing.id for listing in listing_query.all()]
+        for enquiry in Enquiry.query.filter(Enquiry.listing_id.in_(listing_ids)).all():
+            writer.writerow(["enquiry", "", csv_safe(enquiry.buyer.email), enquiry.listing.listing_code, enquiry.status, enquiry.created_at.isoformat() if enquiry.created_at else ""])
+        for intro in Introduction.query.filter(Introduction.listing_id.in_(listing_ids)).all():
+            name = intro.buyer.buyer_profile.business_name if intro.buyer.buyer_profile else ""
+            writer.writerow(["introduction", csv_safe(name), csv_safe(intro.buyer.email), intro.listing.listing_code, intro.status, intro.created_at.isoformat() if intro.created_at else ""])
+    elif current_user.role == "buyer":
+        ids = get_shortlist_ids()
+        for listing in Listing.query.filter(Listing.id.in_(ids)).all() if ids else []:
+            writer.writerow(["opportunity", csv_safe(listing.title if is_premium_buyer(current_user) else "Confidential business"), "", listing.listing_code, listing.status, listing.created_at.isoformat() if listing.created_at else ""])
+    else:
+        abort(404)
+    response = make_response(output.getvalue())
+    response.headers["Content-Type"] = "text/csv; charset=utf-8"
+    response.headers["Content-Disposition"] = "attachment; filename=ownerlane-crm-export.csv"
+    record_audit_event(
+        "integration.crm_exported", "CRM export downloaded",
+        subject_user_id=current_user.id, resource_type="user", resource_id=current_user.id,
+        details={"active_team_id": session.get("active_team_id")},
+    )
+    return response
+
+
+@app.route("/api/v1/me")
+@api_scope_required("profile:read")
+def api_v1_me():
+    token = request.integration_token
+    return jsonify({
+        "data": {"id": token.user.id, "role": token.user.role,
+                 "team_id": token.team_id, "team_name": token.team.name if token.team else None},
+        "api_version": "v1",
+    })
+
+
+@app.route("/api/v1/listings")
+@api_scope_required("listings:read")
+def api_v1_listings():
+    token = request.integration_token
+    limit = min(max(request.args.get("limit", 50, type=int), 1), 100)
+    listings = api_accessible_listing_query(token).order_by(Listing.id.desc()).limit(limit).all()
+    return jsonify({"data": [api_listing_payload(item, token.user) for item in listings], "api_version": "v1"})
+
+
+@app.route("/api/v1/listings/<int:listing_id>")
+@api_scope_required("listings:read")
+def api_v1_listing(listing_id):
+    token = request.integration_token
+    listing = api_accessible_listing_query(token).filter(Listing.id == listing_id).first()
+    if not listing:
+        return jsonify({"error": "not_found"}), 404
+    return jsonify({"data": api_listing_payload(listing, token.user), "api_version": "v1"})
+
+
+@app.route("/api/v1/introductions")
+@api_scope_required("introductions:read")
+def api_v1_introductions():
+    token = request.integration_token
+    user = token.user
+    query = Introduction.query
+    if user.role != "admin":
+        if token.team_id and token.team.team_type == "seller":
+            query = query.join(Listing).filter(Listing.team_id == token.team_id)
+        else:
+            query = query.filter(or_(Introduction.buyer_id == user.id, Introduction.seller_id == user.id))
+    rows = query.order_by(Introduction.id.desc()).limit(100).all()
+    return jsonify({"data": [{
+        "id": intro.id, "listing_id": intro.listing_id,
+        "listing_code": intro.listing.listing_code, "status": intro.status,
+        "created_at": intro.created_at.isoformat() + "Z" if intro.created_at else None,
+    } for intro in rows], "api_version": "v1"})
 
 
 @app.route("/market-insights")
@@ -5370,6 +5804,12 @@ def seller_new_listing():
                 cover_set = True
 
         db.session.commit()
+        queue_integration_event(
+            "listing.updated", {"listing_id": listing.id, "status": listing.status},
+            user_id=listing.seller_id,
+        )
+        if listing.team_id:
+            queue_integration_event("listing.updated", {"listing_id": listing.id, "status": listing.status}, team_id=listing.team_id)
         flash("Listing created.")
         return redirect(url_for("seller_dashboard"))
 
@@ -5457,6 +5897,12 @@ def seller_edit_listing(listing_id):
                 listing.photo_filename = unique_name
 
         db.session.commit()
+        queue_integration_event(
+            "listing.updated", {"listing_id": listing.id, "status": listing.status},
+            user_id=listing.seller_id,
+        )
+        if listing.team_id:
+            queue_integration_event("listing.updated", {"listing_id": listing.id, "status": listing.status}, team_id=listing.team_id)
         flash("Listing updated.")
         return redirect(url_for("seller_edit_listing", listing_id=listing.id))
 
@@ -5496,6 +5942,10 @@ def seller_update_listing_status(listing_id):
     if not listing.listing_code:
         listing.listing_code = generate_listing_code()
     db.session.commit()
+    event_payload = {"listing_id": listing.id, "old_status": previous_status, "status": status}
+    queue_integration_event("listing.status_changed", event_payload, user_id=listing.seller_id)
+    if listing.team_id:
+        queue_integration_event("listing.status_changed", event_payload, team_id=listing.team_id)
     if status == "live" and previous_status != "live":
         publish_listing_match_notifications(listing)
     flash(f"Listing marked as {status.replace('_', ' ')}.")
@@ -6195,6 +6645,17 @@ def respond_to_structured_offer(offer_id):
 
     intro.updated_at = utcnow()
     db.session.commit()
+    if offer.status == "accepted":
+        event_payload = {
+            "introduction_id": intro.id,
+            "listing_id": intro.listing_id,
+            "offer_id": offer.id,
+            "status": offer.status,
+        }
+        queue_integration_event("offer.accepted", event_payload, user_id=intro.buyer_id)
+        queue_integration_event("offer.accepted", event_payload, user_id=intro.seller_id)
+        if intro.listing.team_id:
+            queue_integration_event("offer.accepted", event_payload, team_id=intro.listing.team_id)
     record_audit_event(
         f"offer.{offer.status}", f"Structured offer {offer.status}",
         subject_user_id=recipient.id, resource_type="structured_offer", resource_id=offer.id,
@@ -8492,6 +8953,16 @@ def admin_update_introduction_status(intro_id):
     db.session.add(history)
 
     db.session.commit()
+    event_payload = {
+        "introduction_id": intro.id,
+        "listing_id": intro.listing_id,
+        "old_status": old_status,
+        "status": new_status,
+    }
+    queue_integration_event("introduction.updated", event_payload, user_id=intro.buyer_id)
+    queue_integration_event("introduction.updated", event_payload, user_id=intro.seller_id)
+    if intro.listing.team_id:
+        queue_integration_event("introduction.updated", event_payload, team_id=intro.listing.team_id)
     record_audit_event(
         "admin.introduction_status_changed", "Introduction status changed",
         subject_user_id=intro.seller_id, resource_type="introduction",
@@ -9043,6 +9514,67 @@ def stop_impersonating():
 # -------------------------------------------------------------------
 # Weekly digest task
 # -------------------------------------------------------------------
+
+@app.route("/tasks/deliver-webhooks", methods=["POST"])
+def deliver_webhooks():
+    configured_token = app.config.get("WEBHOOK_TASK_TOKEN")
+    supplied_token = request.headers.get("Authorization", "").removeprefix("Bearer ").strip()
+    if not configured_token:
+        return jsonify({"error": "worker_not_configured"}), 503
+    if not hmac.compare_digest(supplied_token, configured_token):
+        abort(403)
+    now = utcnow()
+    deliveries = WebhookDelivery.query.join(WebhookEndpoint).filter(
+        WebhookDelivery.status.in_(["pending", "retrying"]),
+        WebhookDelivery.next_attempt_at <= now,
+        WebhookEndpoint.is_active.is_(True),
+    ).order_by(WebhookDelivery.created_at.asc()).limit(50).all()
+    delivered = failed = 0
+    for delivery in deliveries:
+        endpoint = delivery.endpoint
+        delivery.attempts += 1
+        delivery.last_attempt_at = now
+        safe_url, error = validate_webhook_url(endpoint.url)
+        body = json.dumps(delivery.payload, separators=(",", ":"), sort_keys=True)
+        timestamp = str(int(now.replace(tzinfo=UTC).timestamp()))
+        signature = hmac.new(
+            webhook_signing_secret(endpoint).encode(),
+            f"{timestamp}.{body}".encode(), hashlib.sha256,
+        ).hexdigest()
+        try:
+            if error:
+                raise ValueError(error)
+            response = http_requests.post(
+                safe_url, data=body.encode(), timeout=10, allow_redirects=False,
+                headers={
+                    "Content-Type": "application/json",
+                    "User-Agent": "Ownerlane-Webhooks/1.0",
+                    "X-Ownerlane-Event": delivery.event_type,
+                    "X-Ownerlane-Delivery": delivery.event_id,
+                    "X-Ownerlane-Timestamp": timestamp,
+                    "X-Ownerlane-Signature": f"sha256={signature}",
+                },
+            )
+            delivery.response_status = response.status_code
+            delivery.response_excerpt = (response.text or "")[:500]
+            if 200 <= response.status_code < 300:
+                delivery.status = "delivered"
+                delivery.delivered_at = utcnow()
+                delivered += 1
+                continue
+            error = f"HTTP {response.status_code}"
+        except Exception as exc:
+            error = str(exc)[:500]
+            delivery.response_excerpt = error
+        if delivery.attempts >= 5:
+            delivery.status = "failed"
+            failed += 1
+        else:
+            delivery.status = "retrying"
+            delivery.next_attempt_at = utcnow() + timedelta(minutes=2 ** delivery.attempts)
+    db.session.commit()
+    return jsonify({"processed": len(deliveries), "delivered": delivered, "failed": failed})
+
 
 @app.route("/tasks/send_weekly_digest")
 def send_weekly_digest():

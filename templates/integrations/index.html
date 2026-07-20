@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block title %}Integrations · Ownerlane{% endblock %}
+{% block content %}
+<div class="space-y-8">
+  <header>
+    <p class="text-xs font-semibold uppercase tracking-[0.22em] text-ownerMint">Integrations</p>
+    <h1 class="mt-2 text-3xl font-semibold">Connect Ownerlane to your workflow</h1>
+    <p class="mt-3 max-w-3xl text-sm leading-6 text-white/60">Use scoped, read-only API access, signed webhooks and a CRM-ready CSV export. {% if team %}You are managing integrations for <strong class="text-white">{{ team.name }}</strong>.{% else %}These integrations belong to your account.{% endif %}</p>
+  </header>
+
+  {% if new_api_token %}
+  <section class="rounded-2xl border border-ownerMint/60 bg-ownerMint/10 p-5">
+    <h2 class="font-semibold text-ownerMint">Copy your API token now</h2>
+    <p class="mt-1 text-xs text-white/60">It will not be shown again.</p>
+    <code class="mt-3 block overflow-x-auto rounded-lg bg-black/40 p-3 text-xs text-white">{{ new_api_token }}</code>
+  </section>
+  {% endif %}
+  {% if new_webhook_secret %}
+  <section class="rounded-2xl border border-ownerMint/60 bg-ownerMint/10 p-5">
+    <h2 class="font-semibold text-ownerMint">Copy your webhook signing secret now</h2>
+    <p class="mt-1 text-xs text-white/60">It will not be shown again. Use it to verify every <code>X-Ownerlane-Signature</code>.</p>
+    <code class="mt-3 block overflow-x-auto rounded-lg bg-black/40 p-3 text-xs text-white">{{ new_webhook_secret }}</code>
+  </section>
+  {% endif %}
+
+  <div class="grid gap-6 lg:grid-cols-2">
+    <section class="rounded-2xl border border-white/10 bg-white/5 p-5">
+      <h2 class="text-lg font-semibold">Read-only API tokens</h2>
+      <form method="post" action="{{ url_for('create_integration_token') }}" class="mt-4 space-y-4">
+        <label class="block text-xs text-white/60">Token name
+          <input name="name" maxlength="120" required placeholder="CRM production" class="mt-1 w-full rounded-lg border border-white/15 bg-black/30 px-3 py-2 text-sm text-white">
+        </label>
+        <fieldset><legend class="text-xs text-white/60">Permissions</legend>
+          <div class="mt-2 space-y-2">
+          {% for scope in api_scopes %}<label class="flex items-center gap-2 text-sm"><input type="checkbox" name="scopes" value="{{ scope }}" class="accent-teal-400"> {{ scope }}</label>{% endfor %}
+          </div>
+        </fieldset>
+        <button class="rounded-lg bg-ownerMint px-4 py-2 text-sm font-semibold text-ownerInk">Create token</button>
+      </form>
+      <div class="mt-6 space-y-3">
+      {% for token in tokens %}
+        <div class="rounded-xl border border-white/10 p-3 text-xs">
+          <div class="flex items-start justify-between gap-3"><div><strong>{{ token.name }}</strong><p class="mt-1 text-white/45"><code>{{ token.token_prefix }}…</code> · {{ token.scopes }}</p><p class="mt-1 text-white/35">Last used: {{ token.last_used_at.strftime('%d %b %Y %H:%M') if token.last_used_at else 'Never' }}</p></div>
+          {% if not token.revoked_at %}<form method="post" action="{{ url_for('revoke_integration_token', token_id=token.id) }}"><button class="text-ownerCoral hover:text-white">Revoke</button></form>{% else %}<span class="text-white/35">Revoked</span>{% endif %}</div>
+        </div>
+      {% else %}<p class="text-xs text-white/40">No API tokens yet.</p>{% endfor %}
+      </div>
+    </section>
+
+    <section class="rounded-2xl border border-white/10 bg-white/5 p-5">
+      <h2 class="text-lg font-semibold">Signed webhooks</h2>
+      <form method="post" action="{{ url_for('create_webhook_endpoint') }}" class="mt-4 space-y-4">
+        <label class="block text-xs text-white/60">Endpoint name<input name="name" maxlength="120" required placeholder="CRM events" class="mt-1 w-full rounded-lg border border-white/15 bg-black/30 px-3 py-2 text-sm text-white"></label>
+        <label class="block text-xs text-white/60">HTTPS URL<input type="url" name="url" required placeholder="https://example.com/ownerlane-webhooks" class="mt-1 w-full rounded-lg border border-white/15 bg-black/30 px-3 py-2 text-sm text-white"></label>
+        <fieldset><legend class="text-xs text-white/60">Events</legend><div class="mt-2 grid gap-2 sm:grid-cols-2">{% for event_type in event_types %}<label class="flex items-center gap-2 text-xs"><input type="checkbox" name="event_types" value="{{ event_type }}" class="accent-teal-400"> {{ event_type }}</label>{% endfor %}</div></fieldset>
+        <button class="rounded-lg bg-ownerMint px-4 py-2 text-sm font-semibold text-ownerInk">Add endpoint</button>
+      </form>
+      <div class="mt-6 space-y-3">
+      {% for endpoint in endpoints %}
+        <div class="rounded-xl border border-white/10 p-3 text-xs">
+          <div class="flex justify-between gap-3"><div class="min-w-0"><strong>{{ endpoint.name }}</strong><p class="mt-1 truncate text-white/45">{{ endpoint.url }}</p><p class="mt-1 text-white/35">{{ endpoint.event_types }}</p></div><span class="{{ 'text-ownerMint' if endpoint.is_active else 'text-white/35' }}">{{ 'Active' if endpoint.is_active else 'Disabled' }}</span></div>
+          {% if endpoint.is_active %}<div class="mt-3 flex gap-3"><form method="post" action="{{ url_for('test_webhook_endpoint', endpoint_id=endpoint.id) }}"><button class="text-ownerMint hover:text-white">Queue test</button></form><form method="post" action="{{ url_for('disable_webhook_endpoint', endpoint_id=endpoint.id) }}"><button class="text-ownerCoral hover:text-white">Disable</button></form></div>{% endif %}
+          {% if endpoint.deliveries %}<p class="mt-3 text-white/35">Latest: {{ endpoint.deliveries[-1].status }} · {{ endpoint.deliveries[-1].attempts }} attempt(s)</p>{% endif %}
+        </div>
+      {% else %}<p class="text-xs text-white/40">No webhook endpoints yet.</p>{% endfor %}
+      </div>
+    </section>
+  </div>
+
+  <section class="grid gap-6 rounded-2xl border border-white/10 bg-white/5 p-5 md:grid-cols-2">
+    <div><h2 class="text-lg font-semibold">CRM export</h2><p class="mt-2 text-sm leading-6 text-white/55">Download the opportunities and contacts your account is permitted to see. Confidential listing rules still apply.</p><a href="{{ url_for('crm_export') }}" class="mt-4 inline-block rounded-lg border border-ownerMint px-4 py-2 text-sm text-ownerMint hover:bg-ownerMint hover:text-ownerInk">Download CSV</a></div>
+    <div><h2 class="text-lg font-semibold">API quick start</h2><pre class="mt-3 overflow-x-auto rounded-lg bg-black/35 p-3 text-[11px] text-white/65">curl https://ownerlane.uk/api/v1/listings \
+  -H "Authorization: Bearer YOUR_TOKEN"</pre><p class="mt-3 text-xs leading-5 text-white/40">Webhook signatures are HMAC-SHA256 over <code>timestamp.raw_body</code>. Reject old timestamps and compare signatures in constant time.</p></div>
+  </section>
+</div>
+{% endblock %}

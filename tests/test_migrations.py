@@ -58,4 +58,8 @@ def test_initial_migration_builds_a_fresh_database(tmp_path):
         "team",
         "team_membership",
         "team_invitation",
+        "integration_api_token",
+        "webhook_endpoint",
+        "webhook_delivery",
     } <= tables
+    assert revision[0] == "e0b3c8f5a264"

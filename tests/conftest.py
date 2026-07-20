@@ -8,6 +8,7 @@ import pytest
 os.environ.setdefault("DATABASE_URL", "sqlite:///:memory:")
 os.environ.setdefault("SECRET_KEY", "test-secret-key")
 os.environ.setdefault("DIGEST_TASK_TOKEN", "test-digest-token")
+os.environ.setdefault("WEBHOOK_TASK_TOKEN", "test-webhook-token")
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import app as application

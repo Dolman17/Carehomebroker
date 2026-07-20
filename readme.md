@@ -101,6 +101,12 @@ Buyer, seller and Ownerlane teams with expiring email invitations and owner/mana
 
 Active team workspaces with shared buyer shortlists/searches and permissioned seller listing/data-room collaboration
 
+Scoped read-only API tokens with versioned profile, listing and introduction endpoints
+
+HTTPS webhooks with HMAC-SHA256 signatures, delivery history and bounded retries
+
+Role-scoped, spreadsheet-safe CRM CSV export
+
 Confidential listing handling
 
 Privacy-safe activity and audit log
@@ -265,6 +271,7 @@ PUBLIC_BASE_URL=https://ownerlane.uk
 DATABASE_URL=sqlite:///care_broker.db
 PRIVATE_UPLOAD_ROOT=/path/to/persistent/private-storage
 DIGEST_TASK_TOKEN=your-token
+WEBHOOK_TASK_TOKEN=a-different-strong-random-token
 
 SMTP_SERVER=smtp.gmail.com
 SMTP_PORT=587
@@ -280,6 +287,37 @@ Always use a strong SECRET_KEY
 If running multiple containers, use Postgres instead of SQLite
 
 Use a secrets manager (Railway/Render/Heroku env vars)
+
+## Integrations
+
+Signed-in users can manage API tokens, webhooks and exports at `/integrations`.
+API tokens are displayed only once, stored as keyed hashes and restricted to the
+scopes selected at creation. The initial API surface is read-only:
+
+```text
+GET /api/v1/me
+GET /api/v1/listings
+GET /api/v1/listings/<id>
+GET /api/v1/introductions
+```
+
+Send tokens as `Authorization: Bearer <token>`. Listing responses use the same
+confidentiality rules as the marketplace; API access does not bypass disclosure
+or subscription controls.
+
+Webhook deliveries include `X-Ownerlane-Event`, `X-Ownerlane-Delivery`,
+`X-Ownerlane-Timestamp` and `X-Ownerlane-Signature`. Verify the signature as
+HMAC-SHA256 of `<timestamp>.<raw request body>` using the one-time signing secret,
+reject stale timestamps and compare signatures in constant time. A protected
+worker should regularly call:
+
+```text
+POST /tasks/deliver-webhooks
+Authorization: Bearer <WEBHOOK_TASK_TOKEN>
+```
+
+The worker attempts up to 50 due deliveries per call, does not follow redirects
+and retries unsuccessful deliveries up to five total attempts.
 
 📸 File Uploads
 

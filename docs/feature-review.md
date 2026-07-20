@@ -1,6 +1,6 @@
 # Ownerlane feature review
 
-Reviewed: 19 July 2026
+Reviewed: 20 July 2026
 
 This is a product-readiness review of the current application, not a security certification. Scores reflect how complete each workflow feels for an early business marketplace.
 
@@ -21,6 +21,7 @@ This is a product-readiness review of the current application, not a security ce
 | Notifications | Persistent notification centre, unread state, immediate/weekly/off preferences, deduplicated saved-search alerts and transaction events | 8/10 | Delivery analytics, per-event controls and background workers |
 | Reporting | Seller listing engagement, conversion funnels, buyer quality, time-to-stage, listing comparisons and deal/commission records | 7/10 | Platform revenue analytics and scheduled reports |
 | Multi-sector data model | First-class sectors, configurable attributes and legacy compatibility | 7/10 | Admin-managed sector schemas and buyer criteria migration |
+| Integrations | Scoped read-only API tokens, versioned endpoints, signed retryable webhooks and CRM CSV export | 7/10 | Native CRM apps, accounting sync and e-signatures |
 
 ## Improvements delivered in this release
 
@@ -55,6 +56,10 @@ This is a product-readiness review of the current application, not a security ce
 - Added seller date/listing filters, engagement trends, conversion funnels, buyer-quality summaries, time-in-stage reporting and listing comparisons.
 - Generalised the valuer framework into a multi-discipline adviser marketplace while retaining legacy valuation requests.
 - Added independent administrator verification, availability and coverage filters, private scopes, versioned quotes, engagement status, expiry processing and completed-engagement reviews.
+- Added scoped API credentials stored only as keyed hashes and invalidated when team access is removed.
+- Added versioned read-only profile, listing and introduction endpoints that reuse marketplace confidentiality policies.
+- Added user- and team-scoped HTTPS webhooks with HMAC signatures, SSRF destination checks, delivery history and bounded retries.
+- Added role-scoped CRM CSV export with spreadsheet-formula injection protection.
 
 Saved-search matches are included in the protected weekly digest task. Immediate delivery is available for transaction and data-room events when selected in notification preferences.
 
@@ -82,9 +87,9 @@ Saved-search matches are included in the protected weekly digest task. Immediate
 1. **Market benchmarks and valuation reports — delivered.** Completed deals require current buyer and seller consent, administrator publication, anonymous aggregation and a minimum cohort of five; sellers can save reproducible indicative reports.
 2. **Explainable assisted matching — delivered.** Buyer, seller and administrator views now share deterministic weighted criteria, fit/gap/missing evidence and a separate coverage score; results never autonomously approve, reject or block a transaction.
 3. **Team accounts and permissions — delivered.** Buyer groups share shortlists and searches, seller teams share selected listings and data rooms with advisers, and Ownerlane operators can be organised without team membership granting platform-admin status. Invitations are expiring and email-bound; owner, manager, contributor and viewer permissions are enforced server-side and audited.
-4. **CRM, accounting and e-sign integrations** plus a versioned API and webhooks.
+4. **Integrations foundation — delivered.** Scoped read-only API access, signed retryable webhooks and a CRM-ready export are available. Native CRM apps, accounting sync and e-signatures remain future extensions.
 5. **Portfolio and multi-listing transactions** for groups sold together or in configurable lots.
 
 ## Suggested next build
 
-Build CRM, accounting and e-sign integrations next, starting with a versioned API, signed webhooks and one high-value CRM export.
+Build portfolio and multi-listing transactions next, supporting groups sold together or split into configurable lots while retaining listing-level confidentiality and permissions.
