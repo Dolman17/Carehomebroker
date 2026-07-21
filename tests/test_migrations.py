@@ -74,6 +74,7 @@ def test_initial_migration_builds_a_fresh_database(tmp_path):
         "esignature_envelope",
         "esignature_party",
         "esignature_event",
-        "subscription_entitlement_event",
-    } <= tables
-    assert revision[0] == "d5a8c3e7f241"
+            "subscription_entitlement_event",
+            "buyer_mandate_review",
+        } <= tables
+    assert revision[0] == "e7c2a9f4b615"

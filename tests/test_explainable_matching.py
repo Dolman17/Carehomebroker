@@ -8,6 +8,7 @@ def configure_profile(app):
         profile.beds_max = 60
         profile.quality_preference = "Good and above"
         profile.deal_structure = "Freehold"
+        profile.mandate_review.snapshot_hash = app.buyer_mandate_snapshot_hash(profile)
         app.db.session.commit()
 
 

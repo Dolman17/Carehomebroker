@@ -105,6 +105,10 @@ Buyer, seller and Ownerlane teams with expiring email invitations and owner/mana
 
 Active team workspaces with shared buyer shortlists/searches and permissioned seller listing/data-room collaboration
 
+Formal, versioned buyer mandate submission and administrator approval tied to verified buyer qualification
+
+Owner-controlled buyer and seller team subscriptions with explicit paid-seat allocation and workspace-scoped entitlements
+
 Scoped read-only API tokens with versioned profile, listing and introduction endpoints
 
 HTTPS webhooks with HMAC-SHA256 signatures, delivery history and bounded retries

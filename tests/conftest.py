@@ -102,6 +102,14 @@ def seeded_app(monkeypatch):
         application.db.session.add_all(
             [buyer_profile, seller_profile, valuer_profile]
         )
+        application.db.session.flush()
+        application.db.session.add(application.BuyerMandateReview(
+            buyer_profile_id=buyer_profile.id,
+            status="approved",
+            snapshot_hash=application.buyer_mandate_snapshot_hash(buyer_profile),
+            submitted_at=application.utcnow(),
+            reviewed_at=application.utcnow(),
+        ))
         application.db.session.add_all(
             [
                 application.Subscription(

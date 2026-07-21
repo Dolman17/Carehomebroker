@@ -10,9 +10,7 @@
   {% else %}
     <p class="mt-3 text-sm text-white/65">Premium features are paused, but your account and marketplace records remain available. Access is restored automatically after Stripe confirms payment.</p>
   {% endif %}
-  <form method="post" action="{{ url_for('billing_portal') }}" class="mt-6">
-    <button class="rounded bg-ownerMint px-4 py-3 text-sm font-semibold text-ownerInk">Open secure Stripe billing portal</button>
-  </form>
+  {% if can_manage_billing %}<form method="post" action="{{ url_for('billing_portal') }}" class="mt-6">{% if subscription.team_id %}<input type="hidden" name="team_id" value="{{ subscription.team_id }}">{% endif %}<button class="rounded bg-ownerMint px-4 py-3 text-sm font-semibold text-ownerInk">Open secure Stripe billing portal</button></form>{% else %}<p class="mt-6 rounded border border-white/10 p-3 text-xs text-white/60">This is a team subscription. Ask the team owner to update the payment method; only the owner can access its Stripe billing portal.</p>{% endif %}
   <p class="mt-4 text-[11px] leading-5 text-white/40">Stripe securely manages payment methods and invoices. Ownerlane does not receive or store your full card details.</p>
 </section>
 {% endblock %}

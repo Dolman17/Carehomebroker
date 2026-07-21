@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Buyer verifications – Ownerlane{% endblock %}
 {% block content %}
-<div class="mb-6 flex items-end justify-between gap-3"><div><p class="text-[11px] uppercase tracking-[0.2em] text-ownerMint">Administration</p><h1 class="mt-2 text-2xl font-semibold">Buyer verifications</h1><p class="mt-2 text-sm text-white/60">Review identity, business and funding evidence before sellers rely on trust badges.</p></div><a href="{{ url_for('admin_buyers') }}" class="text-xs text-white/60 hover:text-ownerMint">Buyer directory →</a></div>
+<div class="mb-6 flex items-end justify-between gap-3"><div><p class="text-[11px] uppercase tracking-[0.2em] text-ownerMint">Administration</p><h1 class="mt-2 text-2xl font-semibold">Buyer verifications</h1><p class="mt-2 text-sm text-white/60">Review identity, business and funding evidence before sellers rely on trust badges.</p></div><div class="flex gap-3"><a href="{{ url_for('admin_buyer_mandates') }}" class="text-xs text-ownerMint">Mandate queue →</a><a href="{{ url_for('admin_buyers') }}" class="text-xs text-white/60 hover:text-ownerMint">Buyer directory →</a></div></div>
 <div class="space-y-3">
   {% for item in qualifications %}
   <a href="{{ url_for('admin_buyer_qualification', buyer_id=item.user_id) }}" class="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-white/10 bg-black/25 p-4 hover:border-ownerMint/60">

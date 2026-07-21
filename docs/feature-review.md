@@ -9,14 +9,14 @@ This is a product-readiness review of the current application, not a security ce
 | Area | What works today | Readiness | Main gap |
 |---|---|---:|---|
 | Marketplace discovery | Public live listings, confidentiality gating, keyword/region/sector/price filters, price sorting, list and map views, pagination | 8/10 | More sector-specific filters and search analytics |
-| Buyer workflow | Detailed profile, qualification, matches, shared team shortlists and searches, alerts, enquiries and subscriptions | 9/10 | Formal mandate approval and team billing |
+| Buyer workflow | Detailed profile, qualification, formally approved mandates, matches, shared team shortlists and searches, alerts, enquiries and subscriptions | 9/10 | Mandate renewal and institutional reporting |
 | Authentication | Verified-email registration, expiring one-time password resets, persistent login throttling, stricter admin sessions and mandatory administrator passkeys | 9/10 | Security-event investigation views and recovery operations |
-| Seller workflow | Profile, team listing collaboration, configurable portfolios, advisers, enquiries, buyer matches, introductions, staged data rooms, offers, valuation requests and analytics | 9/10 | Team billing and bulk operations |
+| Seller workflow | Profile, team listing collaboration and billing, configurable portfolios, advisers, enquiries, buyer matches, introductions, staged data rooms, offers, valuation requests and analytics | 9/10 | Bulk operations |
 | Confidentiality | Blurred restricted data, premium access rules, NDAs, staged disclosure permissions and audited private downloads | 9/10 | Retention controls and external storage hardening |
 | Matching | Deterministic assisted ranking with visible weights, criterion evidence, gaps, missing-data coverage and buyer/seller/admin explanations | 9/10 | Feedback calibration and administrator weighting policy |
 | Introductions and deals | Request/approve/decline lifecycle, private workspaces, tasks, milestones, offers, completion conditions, Signable execution, two-party handover and deal synchronisation | 9/10 | Identity assurance and funds-flow integrations |
 | Adviser workflow | Multi-discipline directory, verification, coverage, availability, private requests, versioned quotes, engagement status and completed-work reviews | 8/10 | Evidence renewal, conflicts workflow and adviser billing |
-| Billing | Stripe checkout, idempotent lifecycle webhooks, failed-payment grace periods, automatic recovery, customer portal and entitlement audit views | 9/10 | Team billing and plan-change reconciliation |
+| Billing | Personal and seat-based team Stripe checkout, idempotent lifecycle webhooks, failed-payment grace periods, automatic recovery, customer portal and entitlement audit views | 9/10 | Scheduled reconciliation reports |
 | Admin | Role directories, listing approval, enquiries, matches, introductions, data-room access, audit log, deals, subscriptions, content and impersonation | 8/10 | Operational reporting and bulk actions |
 | Notifications | Persistent notification centre, unread state, immediate/weekly/off preferences, deduplicated saved-search alerts and transaction events | 8/10 | Delivery analytics, per-event controls and background workers |
 | Reporting | Seller listing engagement, conversion funnels, buyer quality, time-to-stage, listing comparisons and deal/commission records | 7/10 | Platform revenue analytics and scheduled reports |
@@ -73,6 +73,8 @@ This is a product-readiness review of the current application, not a security ce
 - Added native Signable envelope submission, authenticated and idempotent webhook handling, authoritative provider reconciliation, party status tracking and private checksummed signed-copy storage.
 - Added Stripe failed-payment recovery with a configurable grace period, persistent customer prompts, terminal-state restriction and verified automatic restoration after payment.
 - Added an append-only subscription entitlement history showing Stripe or administrator source, provider transition, access decision, timestamp and reason.
+- Added formally submitted, versioned buyer mandates that require verified qualification, administrator approval and an unchanged acquisition-criteria snapshot before detailed enquiries or seller matching.
+- Added seat-based buyer and seller team billing, owner-only checkout and billing management, explicit seat allocation, active-workspace scoping and provider-quantity reconciliation without merging personal and team entitlements.
 
 Saved-search matches are included in the protected weekly digest task. Immediate delivery is available for transaction and data-room events when selected in notification preferences.
 
@@ -108,6 +110,11 @@ Saved-search matches are included in the protected weekly digest task. Immediate
 1. **Transaction completion workflow — delivered.** Portfolio-aware introductions now support assigned completion checklists, conditions, checksummed execution-document tracking and buyer/seller handover confirmation. Administrator status changes cannot bypass the controlled completion gate.
 2. **Native electronic signatures — delivered.** Signable envelopes use private document upload, authenticated idempotent callbacks, provider-side status reconciliation and archived signed artifacts. Manual acknowledgements remain available only for documents not sent to Signable.
 
+### P4 — commercial operations
+
+1. **Failed-payment recovery and entitlement audit — delivered.** Stripe lifecycle events now drive grace, restriction and automatic recovery decisions with an append-only administrator history.
+2. **Formal buyer mandate approval and team billing — delivered.** Verified buyers submit versioned mandate snapshots for administrator approval, and buyer/seller team owners can purchase and explicitly allocate workspace-scoped paid seats.
+
 ## Suggested next build
 
-Add formal buyer mandate approval and team billing next. Identity assurance and regulated completion-payment integrations should follow only after their operational and compliance models are defined.
+Add security-event investigation and account-recovery operations next. Identity assurance and regulated completion-payment integrations should follow only after their operational and compliance models are defined.

@@ -13,10 +13,7 @@
       </p>
     </div>
 
-    <a href="{{ url_for('buyer_profile') }}"
-       class="inline-flex items-center justify-center text-xs px-3 py-2 rounded border border-white/20 text-white/90 hover:bg-white/10 hover:text-ownerMint transition">
-      ✏️ Update buyer profile
-    </a>
+    <div class="flex gap-2"><a href="{{ url_for('buyer_mandate') }}" class="inline-flex items-center justify-center rounded border border-ownerMint/40 px-3 py-2 text-xs text-ownerMint">Mandate status</a><a href="{{ url_for('buyer_profile') }}" class="inline-flex items-center justify-center text-xs px-3 py-2 rounded border border-white/20 text-white/90 hover:bg-white/10 hover:text-ownerMint transition">✏️ Update buyer profile</a></div>
   </div>
 
   {% if current_plan_label %}
@@ -99,6 +96,8 @@
     <div><h2 class="text-sm font-semibold">Buyer qualification</h2><p class="mt-1 text-white/60">Status: <span class="font-semibold {{ 'text-ownerMint' if qualification and qualification.overall_status == 'verified' else 'text-white/80' }}">{{ qualification.overall_status|replace('_', ' ')|title if qualification else 'Not submitted' }}</span>. Build seller confidence with reviewed identity, business and funding evidence.</p></div>
     <a href="{{ url_for('buyer_qualification') }}" class="mt-3 inline-flex whitespace-nowrap rounded bg-ownerMint px-3 py-2 font-semibold text-ownerInk hover:bg-white sm:mt-0">{{ 'View qualification' if qualification else 'Start qualification' }}</a>
   </section>
+
+  <section class="rounded-lg border border-white/10 bg-black/30 p-4 text-xs sm:flex sm:items-center sm:justify-between sm:gap-4"><div><h2 class="text-sm font-semibold">Formal buyer mandate</h2><p class="mt-1 text-white/60">Status: <span class="font-semibold {{ 'text-ownerMint' if mandate_review and mandate_review.status == 'approved' else 'text-amber-300' if mandate_review and mandate_review.status == 'pending' else 'text-ownerCoral' }}">{{ mandate_review.status|replace('_', ' ')|title if mandate_review else 'Not submitted' }}</span>. An approved current mandate is required before detailed enquiries are sent to sellers.</p></div><a href="{{ url_for('buyer_mandate') }}" class="mt-3 inline-flex whitespace-nowrap rounded border border-ownerMint/40 px-3 py-2 font-semibold text-ownerMint sm:mt-0">Review mandate</a></section>
 
   <!-- MATCHES -->
   <section class="rounded-lg border border-white/10 bg-black/30 p-4">

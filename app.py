@@ -31,6 +31,7 @@ from flask import (
     make_response,
     send_from_directory,
     jsonify,
+    has_request_context,
 )
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
@@ -563,10 +564,16 @@ class TeamMembership(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False, index=True)
     role = db.Column(db.String(20), nullable=False, default="viewer", index=True)
     status = db.Column(db.String(20), nullable=False, default="active", index=True)
+    uses_billing_seat = db.Column(db.Boolean, nullable=False, default=False, index=True)
+    billing_seat_assigned_at = db.Column(db.DateTime)
+    billing_seat_assigned_by_id = db.Column(db.Integer, db.ForeignKey("user.id"))
     joined_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
 
     team = db.relationship("Team", backref="memberships")
-    user = db.relationship("User", backref="team_memberships")
+    user = db.relationship("User", foreign_keys=[user_id], backref="team_memberships")
+    billing_seat_assigned_by = db.relationship(
+        "User", foreign_keys=[billing_seat_assigned_by_id]
+    )
 
 
 class TeamInvitation(db.Model):
@@ -1235,6 +1242,29 @@ class BuyerQualification(db.Model):
         return "not_submitted"
 
 
+class BuyerMandateReview(db.Model):
+    __tablename__ = "buyer_mandate_review"
+
+    id = db.Column(db.Integer, primary_key=True)
+    buyer_profile_id = db.Column(
+        db.Integer, db.ForeignKey("buyer_profile.id"), nullable=False, unique=True, index=True
+    )
+    status = db.Column(db.String(24), nullable=False, default="draft", index=True)
+    version = db.Column(db.Integer, nullable=False, default=1)
+    snapshot_hash = db.Column(db.String(64))
+    submitted_at = db.Column(db.DateTime)
+    reviewed_at = db.Column(db.DateTime)
+    reviewed_by_id = db.Column(db.Integer, db.ForeignKey("user.id"))
+    review_notes = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+    buyer_profile = db.relationship(
+        "BuyerProfile", backref=db.backref("mandate_review", uselist=False)
+    )
+    reviewed_by = db.relationship("User", foreign_keys=[reviewed_by_id])
+
+
 class Lead(db.Model):
     __tablename__ = "leads"
 
@@ -1397,6 +1427,8 @@ class Subscription(db.Model):
         nullable=False,
         index=True,
     )
+    team_id = db.Column(db.Integer, db.ForeignKey("team.id"), index=True)
+    seat_limit = db.Column(db.Integer, nullable=False, default=1)
 
     # "basic" or "premium"
     tier = db.Column(db.String(20), nullable=False)
@@ -1421,6 +1453,7 @@ class Subscription(db.Model):
     updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
 
     user = db.relationship("User", backref="subscriptions")
+    team = db.relationship("Team", backref="subscriptions")
 
 
 class SubscriptionEntitlementEvent(db.Model):
@@ -1431,6 +1464,7 @@ class SubscriptionEntitlementEvent(db.Model):
         db.Integer, db.ForeignKey("subscriptions.id"), index=True
     )
     user_id = db.Column(db.Integer, db.ForeignKey("user.id"), index=True)
+    team_id = db.Column(db.Integer, db.ForeignKey("team.id"), index=True)
     stripe_event_id = db.Column(db.String(255), unique=True, index=True)
     source = db.Column(db.String(30), nullable=False)
     event_type = db.Column(db.String(80), nullable=False, index=True)
@@ -1446,6 +1480,7 @@ class SubscriptionEntitlementEvent(db.Model):
         "Subscription", backref=db.backref("entitlement_events", lazy=True)
     )
     user = db.relationship("User")
+    team = db.relationship("Team")
 
 
 class Payment(db.Model):
@@ -2285,6 +2320,57 @@ def latest_subscription_for_user(user, role=None):
     return query.order_by(Subscription.started_at.desc(), Subscription.id.desc()).first()
 
 
+def team_billing_membership(user, role=None):
+    """Return the explicitly active, seated team membership for this billing context."""
+    membership = active_team_membership(user, role)
+    if not membership or not membership.uses_billing_seat:
+        return None
+    return membership
+
+
+def latest_team_subscription_for_user(user, role=None, tier=None):
+    membership = team_billing_membership(user, role)
+    if not membership:
+        return None
+    query = Subscription.query.filter_by(team_id=membership.team_id)
+    if role:
+        query = query.filter_by(role=role)
+    if tier:
+        query = query.filter_by(tier=tier)
+    return query.order_by(Subscription.started_at.desc(), Subscription.id.desc()).first()
+
+
+def latest_entitlement_for_admin(user):
+    personal = latest_subscription_for_user(user, user.role)
+    candidates = [personal] if personal else []
+    memberships = TeamMembership.query.join(Team).filter(
+        TeamMembership.user_id == user.id,
+        TeamMembership.status == "active",
+        TeamMembership.uses_billing_seat.is_(True),
+        Team.team_type == user.role,
+    ).all()
+    candidates.extend(
+        item for item in (latest_team_subscription(membership.team_id) for membership in memberships)
+        if item is not None
+    )
+    if not candidates:
+        return None
+    active = [item for item in candidates if subscription_access_state(item) in {"active", "grace"}]
+    return max(active or candidates, key=lambda item: (item.started_at or datetime.min, item.id or 0))
+
+
+def latest_effective_subscription(user, role=None):
+    """Prefer personal billing, then the explicitly selected team workspace."""
+    personal = latest_subscription_for_user(user, role)
+    team_subscription = latest_team_subscription_for_user(user, role)
+    candidates = [item for item in (personal, team_subscription) if item]
+    if not candidates:
+        return None
+    active = [item for item in candidates if subscription_access_state(item) in {"active", "grace"}]
+    pool = active or candidates
+    return max(pool, key=lambda item: (item.started_at or datetime.min, item.id or 0))
+
+
 def record_entitlement_event(
     subscription,
     *,
@@ -2299,6 +2385,7 @@ def record_entitlement_event(
     event = SubscriptionEntitlementEvent(
         subscription_id=subscription.id,
         user_id=subscription.user_id,
+        team_id=subscription.team_id,
         stripe_event_id=stripe_event_id,
         source=source,
         event_type=event_type[:80],
@@ -2396,9 +2483,16 @@ def has_active_subscription(user, role: str, tier: str = "premium") -> bool:
         return False
 
     subs = SubscriptionModel.query.filter_by(
-        user_id=user.id, role=role, tier=tier, is_active=True
+        user_id=user.id, team_id=None, role=role, tier=tier, is_active=True
     ).all()
-    return any(subscription_access_state(sub) in {"active", "grace"} for sub in subs)
+    if any(subscription_access_state(sub) in {"active", "grace"} for sub in subs):
+        return True
+    team_sub = latest_team_subscription_for_user(user, role, tier)
+    return bool(
+        team_sub
+        and team_sub.is_active
+        and subscription_access_state(team_sub) in {"active", "grace"}
+    )
 
 def get_active_subscription(user, role: str | None = None) -> Subscription | None:
     """
@@ -2412,12 +2506,12 @@ def get_active_subscription(user, role: str | None = None) -> Subscription | Non
     if not getattr(user, "is_authenticated", False):
         return None
 
-    query = SubscriptionModel.query.filter_by(user_id=user.id, is_active=True)
+    query = SubscriptionModel.query.filter_by(user_id=user.id, team_id=None, is_active=True)
 
     if role:
         query = query.filter_by(role=role)
 
-    return next(
+    personal = next(
         (
             sub for sub in query.order_by(
                 SubscriptionModel.started_at.desc(), SubscriptionModel.id.desc()
@@ -2426,6 +2520,12 @@ def get_active_subscription(user, role: str | None = None) -> Subscription | Non
         ),
         None,
     )
+    if personal:
+        return personal
+    team_sub = latest_team_subscription_for_user(user, role)
+    if team_sub and team_sub.is_active and subscription_access_state(team_sub) in {"active", "grace"}:
+        return team_sub
+    return None
 
 
 
@@ -2451,11 +2551,16 @@ def get_active_subscription_for_role(user, role: str):
     if SubscriptionModel is None or not getattr(user, "is_authenticated", False):
         return None
 
-    q = SubscriptionModel.query.filter_by(user_id=user.id, role=role, is_active=True)
+    q = SubscriptionModel.query.filter_by(
+        user_id=user.id, team_id=None, role=role, is_active=True
+    )
 
     # Prefer premium if both exist
     subs = [sub for sub in q.all() if subscription_access_state(sub) in {"active", "grace"}]
     if not subs:
+        team_sub = latest_team_subscription_for_user(user, role)
+        if team_sub and team_sub.is_active and subscription_access_state(team_sub) in {"active", "grace"}:
+            return team_sub
         return None
 
     # Tiny preference logic
@@ -2484,7 +2589,7 @@ def require_subscription(role: str, tier: str = "premium"):
                 return redirect(url_for("index"))
 
             if not has_active_subscription(current_user, role, tier):
-                latest = latest_subscription_for_user(current_user, role)
+                latest = latest_effective_subscription(current_user, role)
                 if latest and latest.stripe_subscription_id:
                     flash("Your subscription needs payment attention before premium access can continue.", "warning")
                     return redirect(url_for("billing_recovery"))
@@ -2557,6 +2662,96 @@ def is_premium_buyer(user) -> bool:
     return has_active_subscription(user, "buyer", "premium")
 
 
+BUYER_MANDATE_FIELDS = (
+    "business_name", "investment_type", "deal_structure", "min_budget", "max_budget",
+    "preferred_multiple", "funding_source", "preferred_regions", "care_types", "beds_min",
+    "beds_max", "quality_preference", "turnaround_interest", "transaction_timeline",
+    "expansion_strategy", "has_buy_side_advisor", "requirements_dd", "nda_signed",
+)
+
+
+def buyer_mandate_snapshot_hash(profile):
+    if not profile:
+        return None
+    payload = {
+        field: getattr(profile, field, None)
+        for field in BUYER_MANDATE_FIELDS
+    }
+    return hashlib.sha256(
+        json.dumps(payload, sort_keys=True, default=str, separators=(",", ":")).encode()
+    ).hexdigest()
+
+
+def buyer_mandate_review_for(user):
+    profile = BuyerProfile.query.filter_by(user_id=user.id).first()
+    return profile.mandate_review if profile else None
+
+
+def buyer_has_approved_mandate(user):
+    review = buyer_mandate_review_for(user)
+    profile = BuyerProfile.query.filter_by(user_id=user.id).first()
+    return bool(
+        review
+        and review.status == "approved"
+        and review.snapshot_hash == buyer_mandate_snapshot_hash(profile)
+    )
+
+
+def buyer_has_any_premium_entitlement(user):
+    personal = Subscription.query.filter_by(
+        user_id=user.id, team_id=None, role="buyer", tier="premium", is_active=True
+    ).all()
+    if any(subscription_access_state(item) in {"active", "grace"} for item in personal):
+        return True
+    memberships = TeamMembership.query.join(Team).filter(
+        TeamMembership.user_id == user.id,
+        TeamMembership.status == "active",
+        TeamMembership.uses_billing_seat.is_(True),
+        Team.team_type == "buyer",
+    ).all()
+    for membership in memberships:
+        subscription = latest_team_subscription(membership.team_id)
+        if (
+            subscription and subscription.role == "buyer" and subscription.tier == "premium"
+            and subscription_access_state(subscription) in {"active", "grace"}
+        ):
+            return True
+    return False
+
+
+def team_active_seat_count(team_id):
+    return TeamMembership.query.filter_by(
+        team_id=team_id, status="active", uses_billing_seat=True
+    ).count()
+
+
+def latest_team_subscription(team_id):
+    return Subscription.query.filter_by(team_id=team_id).order_by(
+        Subscription.started_at.desc(), Subscription.id.desc()
+    ).first()
+
+
+def reconcile_team_billing_seats(subscription):
+    """Keep seat assignments within the provider-confirmed quantity, owner first."""
+    if not subscription.team_id:
+        return []
+    memberships = TeamMembership.query.filter_by(
+        team_id=subscription.team_id, status="active", uses_billing_seat=True
+    ).all()
+    memberships.sort(key=lambda item: (
+        0 if item.role == "owner" else 1,
+        item.billing_seat_assigned_at or item.joined_at or datetime.min,
+        item.id,
+    ))
+    removed = []
+    for membership in memberships[max(1, subscription.seat_limit):]:
+        membership.uses_billing_seat = False
+        membership.billing_seat_assigned_at = None
+        membership.billing_seat_assigned_by_id = None
+        removed.append(membership.user_id)
+    return removed
+
+
 TEAM_ROLE_PERMISSIONS = {
     "owner": {"team.manage", "resource.view", "resource.edit", "resource.share"},
     "manager": {"team.manage", "resource.view", "resource.edit", "resource.share"},
@@ -2579,6 +2774,8 @@ def compatible_with_team(user, team):
 
 def active_team_membership(user, team_type=None):
     if not getattr(user, "is_authenticated", False):
+        return None
+    if not has_request_context():
         return None
     query = TeamMembership.query.join(Team).filter(
         TeamMembership.user_id == user.id, TeamMembership.status == "active"
@@ -4427,7 +4624,7 @@ def inject_subscription_helpers():
     recovery_subscription = None
     recovery_state = None
     if current_user.is_authenticated and current_user.role in {"buyer", "seller", "valuer"}:
-        candidate = latest_subscription_for_user(current_user, current_user.role)
+        candidate = latest_effective_subscription(current_user, current_user.role)
         if candidate and candidate.stripe_subscription_id:
             candidate_state = subscription_access_state(candidate)
             if candidate_state in {"grace", "restricted"}:
@@ -4649,7 +4846,9 @@ def teams_index():
         db.session.add(team)
         db.session.flush()
         db.session.add(TeamMembership(
-            team_id=team.id, user_id=current_user.id, role="owner", status="active"
+            team_id=team.id, user_id=current_user.id, role="owner", status="active",
+            uses_billing_seat=True, billing_seat_assigned_at=utcnow(),
+            billing_seat_assigned_by_id=current_user.id,
         ))
         db.session.commit()
         session["active_team_id"] = team.id
@@ -4686,6 +4885,9 @@ def team_detail(team_id):
         permissions=TEAM_ROLE_PERMISSIONS.get(membership.role, set()),
         listings=listings, searches=searches, shortlist=shortlist,
         owned_listings=owned_listings, now=utcnow(),
+        team_subscription=latest_team_subscription(team.id),
+        team_seat_count=team_active_seat_count(team.id),
+        subscription_access_state=subscription_access_state,
     )
 
 
@@ -4780,7 +4982,7 @@ def accept_team_invitation(token):
         else:
             db.session.add(TeamMembership(
                 team_id=invitation.team_id, user_id=current_user.id,
-                role=invitation.role, status="active",
+                role=invitation.role, status="active", uses_billing_seat=False,
             ))
         invitation.accepted_at = utcnow()
         db.session.commit()
@@ -4819,6 +5021,48 @@ def update_team_member(team_id, membership_id):
         "team.membership_updated", summary, subject_user_id=membership.user_id,
         resource_type="team", resource_id=team_id,
         details={"role": membership.role, "status": membership.status},
+    )
+    flash(summary + ".", "success")
+    return redirect(url_for("team_detail", team_id=team_id))
+
+
+@app.route("/teams/<int:team_id>/members/<int:membership_id>/billing-seat", methods=["POST"])
+@login_required
+def update_team_billing_seat(team_id, membership_id):
+    owner = team_membership(current_user, team_id)
+    if not owner or owner.role != "owner":
+        abort(404)
+    membership = TeamMembership.query.filter_by(
+        id=membership_id, team_id=team_id, status="active"
+    ).first_or_404()
+    subscription = latest_team_subscription(team_id)
+    if not subscription or subscription_access_state(subscription) not in {"active", "grace"}:
+        flash("Activate team billing before assigning seats.", "warning")
+        return redirect(url_for("team_detail", team_id=team_id))
+    action = (request.form.get("action") or "").strip()
+    if membership.role == "owner" and action == "remove":
+        flash("The team owner must retain a billing seat.", "error")
+        return redirect(url_for("team_detail", team_id=team_id))
+    if action == "assign":
+        if team_active_seat_count(team_id) >= subscription.seat_limit:
+            flash("All paid team seats are already assigned.", "error")
+            return redirect(url_for("team_detail", team_id=team_id))
+        membership.uses_billing_seat = True
+        membership.billing_seat_assigned_at = utcnow()
+        membership.billing_seat_assigned_by_id = current_user.id
+        event_type, summary = "team.billing_seat_assigned", "Team billing seat assigned"
+    elif action == "remove":
+        membership.uses_billing_seat = False
+        membership.billing_seat_assigned_at = None
+        membership.billing_seat_assigned_by_id = None
+        event_type, summary = "team.billing_seat_removed", "Team billing seat removed"
+    else:
+        abort(400)
+    db.session.commit()
+    record_audit_event(
+        event_type, summary, subject_user_id=membership.user_id,
+        resource_type="team", resource_id=team_id,
+        details={"subscription_id": subscription.id, "seat_limit": subscription.seat_limit},
     )
     flash(summary + ".", "success")
     return redirect(url_for("team_detail", team_id=team_id))
@@ -5189,7 +5433,8 @@ def portfolio_detail(portfolio_id):
     can_view_sensitive = can_view_portfolio_sensitive(current_user, portfolio)
     can_enquire = bool(
         current_user.is_authenticated and current_user.role == "buyer"
-        and is_premium_buyer(current_user) and portfolio.status == "live"
+        and is_premium_buyer(current_user) and buyer_has_approved_mandate(current_user)
+        and portfolio.status == "live"
     )
     if request.method == "POST":
         if not current_user.is_authenticated:
@@ -5197,6 +5442,9 @@ def portfolio_detail(portfolio_id):
         if current_user.role != "buyer" or not is_premium_buyer(current_user):
             flash("Buyer Premium is required to enquire about a portfolio.", "warning")
             return redirect(url_for("pricing", role="buyer"))
+        if not buyer_has_approved_mandate(current_user):
+            flash("An approved buyer mandate is required before sending enquiries.", "warning")
+            return redirect(url_for("buyer_mandate"))
         if portfolio.status != "live":
             abort(404)
         message = (request.form.get("message") or "").strip()
@@ -5249,6 +5497,14 @@ def portfolio_detail(portfolio_id):
     return render_template(
         "portfolios/detail.html", portfolio=portfolio,
         can_view_sensitive=can_view_sensitive, can_enquire=can_enquire,
+        mandate_approved=(
+            buyer_has_approved_mandate(current_user)
+            if current_user.is_authenticated and current_user.role == "buyer" else False
+        ),
+        is_premium_buyer_access=(
+            is_premium_buyer(current_user)
+            if current_user.is_authenticated and current_user.role == "buyer" else False
+        ),
         listing_visibility={
             listing.id: can_view_listing_sensitive(current_user, listing)
             for listing in portfolio.listings
@@ -5745,6 +6001,7 @@ def listing_detail(listing_id):
         current_user.is_authenticated
         and current_user.role == "buyer"
         and is_premium_buyer
+        and buyer_has_approved_mandate(current_user)
     )
     can_view_sensitive = can_view_listing_sensitive(current_user, listing)
 
@@ -5785,6 +6042,10 @@ def listing_detail(listing_id):
             except Exception:
                 return redirect(url_for("buyer_dashboard"))
 
+        if not buyer_has_approved_mandate(current_user):
+            flash("An approved buyer mandate is required before sending enquiries.", "warning")
+            return redirect(url_for("buyer_mandate"))
+
         # Basic validation
         message = (request.form.get("message") or "").strip()
         nda_accepted = bool(request.form.get("nda_accepted"))
@@ -5819,6 +6080,10 @@ def listing_detail(listing_id):
         is_shortlisted=is_shortlisted,
         can_enquire=can_enquire,
         can_view_sensitive=can_view_sensitive,
+        mandate_approved=(
+            buyer_has_approved_mandate(current_user)
+            if current_user.is_authenticated and current_user.role == "buyer" else False
+        ),
     )
 
 
@@ -5834,6 +6099,9 @@ def enquire(listing_id):
     if current_user.role != "buyer" or not is_premium_buyer(current_user):
         flash("Buyer Premium is required to send an enquiry.", "warning")
         return redirect(url_for("pricing", role="buyer"))
+    if not buyer_has_approved_mandate(current_user):
+        flash("An approved buyer mandate is required before sending enquiries.", "warning")
+        return redirect(url_for("buyer_mandate"))
 
     if request.method == "POST":
         buyer_name = request.form.get("buyer_name", "").strip()
@@ -5943,6 +6211,8 @@ def billing_checkout():
     # Role/tier the user is trying to buy
     role = (request.form.get("role") or "").strip().lower()
     tier = (request.form.get("tier") or "").strip().lower()
+    team_id = request.form.get("team_id", type=int)
+    seats = request.form.get("seats", type=int) or 1
 
     if role not in {"buyer", "seller", "valuer"}:
         flash("Invalid subscription role.", "error")
@@ -5951,6 +6221,19 @@ def billing_checkout():
     if tier not in {"basic", "premium"}:
         flash("Invalid subscription tier.", "error")
         return redirect(url_for("pricing"))
+
+    team = None
+    if team_id:
+        membership = team_membership(current_user, team_id)
+        team = db.session.get(Team, team_id)
+        if not team or not membership or membership.role != "owner":
+            abort(404)
+        if team.team_type != role or team.team_type == "ownerlane":
+            flash("This plan is not compatible with that team.", "error")
+            return redirect(url_for("team_detail", team_id=team_id))
+        if seats < 1 or seats > 100 or seats < team_active_seat_count(team_id):
+            flash("Choose between 1 and 100 seats, including every seat already assigned.", "error")
+            return redirect(url_for("team_detail", team_id=team_id))
 
     # Make sure user is buying for their own role (no cross-role chaos)
     if current_user.role != role and current_user.role != "admin":
@@ -5972,13 +6255,15 @@ def billing_checkout():
             success_url=success_url + "?session_id={CHECKOUT_SESSION_ID}",
             cancel_url=cancel_url,
             line_items=[
-                {"price": price_id, "quantity": 1},
+                {"price": price_id, "quantity": seats if team else 1},
             ],
             customer_email=current_user.email,
             metadata={
                 "user_id": str(current_user.id),
                 "role": role,
                 "tier": tier,
+                "team_id": str(team.id) if team else "",
+                "seat_limit": str(seats if team else 1),
             },
         )
     except Exception as e:
@@ -6019,7 +6304,14 @@ def billing_portal():
         return redirect(url_for("pricing"))
 
     # Restricted subscriptions still need portal access so payment can be repaired.
-    active_sub = latest_subscription_for_user(current_user, current_user.role)
+    requested_team_id = request.form.get("team_id", type=int)
+    if requested_team_id:
+        membership = team_membership(current_user, requested_team_id)
+        if not membership or membership.role != "owner":
+            abort(404)
+        active_sub = latest_team_subscription(requested_team_id)
+    else:
+        active_sub = latest_subscription_for_user(current_user, current_user.role)
     if not active_sub:
         active_sub = latest_subscription_for_user(current_user, None)
 
@@ -6053,15 +6345,20 @@ def billing_portal():
 @app.route("/billing/recovery")
 @login_required
 def billing_recovery():
-    subscription = latest_subscription_for_user(current_user, current_user.role)
+    subscription = latest_effective_subscription(current_user, current_user.role)
     if not subscription or not subscription.stripe_subscription_id:
         flash("There is no Stripe subscription to recover.", "info")
         return redirect(url_for("pricing", role=current_user.role))
+    can_manage_billing = True
+    if subscription.team_id:
+        membership = team_membership(current_user, subscription.team_id)
+        can_manage_billing = bool(membership and membership.role == "owner")
     return render_template(
         "billing/recovery.html",
         subscription=subscription,
         access_state=subscription_access_state(subscription),
         access_reason=subscription_access_reason(subscription),
+        can_manage_billing=can_manage_billing,
     )
 
 
@@ -7382,27 +7679,16 @@ def seller_buyers():
         .filter(User.role == "buyer")
     )
 
-    # Restrict to premium buyers (Tier 2)
-    SubscriptionModel = globals().get("Subscription")
-    premium_buyer_ids = set()
-
-    if SubscriptionModel is not None:
-        active_premium_buyers = (
-            SubscriptionModel.query
-            .filter_by(role="buyer", tier="premium", is_active=True)
-            .all()
-        )
-        premium_buyer_ids = {s.user_id for s in active_premium_buyers}
-
-        buyer_query = buyer_query.filter(
-            BuyerProfile.user_id.in_(premium_buyer_ids)
-        )
-
     buyer_profiles = (
         buyer_query
         .order_by(BuyerProfile.created_at.desc())
         .all()
     )
+    buyer_profiles = [
+        item for item in buyer_profiles
+        if buyer_has_any_premium_entitlement(item.user)
+        and buyer_has_approved_mandate(item.user)
+    ]
 
     # --- Compute match signal per buyer ---
     matches = []
@@ -9268,6 +9554,7 @@ def update_workspace_milestone(milestone_id):
 @role_required("buyer")
 def buyer_profile():
     profile = BuyerProfile.query.filter_by(user_id=current_user.id).first()
+    previous_mandate_hash = buyer_mandate_snapshot_hash(profile)
 
     # Choices for checkboxes / selects
     region_choices = sorted(REGION_COORDS.keys())
@@ -9397,7 +9684,25 @@ def buyer_profile():
             profile.requirements_dd = requirements_dd
             profile.nda_signed = nda_signed
 
+        mandate_invalidated = False
+        if profile.mandate_review and profile.mandate_review.status == "approved":
+            current_hash = buyer_mandate_snapshot_hash(profile)
+            if current_hash != previous_mandate_hash:
+                profile.mandate_review.status = "changes_required"
+                profile.mandate_review.version += 1
+                profile.mandate_review.snapshot_hash = current_hash
+                profile.mandate_review.reviewed_at = None
+                profile.mandate_review.reviewed_by_id = None
+                profile.mandate_review.updated_at = utcnow()
+                mandate_invalidated = True
         db.session.commit()
+        if mandate_invalidated:
+            record_audit_event(
+                "buyer.mandate_invalidated", "Approved buyer mandate changed",
+                subject_user_id=current_user.id, resource_type="buyer_mandate_review",
+                resource_id=profile.mandate_review.id,
+                details={"version": profile.mandate_review.version},
+            )
 
         # --- EMAIL NOTIFICATION TO BROKER ---
         try:
@@ -9468,6 +9773,54 @@ def buyer_profile():
         selected_regions=selected_regions,
         selected_care_types=selected_care_types,
         selected_dd=selected_dd,
+    )
+
+
+@app.route("/buyer/mandate", methods=["GET", "POST"])
+@login_required
+@role_required("buyer")
+def buyer_mandate():
+    profile = BuyerProfile.query.filter_by(user_id=current_user.id).first()
+    qualification = BuyerQualification.query.filter_by(user_id=current_user.id).first()
+    review = profile.mandate_review if profile else None
+    if request.method == "POST":
+        if not profile or not profile.is_complete():
+            flash("Complete your buyer profile before submitting a mandate.", "error")
+            return redirect(url_for("buyer_profile"))
+        if not qualification or qualification.overall_status != "verified":
+            flash("Buyer verification must be complete before mandate approval.", "error")
+            return redirect(url_for("buyer_qualification"))
+        if not review:
+            review = BuyerMandateReview(buyer_profile_id=profile.id)
+            db.session.add(review)
+        if review.status == "pending":
+            flash("Your mandate is already awaiting review.", "info")
+            return redirect(request.path)
+        review.status = "pending"
+        review.snapshot_hash = buyer_mandate_snapshot_hash(profile)
+        review.submitted_at = utcnow()
+        review.reviewed_at = None
+        review.reviewed_by_id = None
+        review.updated_at = utcnow()
+        db.session.commit()
+        record_audit_event(
+            "buyer.mandate_submitted", "Buyer mandate submitted for approval",
+            subject_user_id=current_user.id, resource_type="buyer_mandate_review",
+            resource_id=review.id, details={"version": review.version},
+        )
+        publish_role_notification(
+            "admin", event_type="buyer_mandate", title="Buyer mandate awaiting approval",
+            body=f"Buyer {current_user.id} submitted mandate version {review.version}.",
+            target_url=url_for("admin_buyer_mandate", review_id=review.id),
+            dedupe_key=f"buyer-mandate:{review.id}:{review.version}",
+        )
+        flash("Your buyer mandate has been submitted for approval.", "success")
+        return redirect(request.path)
+    return render_template(
+        "buyer/mandate.html", profile=profile, qualification=qualification, review=review,
+        snapshot_current=bool(
+            review and review.snapshot_hash == buyer_mandate_snapshot_hash(profile)
+        ),
     )
 
 
@@ -9611,6 +9964,7 @@ def buyer_dashboard():
     # Apply buyer profile filters if present
     profile = BuyerProfile.query.filter_by(user_id=current_user.id).first()
     qualification = BuyerQualification.query.filter_by(user_id=current_user.id).first()
+    mandate_review = profile.mandate_review if profile else None
     is_premium = is_premium_buyer(current_user)
     active_sub = get_active_subscription_for_role(current_user, "buyer")
     current_plan_label = None
@@ -9694,6 +10048,7 @@ def buyer_dashboard():
         current_plan_label=current_plan_label,
         profile_complete=profile_complete,
         qualification=qualification,
+        mandate_review=mandate_review,
         saved_searches=saved_searches,
         data_room_introductions=data_room_introductions,
         match_explanations=match_explanations,
@@ -10998,6 +11353,64 @@ def admin_buyer_verifications():
     )
 
 
+@app.route("/admin/buyer-mandates")
+@login_required
+@role_required("admin")
+def admin_buyer_mandates():
+    reviews = BuyerMandateReview.query.order_by(
+        BuyerMandateReview.submitted_at.desc(), BuyerMandateReview.id.desc()
+    ).all()
+    return render_template("admin/buyer_mandates.html", reviews=reviews)
+
+
+@app.route("/admin/buyer-mandates/<int:review_id>", methods=["GET", "POST"])
+@login_required
+@role_required("admin")
+def admin_buyer_mandate(review_id):
+    review = BuyerMandateReview.query.get_or_404(review_id)
+    profile = review.buyer_profile
+    qualification = BuyerQualification.query.filter_by(user_id=profile.user_id).first()
+    if request.method == "POST":
+        decision = (request.form.get("decision") or "").strip()
+        if decision not in {"approved", "changes_required", "rejected"}:
+            abort(400)
+        if decision == "approved":
+            if not qualification or qualification.overall_status != "verified":
+                flash("The buyer must remain fully verified before mandate approval.", "error")
+                return redirect(request.url)
+            if review.snapshot_hash != buyer_mandate_snapshot_hash(profile):
+                flash("The buyer profile changed after submission. Ask the buyer to resubmit.", "error")
+                return redirect(request.url)
+        previous = review.status
+        review.status = decision
+        review.review_notes = (
+            (request.form.get("review_notes") or "").strip()[:3000] or None
+        )
+        review.reviewed_at = utcnow()
+        review.reviewed_by_id = current_user.id
+        review.updated_at = utcnow()
+        db.session.commit()
+        record_audit_event(
+            "admin.buyer_mandate_reviewed", "Buyer mandate reviewed",
+            subject_user_id=profile.user_id, resource_type="buyer_mandate_review",
+            resource_id=review.id,
+            details={"previous_status": previous, "status": decision, "version": review.version},
+        )
+        publish_notification(
+            profile.user, event_type="buyer_mandate", title="Buyer mandate review updated",
+            body=f"Your buyer mandate is now {decision.replace('_', ' ')}.",
+            target_url=url_for("buyer_mandate"),
+            dedupe_key=f"buyer-mandate-review:{review.id}:{review.version}:{decision}",
+        )
+        flash("Buyer mandate review saved.", "success")
+        return redirect(request.url)
+    return render_template(
+        "admin/buyer_mandate.html", review=review, profile=profile,
+        buyer=profile.user, qualification=qualification,
+        snapshot_current=review.snapshot_hash == buyer_mandate_snapshot_hash(profile),
+    )
+
+
 @app.route("/admin/buyer-verifications/<int:buyer_id>", methods=["GET", "POST"])
 @login_required
 @role_required("admin")
@@ -11629,9 +12042,7 @@ def admin_subscriptions():
 
     # Map each user to their latest subscription, including restricted records.
     sub_map = {}
-    for s in subs:
-        if s.user_id not in sub_map:
-            sub_map[s.user_id] = s
+    team_subscriptions = [item for item in subs if item.team_id is not None]
 
     events_query = SubscriptionEntitlementEvent.query.order_by(
         SubscriptionEntitlementEvent.created_at.desc(),
@@ -11642,9 +12053,12 @@ def admin_subscriptions():
         events_query = events_query.filter_by(access_state=access_filter)
     events = events_query.limit(100).all()
     billing_users = [user for user in users if user.role in {"buyer", "seller", "valuer"}]
+    sub_map = {user.id: latest_entitlement_for_admin(user) for user in billing_users}
     access_counts = {"active": 0, "grace": 0, "restricted": 0}
     for user in billing_users:
         access_counts[subscription_access_state(sub_map.get(user.id))] += 1
+    for subscription in team_subscriptions:
+        access_counts[subscription_access_state(subscription)] += 1
 
     return render_template(
         "admin/subscriptions.html",
@@ -11656,6 +12070,8 @@ def admin_subscriptions():
         access_filter=access_filter,
         subscription_access_state=subscription_access_state,
         subscription_access_reason=subscription_access_reason,
+        team_subscriptions=team_subscriptions,
+        team_active_seat_count=team_active_seat_count,
     )
 
 @app.route("/admin/enquiries")
@@ -12235,6 +12651,8 @@ def stripe_webhook():
         user_id = meta.get("user_id")
         role = meta.get("role")
         tier = meta.get("tier")
+        team_id = int(meta["team_id"]) if str(meta.get("team_id") or "").isdigit() else None
+        seat_limit = int(meta.get("seat_limit") or 1)
 
         if not user_id or not role or not tier or not subscription_id:
             app.logger.warning("Stripe webhook missing metadata for checkout.session.completed")
@@ -12248,6 +12666,15 @@ def stripe_webhook():
         if not user:
             app.logger.warning(f"Stripe webhook: user {user_id} not found")
             return "User not found", 200
+        if team_id:
+            team = db.session.get(Team, team_id)
+            owner_membership = TeamMembership.query.filter_by(
+                team_id=team_id, user_id=user.id, role="owner", status="active"
+            ).first()
+            if not team or not owner_membership or team.team_type != role:
+                app.logger.warning("Stripe webhook rejected invalid team billing metadata")
+                return "Invalid team metadata", 200
+            seat_limit = max(1, min(100, seat_limit))
 
         new_sub = Subscription.query.filter_by(
             stripe_subscription_id=subscription_id
@@ -12259,15 +12686,18 @@ def stripe_webhook():
 
         # Deactivate existing active subs for this user/role only after the
         # checkout event has passed ordering checks.
-        Subscription.query.filter_by(
-            user_id=user.id,
-            role=role,
-            is_active=True,
-        ).update({"is_active": False})
+        existing_scope = Subscription.query.filter_by(role=role, is_active=True)
+        if team_id:
+            existing_scope = existing_scope.filter_by(team_id=team_id)
+        else:
+            existing_scope = existing_scope.filter_by(user_id=user.id, team_id=None)
+        existing_scope.update({"is_active": False})
 
         if new_sub is None:
             new_sub = Subscription(
                 user_id=user.id,
+                team_id=team_id,
+                seat_limit=seat_limit,
                 role=role,
                 tier=tier,
                 stripe_subscription_id=subscription_id,
@@ -12279,6 +12709,8 @@ def stripe_webhook():
             db.session.flush()
         else:
             new_sub.stripe_customer_id = customer_id or new_sub.stripe_customer_id
+            new_sub.team_id = team_id
+            new_sub.seat_limit = seat_limit
         apply_stripe_subscription_state(
             new_sub,
             "active",
@@ -12286,13 +12718,13 @@ def stripe_webhook():
             reason="Stripe checkout completed and subscription activation was confirmed.",
             stripe_event_id=event_id,
             stripe_event_created=event_created,
-            details={"checkout_session_id": session_obj.get("id")},
+            details={"checkout_session_id": session_obj.get("id"), "team_id": team_id, "seat_limit": seat_limit},
         )
         db.session.commit()
         record_audit_event(
             "billing.subscription_activated", "Stripe subscription activated",
             subject_user_id=user.id, resource_type="subscription", resource_id=new_sub.id,
-            actor_id=None, details={"role": role, "tier": tier},
+            actor_id=None, details={"role": role, "tier": tier, "team_id": team_id, "seat_limit": seat_limit},
         )
         return "ok", 200
 
@@ -12365,6 +12797,13 @@ def stripe_webhook():
             period_end = sub.get("current_period_end")
             if period_end:
                 db_sub.renews_at = datetime.fromtimestamp(period_end, UTC).replace(tzinfo=None)
+            removed_seat_user_ids = []
+            if db_sub.team_id:
+                items = ((sub.get("items") or {}).get("data") or [])
+                quantities = [int(item.get("quantity") or 0) for item in items]
+                if quantities and max(quantities) > 0:
+                    db_sub.seat_limit = max(1, min(100, max(quantities)))
+                    removed_seat_user_ids = reconcile_team_billing_seats(db_sub)
             reason_map = {
                 "active": "Stripe reports that the subscription is active.",
                 "trialing": "Stripe reports that the subscription trial is active.",
@@ -12379,7 +12818,12 @@ def stripe_webhook():
             apply_stripe_subscription_state(
                 db_sub, status, event_type=event_type, reason=reason,
                 stripe_event_id=event_id, stripe_event_created=event_created,
-                details={"cancel_at_period_end": bool(sub.get("cancel_at_period_end"))},
+                details={
+                    "cancel_at_period_end": bool(sub.get("cancel_at_period_end")),
+                    "team_id": db_sub.team_id,
+                    "seat_limit": db_sub.seat_limit,
+                    "removed_seat_user_ids": removed_seat_user_ids,
+                },
             )
             db.session.commit()
             notify_billing_transition(db_sub, event_type, event_id)

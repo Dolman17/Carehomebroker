@@ -179,12 +179,10 @@
           </form>
 
         {% elif current_user.is_authenticated and current_user.role == "buyer" %}
-          <p class="text-xs text-white/70">
-            Upgrade to Buyer Premium to contact sellers directly.
-          </p>
-          <a href="{{ url_for('pricing', role='buyer') }}"
+          <p class="text-xs text-white/70">{{ 'Submit and obtain approval for your current buyer mandate before contacting sellers.' if is_premium_buyer and not mandate_approved else 'Upgrade to Buyer Premium to contact sellers directly.' }}</p>
+          <a href="{{ url_for('buyer_mandate') if is_premium_buyer and not mandate_approved else url_for('pricing', role='buyer') }}"
              class="mt-3 inline-flex items-center px-3 py-1.5 rounded bg-ownerCoral text-white text-[11px] font-semibold hover:bg-ownerMint hover:text-black transition">
-            Upgrade to Buyer Premium
+            {{ 'Review buyer mandate' if is_premium_buyer and not mandate_approved else 'Upgrade to Buyer Premium' }}
           </a>
 
         {% else %}
